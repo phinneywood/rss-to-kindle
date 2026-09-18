@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 
 const MCP_URL = process.env.MORNING_READER_MCP_URL || "https://reader.antonioskilton.com/api/mcp";
+const APP_API_URL = process.env.MORNING_READER_APP_API_URL || "https://wuikfmmwvrzpaoevtskn.supabase.co/functions/v1/app-api";
 const TOKEN_A = process.env.MORNING_READER_TOKEN_A;
 const TOKEN_B = process.env.MORNING_READER_TOKEN_B;
 const FOREIGN_EDITION_ID = process.env.MORNING_READER_FOREIGN_EDITION_ID;
@@ -28,6 +29,11 @@ async function rpc(token, method, params = {}) {
 async function tool(token, name, args = {}) {
   const r = await rpc(token, "tools/call", { name, arguments: args });
   return r;
+}
+async function getDashboard(token) {
+  const r = await fetch(APP_API_URL + "/me", { headers: { Authorization: `Bearer ${token}` } });
+  assert.equal(r.status, 200);
+  return await r.json();
 }
 async function smoke(name, fn) {
   try { await fn(); results.push({ name, ok: true }); console.log("PASS", name); }
@@ -105,12 +111,31 @@ await smoke("rejects preview of another tenant's edition", async () => {
   const r = await tool(TOKEN_A, "preview_edition", { edition_id: FOREIGN_EDITION_ID });
   assert.equal(r.body.result.isError, true);
 });
+let sendJobId = "";
 await smoke("queues send_now", async () => {
   const r = await tool(TOKEN_A, "send_now");
   assert.equal(r.body.result.isError, undefined);
   const data = JSON.parse(r.body.result.content[0].text);
   assert.equal(data.ok, true);
+  assert.equal(data.worker_triggered, true);
   assert.ok(data.job?.id);
+  sendJobId = data.job.id;
+});
+await smoke("completes the real delivery pipeline", async () => {
+  assert.ok(sendJobId);
+  const deadline = Date.now() + 60000;
+  while (Date.now() < deadline) {
+    const dashboard = await getDashboard(TOKEN_A);
+    const job = (dashboard.jobs || []).find(j => j.id === sendJobId);
+    if (job?.status === "sent") {
+      assert.ok((job.result?.articles || 0) > 0);
+      assert.ok((job.result?.sections || 0) > 0);
+      return;
+    }
+    if (job?.status === "failed") throw new Error(job.error || "Delivery job failed");
+    await new Promise(r => setTimeout(r, 2500));
+  }
+  throw new Error("Delivery did not reach sent within 60 seconds");
 });
 
 const failed = results.filter(x => !x.ok);
