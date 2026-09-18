@@ -194,17 +194,19 @@ async function issueTokens(userId: string, clientId: string, scopes: string[], r
   const refresh = token("mr_rt_", 40);
   const accessExpires = new Date(Date.now() + 3600_000).toISOString();
   const refreshExpires = new Date(Date.now() + 30 * 86400_000).toISOString();
-  const { error: ae } = await admin.schema("private").from("oauth_access_tokens").insert({
-    token_hash: await sha256(access), user_id: userId, client_id: clientId, scopes, resource, expires_at: accessExpires
+  const { error } = await admin.rpc("oauth_issue_tokens", {
+    p_access_hash: await sha256(access),
+    p_refresh_hash: await sha256(refresh),
+    p_user_id: userId,
+    p_client_id: clientId,
+    p_scopes: scopes,
+    p_resource: resource,
+    p_access_expires_at: accessExpires,
+    p_refresh_expires_at: refreshExpires
   });
-  if (ae) throw ae;
-  const { error: re } = await admin.schema("private").from("oauth_refresh_tokens").insert({
-    token_hash: await sha256(refresh), user_id: userId, client_id: clientId, scopes, resource, expires_at: refreshExpires
-  });
-  if (re) throw re;
+  if (error) throw error;
   return { access, refresh, accessExpires };
 }
-
 Deno.serve(async (req: Request) => {
   const route = routePath(req);
   try {
@@ -267,7 +269,7 @@ Deno.serve(async (req: Request) => {
       const f = authFieldsFromForm(form);
       const { scopes, meta } = await validateAuthFields(f);
       const email = normalizeEmail(form.get("email"));
-      const code = get("code").replace(/\D/g, "");
+      const code = String(form.get("code") || "").replace(/\D/g, "");
       if (!validEmail(email) || !/^\d{6}$/.test(code)) return html(verifyHtml(f, email, String(meta.client_name || "ChatGPT"), "Enter the 6-digit code."), 400);
       let verified: any;
       try {
@@ -277,16 +279,15 @@ Deno.serve(async (req: Request) => {
       }
       if (verified?.token) await appApi("/auth/logout", "POST", {}, verified.token).catch(() => {});
       const rawCode = token("mr_code_", 32);
-      const { error } = await admin.schema("private").from("oauth_authorization_codes").insert({
-        code_hash: await sha256(rawCode),
-        user_id: verified.user.id,
-        client_id: f.client_id,
-        redirect_uri: f.redirect_uri,
-        code_challenge: f.code_challenge,
-        code_challenge_method: "S256",
-        scopes,
-        resource: f.resource,
-        expires_at: new Date(Date.now() + 5 * 60_000).toISOString()
+      const { error } = await admin.rpc("oauth_store_authorization_code", {
+        p_code_hash: await sha256(rawCode),
+        p_user_id: verified.user.id,
+        p_client_id: f.client_id,
+        p_redirect_uri: f.redirect_uri,
+        p_code_challenge: f.code_challenge,
+        p_scopes: scopes,
+        p_resource: f.resource,
+        p_expires_at: new Date(Date.now() + 5 * 60_000).toISOString()
       });
       if (error) throw error;
       const redirect = new URL(f.redirect_uri);
@@ -315,48 +316,66 @@ Deno.serve(async (req: Request) => {
         const code = get("code");
         const redirectUri = get("redirect_uri");
         const verifier = get("code_verifier");
-        const resource = String(form.get("resource") || RESOURCE);
+        const resource = get("resource") || RESOURCE;
         if (!code || !redirectUri || !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier)) return json({ error: "invalid_request" }, 400);
-        const { data: row } = await admin.schema("private").from("oauth_authorization_codes").select("*")
-          .eq("code_hash", await sha256(code)).is("consumed_at", null).gt("expires_at", new Date().toISOString()).maybeSingle();
-        if (!row || row.client_id !== clientId || row.redirect_uri !== redirectUri || row.resource !== resource) return json({ error: "invalid_grant" }, 400);
+        const { data, error } = await admin.rpc("oauth_get_authorization_code", {
+          p_code_hash: await sha256(code),
+          p_client_id: clientId,
+          p_redirect_uri: redirectUri,
+          p_resource: resource
+        });
+        if (error || !Array.isArray(data) || !data.length) return json({ error: "invalid_grant" }, 400);
+        const row:any=data[0];
         if (await pkceS256(verifier) !== row.code_challenge) return json({ error: "invalid_grant" }, 400);
-        const { data: consumed } = await admin.schema("private").from("oauth_authorization_codes")
-          .update({ consumed_at: new Date().toISOString() }).eq("id", row.id).is("consumed_at", null).select("id").maybeSingle();
-        if (!consumed) return json({ error: "invalid_grant" }, 400);
-        const t = await issueTokens(row.user_id, row.client_id, row.scopes || [], row.resource);
+        const { data: consumed, error: consumeError } = await admin.rpc("oauth_consume_authorization_code", { p_id: row.id });
+        if (consumeError || !consumed) return json({ error: "invalid_grant" }, 400);
+        const t = await issueTokens(row.user_id, clientId, row.scopes || [], resource);
         return json({
           access_token: t.access,
           token_type: "Bearer",
           expires_in: 3600,
           refresh_token: t.refresh,
           scope: (row.scopes || []).join(" "),
-          resource: row.resource
+          resource
         });
       }
 
       if (grant === "refresh_token") {
         const raw = get("refresh_token");
-        const resource = String(form.get("resource") || RESOURCE);
+        const resource = get("resource") || RESOURCE;
         if (!raw) return json({ error: "invalid_request" }, 400);
-        const { data: row } = await admin.schema("private").from("oauth_refresh_tokens").select("*")
-          .eq("token_hash", await sha256(raw)).is("revoked_at", null).gt("expires_at", new Date().toISOString()).maybeSingle();
-        if (!row || row.client_id !== clientId || row.resource !== resource) return json({ error: "invalid_grant" }, 400);
+        const { data, error } = await admin.rpc("oauth_get_refresh_token", {
+          p_token_hash: await sha256(raw),
+          p_client_id: clientId,
+          p_resource: resource
+        });
+        if (error || !Array.isArray(data) || !data.length) return json({ error: "invalid_grant" }, 400);
+        const row:any=data[0];
         const requested = get("scope").trim();
         const scopes = requested ? parseScopes(requested) : (row.scopes || []);
         if (scopes.some((s: string) => !(row.scopes || []).includes(s))) return json({ error: "invalid_scope" }, 400);
-        const { data: revoked } = await admin.schema("private").from("oauth_refresh_tokens")
-          .update({ revoked_at: new Date().toISOString() }).eq("id", row.id).is("revoked_at", null).select("id").maybeSingle();
-        if (!revoked) return json({ error: "invalid_grant" }, 400);
-        const t = await issueTokens(row.user_id, row.client_id, scopes, row.resource);
-        const { data: replacement } = await admin.schema("private").from("oauth_refresh_tokens").select("id")
-          .eq("token_hash", await sha256(t.refresh)).maybeSingle();
-        if (replacement) await admin.schema("private").from("oauth_refresh_tokens").update({ replaced_by: replacement.id }).eq("id", row.id);
+
+        const access = token("mr_at_");
+        const refresh = token("mr_rt_", 40);
+        const accessExpires = new Date(Date.now() + 3600_000).toISOString();
+        const refreshExpires = new Date(Date.now() + 30 * 86400_000).toISOString();
+        const { data: rotated, error: rotateError } = await admin.rpc("oauth_rotate_refresh_token", {
+          p_old_id: row.id,
+          p_access_hash: await sha256(access),
+          p_refresh_hash: await sha256(refresh),
+          p_user_id: row.user_id,
+          p_client_id: row.client_id,
+          p_scopes: scopes,
+          p_resource: row.resource,
+          p_access_expires_at: accessExpires,
+          p_refresh_expires_at: refreshExpires
+        });
+        if (rotateError || !rotated) return json({ error: "invalid_grant" }, 400);
         return json({
-          access_token: t.access,
+          access_token: access,
           token_type: "Bearer",
           expires_in: 3600,
-          refresh_token: t.refresh,
+          refresh_token: refresh,
           scope: scopes.join(" "),
           resource: row.resource
         });
