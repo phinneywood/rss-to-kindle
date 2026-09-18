@@ -7,7 +7,7 @@ const STARTER_EDITIONS = [
       {name:"Simon Willison", url:"https://simonwillison.net/tags/ai.atom"},
       {name:"Addy Osmani", url:"https://addyosmani.com/notes/feed.xml"},
       {name:"Daring Fireball", url:"https://daringfireball.net/feeds/main"},
-      {name:"Martin Fowler", url:"https://martinfowler.com/bliki/bliki.atom"}
+      {name:"Latent Space", url:"https://www.latent.space/feed"}
     ]
   },
   {
