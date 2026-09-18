@@ -1,11 +1,514 @@
-<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Morning Reader</title><style>body{margin:0;background:#f5f1e8;color:#1f1c17;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif}main{max-width:900px;margin:auto;padding:24px 16px 64px}header,.row{display:flex;gap:10px;align-items:center;justify-content:space-between}.brand,h1,h2{font-family:Georgia,serif}.brand{font-size:24px;font-weight:700}h1{font-size:clamp(46px,9vw,76px);line-height:.95;letter-spacing:-.05em;margin:45px 0 16px}h2{font-size:28px;margin:4px 0 12px}.muted{color:#6d665b}.card{background:#fffdf8;border:1px solid #d8cfbe;border-radius:18px;padding:20px;margin:14px 0;box-shadow:0 15px 40px #332a1f10}.input{width:100%;padding:12px;border:1px solid #d8cfbe;border-radius:10px;margin:6px 0}.btn{border:1px solid #d8cfbe;border-radius:999px;background:#fff;padding:9px 13px;font-weight:700}.primary{background:#174f3c;color:#fff;border-color:#174f3c}.danger{color:#9b2c2c}.feed{padding:10px 0;border-top:1px solid #ece4d6}.small{font-size:12px}.grid{display:grid;grid-template-columns:2fr 1fr;gap:16px}.status{font-size:11px;padding:4px 8px;border-radius:999px;background:#e4ece5;color:#174f3c;font-weight:800}@media(max-width:700px){.grid{grid-template-columns:1fr}.row{align-items:flex-start;flex-wrap:wrap}}</style><div id="a"></div><script>
-const A='https://wuikfmmwvrzpaoevtskn.supabase.co/functions/v1/app-api',S='reader@antonioskilton.com',a=document.querySelector('#a');let t=localStorage.mr||'',D;const E=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-const sh=(b,x='')=>`<main><header><div class="brand">☼ Morning Reader</div>${x}</header>${b}<p class="small muted">Free beta · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="https://github.com/phinneywood/rss-to-kindle">Source</a></p></main>`;async function q(p,o={}){let h={'Content-Type':'application/json'};if(o.auth!==false&&t)h.Authorization='Bearer '+t;let r=await fetch(A+p,{method:o.method||'GET',headers:h,body:o.body?JSON.stringify(o.body):null}),d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'Request failed');return d}
-function land(e=''){a.innerHTML=sh(`<h1>Your feeds.<br>Your Kindle.<br>Every morning.</h1><p class="muted">RSS and Atom posts, turned into clean EPUBs on your schedule. No ranking or summaries.</p><form id="f" class="card" style="max-width:460px"><h2>Sign in</h2><input class="input" name="email" type="email" required placeholder="you@example.com">${e?`<p class="danger">${E(e)}</p>`:''}<button class="btn primary">Email me a code</button></form>`);f.onsubmit=async e=>{e.preventDefault();let m=new FormData(f).get('email');try{await q('/auth/request-code',{method:'POST',body:{email:m},auth:false});verify(m)}catch(x){land(x.message)}}}
-function verify(m,e=''){a.innerHTML=sh(`<h1>Check your inbox.</h1><form id="f" class="card" style="max-width:460px"><p>Code sent to <b>${E(m)}</b></p><input class="input" name="code" inputmode="numeric" maxlength="6" required placeholder="123456">${e?`<p class="danger">${E(e)}</p>`:''}<button class="btn primary">Continue</button></form>`);f.onsubmit=async x=>{x.preventDefault();try{let d=await q('/auth/verify-code',{method:'POST',body:{email:m,code:new FormData(f).get('code')},auth:false});t=d.token;localStorage.mr=t;D=d;render()}catch(z){verify(m,z.message)}}}
-function out(){q('/auth/logout',{method:'POST'}).catch(()=>{});t='';delete localStorage.mr;land()}function setup(){let s=D.settings,z=Intl.DateTimeFormat().resolvedOptions().timeZone||s.timezone||'UTC';a.innerHTML=sh(`<form id="f" class="card" style="max-width:650px;margin:45px auto"><h2>Connect your Kindle</h2><p class="muted">Add ${S} to Amazon’s Approved Personal Document E-mail List.</p><input class="input" name="k" type="email" placeholder="you@kindle.com" required><div class="row"><input class="input" name="tm" type="time" value="06:00"><input class="input" name="tz" value="${E(z)}"></div><button class="btn primary">Finish setup</button></form>`,`<button class="btn" onclick="out()">Sign out</button>`);f.onsubmit=async e=>{e.preventDefault();let x=new FormData(f);try{D=await q('/settings',{method:'PATCH',body:{kindle_email:x.get('k'),delivery_time:x.get('tm'),timezone:x.get('tz'),onboarding_complete:true}});dash()}catch(z){alert(z.message)}}}
-function feed(f){return `<div class="feed"><b>${E(f.name)}</b><div class="small muted">${E(f.url)}</div><div class="row"><span class="status">${f.enabled?'Active':'Off'}</span><button class="btn tg" data-i="${f.id}" data-o="${f.enabled}">${f.enabled?'Pause':'Enable'}</button><button class="btn danger df" data-i="${f.id}">Delete</button></div></div>`}function section(s){return `<div class="card"><div class="row"><h2>${E(s.name)}</h2><button class="btn af" data-i="${s.id}">+ Feed</button></div>${s.feeds.length?s.feeds.map(feed).join(''):'<p class="muted">No feeds yet.</p>'}</div>`}
-function dash(){let s=D.settings,n=D.sections.flatMap(x=>x.feeds).length;a.innerHTML=sh(`<div class="row" style="margin-top:35px"><div><h2>Good morning.</h2><div class="small muted">${E(D.user.email)}</div></div><div class="row"><button class="btn" id="test">Send test</button><button class="btn primary" id="now">Send now</button></div></div><div class="grid"><div><div class="row"><h2>Sections & feeds</h2><button class="btn" id="as">+ Section</button></div>${D.sections.map(section).join('')}</div><aside><div class="card"><div class="small muted">Next delivery</div><h2>${E((s.delivery_time||'06:00').slice(0,5))}</h2><div class="small muted">${E(s.timezone)}</div><p><span class="status">${s.paused?'Paused':'Scheduled'}</span></p><button class="btn" id="pause">${s.paused?'Resume':'Pause'}</button></div><div class="card"><div class="small muted">Kindle</div><b>${E(s.kindle_email)}</b><p class="small muted">${n} feeds · sender ${S}</p></div><div class="card"><h2>Recent runs</h2>${(D.jobs||[]).slice(0,6).map(j=>`<p><b>${E(j.reason)} · ${E(j.status)}</b><br><span class="small muted">${new Date(j.created_at).toLocaleString()}${j.result?.articles!=null?' · '+j.result.articles+' articles':''}</span></p>`).join('')||'<p class="muted">None yet.</p>'}</div></aside></div>`,`<button class="btn" onclick="out()">Sign out</button>`);wire()}
-function wire(){as.onclick=async()=>{let n=prompt('Section name');if(!n)return;try{D=await q('/sections',{method:'POST',body:{name:n}});dash()}catch(e){alert(e.message)}};pause.onclick=async()=>{D=await q('/settings',{method:'PATCH',body:{paused:!D.settings.paused}});dash()};test.onclick=()=>send('/send-test');now.onclick=()=>send('/send-now');document.querySelectorAll('.af').forEach(b=>b.onclick=()=>add(b.dataset.i));document.querySelectorAll('.df').forEach(b=>b.onclick=()=>del(b.dataset.i));document.querySelectorAll('.tg').forEach(b=>b.onclick=()=>tog(b.dataset.i,b.dataset.o==='true'))}
-async function add(id){let u=prompt('RSS or Atom URL');if(!u)return;try{D=await q('/feeds',{method:'POST',body:{section_id:id,url:u}});dash()}catch(e){alert(e.message)}}async function del(id){if(!confirm('Delete feed?'))return;D=await q('/feeds/'+id,{method:'DELETE'});dash()}async function tog(id,on){D=await q('/feeds/'+id,{method:'PATCH',body:{enabled:!on}});dash()}async function send(p){try{await q(p,{method:'POST'});alert('Queued. Refreshing shortly.');setTimeout(async()=>{D=await q('/me');dash()},3000)}catch(e){alert(e.message)}}function render(){D.settings?.onboarding_complete?dash():setup()}(async()=>{if(!t)return land();try{D=await q('/me');render()}catch{land()}})();
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f4efe5">
+  <meta name="description" content="Turn RSS and Atom feeds into calm, sectioned Kindle editions on your schedule.">
+  <title>Morning Reader</title>
+  <style>
+    :root{
+      --bg:#f4efe5;
+      --paper:#fffdf8;
+      --ink:#1e1b17;
+      --muted:#71695e;
+      --line:#d8cfbf;
+      --line-soft:#ebe4d8;
+      --green:#174f3c;
+      --green-2:#0e3b2c;
+      --green-soft:#e6efe9;
+      --amber:#8a5b12;
+      --amber-soft:#f8edd7;
+      --red:#9b2f2f;
+      --red-soft:#f7e6e4;
+      --shadow:0 18px 50px rgba(62,47,27,.08);
+      --radius:20px;
+    }
+    *{box-sizing:border-box}
+    html{background:var(--bg)}
+    body{margin:0;color:var(--ink);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:
+      radial-gradient(circle at 15% 0%,rgba(255,255,255,.8),transparent 30rem),var(--bg)}
+    button,input,select{font:inherit}
+    button{cursor:pointer}
+    a{color:inherit}
+    .shell{max-width:1080px;margin:0 auto;padding:24px 18px 70px}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:16px}
+    .brand{display:flex;align-items:center;gap:10px;font-family:Georgia,serif;font-size:24px;font-weight:700;letter-spacing:-.02em}
+    .sun{width:28px;height:28px;border:1.5px solid currentColor;border-radius:50%;display:inline-grid;place-items:center;font-family:system-ui;font-size:14px}
+    .top-actions{display:flex;gap:8px;align-items:center}
+    .hero{padding:74px 0 36px;max-width:760px}
+    .eyebrow{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;color:var(--green)}
+    h1,h2,h3{font-family:Georgia,serif;letter-spacing:-.025em}
+    h1{font-size:clamp(48px,8vw,82px);line-height:.95;margin:13px 0 20px;font-weight:600}
+    h2{font-size:30px;line-height:1.05;margin:0 0 12px}
+    h3{font-size:20px;margin:0}
+    p{line-height:1.55}
+    .lede{font-size:19px;max-width:650px;color:var(--muted);margin:0}
+    .muted{color:var(--muted)}
+    .tiny{font-size:12px}
+    .small{font-size:14px}
+    .card{background:rgba(255,253,248,.92);border:1px solid var(--line);border-radius:var(--radius);padding:22px;box-shadow:var(--shadow)}
+    .auth-card{max-width:480px;margin-top:26px}
+    .field{display:flex;flex-direction:column;gap:7px;margin:14px 0}
+    .field label{font-size:13px;font-weight:750}
+    .input,.select{width:100%;background:white;border:1px solid #cfc4b2;border-radius:12px;padding:12px 13px;color:var(--ink);outline:none;transition:.15s border-color,.15s box-shadow}
+    .input:focus,.select:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(23,79,60,.1)}
+    .btn{appearance:none;border:1px solid var(--line);background:rgba(255,255,255,.88);color:var(--ink);border-radius:999px;padding:10px 15px;font-weight:760;transition:.15s transform,.15s background,.15s border-color}
+    .btn:hover{transform:translateY(-1px);border-color:#bdb09c}
+    .btn:active{transform:translateY(0)}
+    .btn.primary{background:var(--green);border-color:var(--green);color:white}
+    .btn.primary:hover{background:var(--green-2)}
+    .btn.danger{color:var(--red)}
+    .btn.ghost{background:transparent}
+    .btn.small-btn{padding:7px 11px;font-size:13px}
+    .btn:disabled{opacity:.55;cursor:default;transform:none}
+    .row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .wrap{flex-wrap:wrap}
+    .stack{display:flex;flex-direction:column;gap:12px}
+    .grid{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(270px,.8fr);gap:20px;margin-top:24px}
+    .stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:24px 0}
+    .stat{background:rgba(255,253,248,.7);border:1px solid var(--line);border-radius:16px;padding:16px}
+    .stat .value{font-family:Georgia,serif;font-size:26px}
+    .section-card{padding:0;overflow:hidden}
+    .section-head{padding:20px 20px 16px}
+    .section-name{display:flex;align-items:center;gap:10px}
+    .feed-list{border-top:1px solid var(--line-soft)}
+    .feed{padding:15px 20px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;border-top:1px solid var(--line-soft)}
+    .feed:first-child{border-top:none}
+    .feed-title{font-weight:760;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .feed-url{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted);font-size:12px;margin-top:4px}
+    .feed-actions{display:flex;align-items:center;gap:7px}
+    .status{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;border-radius:999px;padding:5px 9px;background:var(--green-soft);color:var(--green)}
+    .status.off{background:#eeeae2;color:#6f685d}
+    .status.warn{background:var(--amber-soft);color:var(--amber)}
+    .status.fail{background:var(--red-soft);color:var(--red)}
+    .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+    .empty{padding:24px 20px;color:var(--muted)}
+    .side-card{margin-bottom:14px}
+    .side-title{font-size:12px;text-transform:uppercase;letter-spacing:.12em;font-weight:800;color:var(--muted);margin-bottom:10px}
+    .delivery-time{font-family:Georgia,serif;font-size:38px;margin:0}
+    .timeline{display:flex;flex-direction:column}
+    .run{padding:12px 0;border-top:1px solid var(--line-soft)}
+    .run:first-child{border-top:none;padding-top:0}
+    .run-title{font-weight:750}
+    .run-meta{font-size:12px;color:var(--muted);margin-top:3px}
+    .onboarding{max-width:760px;margin:52px auto 0}
+    .step{display:grid;grid-template-columns:36px 1fr;gap:15px;padding:18px 0;border-top:1px solid var(--line-soft)}
+    .step:first-of-type{border-top:none}
+    .step-num{width:32px;height:32px;border-radius:50%;background:var(--green);color:white;display:grid;place-items:center;font-weight:850}
+    .step h3{margin:1px 0 6px}
+    .codebox{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#f3eee4;border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .codebox code{overflow:hidden;text-overflow:ellipsis}
+    .inline-form{display:grid;grid-template-columns:1fr auto;gap:8px;padding:14px 20px;background:#fbf7ef;border-top:1px solid var(--line-soft)}
+    .notice{border-radius:13px;padding:12px 14px;font-size:13px;line-height:1.45}
+    .notice.info{background:var(--green-soft);color:#153e30}
+    .notice.error{background:var(--red-soft);color:var(--red)}
+    .toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:44px}
+    .toolbar h2{margin:0}
+    .toolbar-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .modal{position:fixed;inset:0;display:none;place-items:center;padding:18px;background:rgba(35,28,20,.38);backdrop-filter:blur(4px);z-index:30}
+    .modal.open{display:grid}
+    .modal-card{width:min(660px,100%);max-height:88vh;overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:22px;box-shadow:0 30px 100px rgba(36,27,15,.24);padding:22px}
+    .preview-list{display:flex;flex-direction:column;gap:0}
+    .preview-item{padding:14px 0;border-top:1px solid var(--line-soft)}
+    .preview-item:first-child{border-top:none}
+    .preview-item a{text-decoration:none;font-weight:760}
+    .preview-source{font-size:12px;color:var(--muted);margin-top:4px}
+    .toast{position:fixed;right:18px;bottom:18px;max-width:360px;background:#1f1b17;color:white;border-radius:14px;padding:13px 15px;box-shadow:0 15px 60px rgba(0,0,0,.25);z-index:50;display:none}
+    .toast.show{display:block}
+    footer{margin-top:38px;padding-top:18px;border-top:1px solid rgba(126,111,92,.25);color:var(--muted);font-size:12px}
+    footer a{margin-right:15px}
+    @media(max-width:760px){
+      .shell{padding:18px 14px 58px}
+      .hero{padding-top:50px}
+      .grid{grid-template-columns:1fr}
+      .stat-grid{grid-template-columns:1fr 1fr}
+      .stat-grid .stat:last-child{grid-column:1/-1}
+      .feed{grid-template-columns:1fr}
+      .feed-actions{justify-content:flex-start;flex-wrap:wrap}
+      .toolbar{align-items:flex-start;flex-direction:column}
+      .inline-form{grid-template-columns:1fr}
+      .topbar{align-items:flex-start}
+    }
+  </style>
+</head>
+<body>
+<div id="app"></div>
+<div id="modal" class="modal" aria-hidden="true"></div>
+<div id="toast" class="toast" role="status"></div>
+<script>
+const API='https://wuikfmmwvrzpaoevtskn.supabase.co/functions/v1/app-api';
+const SENDER='reader@antonioskilton.com';
+const AMAZON_SETTINGS='https://www.amazon.com/mycd';
+const AMAZON_HELP='https://digprjsurvey.amazon.com/csad/help/node/GK4QXXXR76TPPVPM?searchNodes=GDRLC59WEFZTBPU7';
+const app=document.querySelector('#app');
+const modal=document.querySelector('#modal');
+const toastEl=document.querySelector('#toast');
+let token=localStorage.morningReaderToken||'';
+let state=null;
+let toastTimer=null;
+
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const fmtDate=value=>{try{return new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(value))}catch{return ''}};
+const shell=(body,actions='')=>`<div class="shell">
+  <div class="topbar">
+    <div class="brand"><span class="sun">☼</span> Morning Reader</div>
+    <div class="top-actions">${actions}</div>
+  </div>
+  ${body}
+  <footer>
+    <a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="https://github.com/phinneywood/rss-to-kindle">Source</a>
+    <span>Free beta</span>
+  </footer>
+</div>`;
+
+function toast(message){
+  clearTimeout(toastTimer);
+  toastEl.textContent=message;
+  toastEl.classList.add('show');
+  toastTimer=setTimeout(()=>toastEl.classList.remove('show'),3200);
+}
+function openModal(content){
+  modal.innerHTML=`<div class="modal-card">${content}</div>`;
+  modal.classList.add('open'); modal.setAttribute('aria-hidden','false');
+  modal.onclick=e=>{if(e.target===modal)closeModal()};
+}
+function closeModal(){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');modal.innerHTML=''}
+async function api(path,options={}){
+  const headers={'Content-Type':'application/json'};
+  if(options.auth!==false&&token)headers.Authorization='Bearer '+token;
+  const response=await fetch(API+path,{method:options.method||'GET',headers,body:options.body?JSON.stringify(options.body):null});
+  const body=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(body.error||'Request failed');
+  return body;
+}
+async function refresh(){state=await api('/me');render()}
+
+function landing(error=''){
+  app.innerHTML=shell(`
+    <section class="hero">
+      <div class="eyebrow">A quiet RSS-to-Kindle service</div>
+      <h1>Your feeds.<br>Your Kindle.<br>Every morning.</h1>
+      <p class="lede">Turn the sources you already follow into clean, sectioned EPUB editions. No ranking, summaries, or recommendation algorithm.</p>
+    </section>
+    <section class="card auth-card">
+      <h2>Sign in</h2>
+      <p class="muted small">No password. We'll email you a six-digit code.</p>
+      <form id="login-form">
+        <div class="field"><label for="email">Email</label><input id="email" class="input" name="email" type="email" autocomplete="email" required placeholder="you@example.com"></div>
+        ${error?`<div class="notice error">${esc(error)}</div>`:''}
+        <div style="margin-top:16px"><button class="btn primary" id="login-submit">Email me a code</button></div>
+      </form>
+    </section>`);
+  document.querySelector('#login-form').onsubmit=async e=>{
+    e.preventDefault();
+    const button=document.querySelector('#login-submit'); button.disabled=true; button.textContent='Sending…';
+    const email=new FormData(e.currentTarget).get('email');
+    try{await api('/auth/request-code',{method:'POST',body:{email},auth:false});verify(email)}
+    catch(err){landing(err.message)}
+  };
+}
+function verify(email,error=''){
+  app.innerHTML=shell(`
+    <section class="hero" style="padding-bottom:18px">
+      <div class="eyebrow">Check your inbox</div>
+      <h1 style="font-size:clamp(44px,7vw,68px)">Enter your code.</h1>
+      <p class="lede">We sent a six-digit code to <strong>${esc(email)}</strong>. It expires in 10 minutes.</p>
+    </section>
+    <section class="card auth-card">
+      <form id="verify-form">
+        <div class="field"><label for="code">Verification code</label><input id="code" class="input" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required placeholder="123456"></div>
+        ${error?`<div class="notice error">${esc(error)}</div>`:''}
+        <div class="row wrap" style="margin-top:16px"><button class="btn primary">Continue</button><button type="button" class="btn ghost" id="back-login">Use another email</button></div>
+      </form>
+    </section>`);
+  document.querySelector('#back-login').onclick=()=>landing();
+  document.querySelector('#verify-form').onsubmit=async e=>{
+    e.preventDefault();
+    try{
+      const result=await api('/auth/verify-code',{method:'POST',body:{email,code:new FormData(e.currentTarget).get('code')},auth:false});
+      token=result.token; localStorage.morningReaderToken=token; state=result; render();
+    }catch(err){verify(email,err.message)}
+  };
+}
+async function signOut(){
+  try{await api('/auth/logout',{method:'POST'})}catch{}
+  token=''; localStorage.removeItem('morningReaderToken'); state=null; landing();
+}
+
+function onboarding(){
+  const settings=state.settings||{};
+  const timezone=Intl.DateTimeFormat().resolvedOptions().timeZone||settings.timezone||'UTC';
+  app.innerHTML=shell(`
+    <section class="onboarding">
+      <div class="eyebrow">Three quick steps</div>
+      <h1 style="font-size:clamp(44px,7vw,64px);margin-top:12px">Connect your Kindle.</h1>
+      <p class="lede">Amazon only accepts personal documents from approved senders, so Morning Reader needs one small setup step in your Amazon account.</p>
+
+      <div class="card" style="margin-top:28px">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div>
+            <h3>Approve Morning Reader</h3>
+            <p class="muted small">In Amazon's Personal Document Settings, add this address to your <strong>Approved Personal Document E-mail List</strong>.</p>
+            <div class="codebox"><code>${SENDER}</code><button class="btn small-btn" type="button" id="copy-sender">Copy</button></div>
+            <div class="row wrap" style="justify-content:flex-start;margin-top:10px">
+              <a class="btn small-btn" href="${AMAZON_SETTINGS}" target="_blank" rel="noopener">Open Amazon settings ↗</a>
+              <a class="btn ghost small-btn" href="${AMAZON_HELP}" target="_blank" rel="noopener">Amazon help ↗</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div>
+            <h3>Find your Kindle email</h3>
+            <p class="muted small">On the same Amazon settings page, look under <strong>Send-to-Kindle E-Mail Settings</strong>, then paste that address below.</p>
+            <div class="field" style="margin-bottom:0"><label for="kindle-email">Send-to-Kindle address</label><input id="kindle-email" class="input" type="email" placeholder="yourname_123@kindle.com" value="${esc(settings.kindle_email||'')}"></div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div>
+            <h3>Choose your delivery time</h3>
+            <p class="muted small">Morning Reader schedules against your local timezone and handles daylight-saving changes.</p>
+            <div class="row wrap">
+              <div class="field" style="flex:1;min-width:160px"><label for="delivery-time">Time</label><input id="delivery-time" class="input" type="time" value="${esc((settings.delivery_time||'06:00').slice(0,5))}"></div>
+              <div class="field" style="flex:2;min-width:220px"><label for="timezone">Timezone</label><input id="timezone" class="input" value="${esc(timezone)}"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row wrap" style="padding-top:8px">
+          <button class="btn primary" id="finish-setup">Finish setup</button>
+          <span class="tiny muted">You can change these later.</span>
+        </div>
+      </div>
+    </section>`,
+    '<button class="btn" id="sign-out">Sign out</button>');
+
+  document.querySelector('#sign-out').onclick=signOut;
+  document.querySelector('#copy-sender').onclick=async()=>{await navigator.clipboard.writeText(SENDER);toast('Sender address copied')};
+  document.querySelector('#finish-setup').onclick=async()=>{
+    const kindle=document.querySelector('#kindle-email').value.trim();
+    const delivery=document.querySelector('#delivery-time').value;
+    const tz=document.querySelector('#timezone').value.trim();
+    const button=document.querySelector('#finish-setup'); button.disabled=true; button.textContent='Saving…';
+    try{
+      state=await api('/settings',{method:'PATCH',body:{kindle_email:kindle,delivery_time:delivery,timezone:tz,onboarding_complete:true}});
+      dashboard(); toast('Kindle connected');
+    }catch(err){button.disabled=false;button.textContent='Finish setup';toast(err.message)}
+  };
+}
+
+function feedStatus(feed){
+  if(feed.last_error)return '<span class="status fail"><span class="dot"></span>Needs attention</span>';
+  if(!feed.enabled)return '<span class="status off"><span class="dot"></span>Paused</span>';
+  return '<span class="status"><span class="dot"></span>Active</span>';
+}
+function feedRow(feed){
+  return `<div class="feed">
+    <div>
+      <div class="feed-title">${esc(feed.name)}</div>
+      <div class="feed-url">${esc(feed.url)}</div>
+      ${feed.last_error?`<div class="tiny" style="color:var(--red);margin-top:6px">${esc(feed.last_error)}</div>`:''}
+    </div>
+    <div class="feed-actions">
+      ${feedStatus(feed)}
+      <button class="btn small-btn toggle-feed" data-id="${feed.id}" data-enabled="${feed.enabled}">${feed.enabled?'Pause':'Resume'}</button>
+      <button class="btn small-btn danger delete-feed" data-id="${feed.id}">Delete</button>
+    </div>
+  </div>`;
+}
+function sectionCard(section){
+  return `<section class="card section-card">
+    <div class="section-head row wrap">
+      <div class="section-name"><h3>${esc(section.name)}</h3><span class="tiny muted">${section.feeds.length} feed${section.feeds.length===1?'':'s'}</span></div>
+      <button class="btn small-btn show-add-feed" data-id="${section.id}">+ Add feed</button>
+    </div>
+    <form class="inline-form add-feed-form" data-id="${section.id}" hidden>
+      <input class="input" name="url" type="url" required placeholder="https://example.com/feed.xml" style="margin:0">
+      <button class="btn primary small-btn">Add RSS / Atom</button>
+    </form>
+    <div class="feed-list">${section.feeds.length?section.feeds.map(feedRow).join(''):'<div class="empty">No feeds yet. Add an RSS or Atom URL to start this section.</div>'}</div>
+  </section>`;
+}
+function runBadge(status){
+  const cls=status==='failed'?'fail':status==='queued'||status==='running'?'warn':'';
+  return `<span class="status ${cls}"><span class="dot"></span>${esc(status)}</span>`;
+}
+
+function dashboard(){
+  const settings=state.settings;
+  const allFeeds=state.sections.flatMap(s=>s.feeds);
+  const activeFeeds=allFeeds.filter(f=>f.enabled).length;
+  const problemFeeds=allFeeds.filter(f=>f.last_error).length;
+  const latestJob=(state.jobs||[])[0];
+
+  app.innerHTML=shell(`
+    <div class="toolbar">
+      <div>
+        <div class="eyebrow">Morning Reader</div>
+        <h2>Good morning.</h2>
+        <div class="small muted">${esc(state.user.email)}</div>
+      </div>
+      <div class="toolbar-actions">
+        <button class="btn" id="preview">Preview</button>
+        <button class="btn" id="send-test">Send test</button>
+        <button class="btn primary" id="send-now">Send now</button>
+      </div>
+    </div>
+
+    <div class="stat-grid">
+      <div class="stat"><div class="tiny muted">Active feeds</div><div class="value">${activeFeeds}</div></div>
+      <div class="stat"><div class="tiny muted">Sections</div><div class="value">${state.sections.length}</div></div>
+      <div class="stat"><div class="tiny muted">Latest run</div><div style="margin-top:6px">${latestJob?runBadge(latestJob.status):'<span class="muted small">None yet</span>'}</div></div>
+    </div>
+
+    ${problemFeeds?`<div class="notice error" style="margin-bottom:16px">${problemFeeds} feed${problemFeeds===1?' has':'s have'} a fetch error. Open the affected feed below for details.</div>`:''}
+
+    <div class="grid">
+      <div class="stack">
+        <div class="row wrap">
+          <div><h2 style="margin:0">Sections & feeds</h2><div class="small muted">Each section becomes its own EPUB.</div></div>
+          <button class="btn" id="add-section">+ New section</button>
+        </div>
+        ${state.sections.map(sectionCard).join('')}
+      </div>
+
+      <aside>
+        <section class="card side-card">
+          <div class="side-title">Delivery</div>
+          <div class="row">
+            <div>
+              <div class="delivery-time">${esc((settings.delivery_time||'06:00').slice(0,5))}</div>
+              <div class="tiny muted">${esc(settings.timezone)}</div>
+            </div>
+            <span class="status ${settings.paused?'off':''}"><span class="dot"></span>${settings.paused?'Paused':'Scheduled'}</span>
+          </div>
+          <div class="row wrap" style="margin-top:16px;justify-content:flex-start">
+            <button class="btn small-btn" id="toggle-schedule">${settings.paused?'Resume':'Pause'}</button>
+            <button class="btn small-btn" id="edit-settings">Edit</button>
+          </div>
+        </section>
+
+        <section class="card side-card">
+          <div class="side-title">Kindle</div>
+          <div style="font-weight:760;word-break:break-word">${esc(settings.kindle_email||'Not configured')}</div>
+          <div class="tiny muted" style="margin-top:6px">Approved sender: ${SENDER}</div>
+          <div style="margin-top:14px"><a class="btn small-btn" href="${AMAZON_SETTINGS}" target="_blank" rel="noopener">Amazon settings ↗</a></div>
+        </section>
+
+        <section class="card side-card">
+          <div class="side-title">Recent runs</div>
+          <div class="timeline">
+            ${(state.jobs||[]).slice(0,7).map(job=>`<div class="run"><div class="row"><div class="run-title">${esc(job.reason)}</div>${runBadge(job.status)}</div><div class="run-meta">${fmtDate(job.created_at)}${job.result?.articles!=null?' · '+job.result.articles+' articles':''}</div>${job.error?`<div class="tiny" style="color:var(--red);margin-top:5px">${esc(job.error)}</div>`:''}</div>`).join('')||'<div class="small muted">No deliveries yet.</div>'}
+          </div>
+        </section>
+      </aside>
+    </div>`,
+    '<button class="btn" id="sign-out">Sign out</button>');
+  wireDashboard();
+}
+
+function wireDashboard(){
+  document.querySelector('#sign-out').onclick=signOut;
+  document.querySelector('#add-section').onclick=()=>sectionModal();
+  document.querySelector('#toggle-schedule').onclick=async()=>{
+    try{state=await api('/settings',{method:'PATCH',body:{paused:!state.settings.paused}});dashboard();toast(state.settings.paused?'Delivery paused':'Delivery resumed')}
+    catch(err){toast(err.message)}
+  };
+  document.querySelector('#edit-settings').onclick=settingsModal;
+  document.querySelector('#send-test').onclick=()=>queueSend('/send-test','Test edition queued');
+  document.querySelector('#send-now').onclick=()=>queueSend('/send-now','Edition queued');
+  document.querySelector('#preview').onclick=previewModal;
+
+  document.querySelectorAll('.show-add-feed').forEach(button=>button.onclick=()=>{
+    const form=document.querySelector(`.add-feed-form[data-id="${button.dataset.id}"]`);
+    form.hidden=!form.hidden;
+    if(!form.hidden)form.querySelector('input').focus();
+  });
+  document.querySelectorAll('.add-feed-form').forEach(form=>form.onsubmit=async e=>{
+    e.preventDefault();
+    const button=form.querySelector('button'); button.disabled=true; button.textContent='Checking…';
+    try{
+      state=await api('/feeds',{method:'POST',body:{section_id:form.dataset.id,url:new FormData(form).get('url')}});
+      dashboard(); toast('Feed added');
+    }catch(err){button.disabled=false;button.textContent='Add RSS / Atom';toast(err.message)}
+  });
+  document.querySelectorAll('.toggle-feed').forEach(button=>button.onclick=async()=>{
+    try{state=await api('/feeds/'+button.dataset.id,{method:'PATCH',body:{enabled:button.dataset.enabled!=='true'}});dashboard()}
+    catch(err){toast(err.message)}
+  });
+  document.querySelectorAll('.delete-feed').forEach(button=>button.onclick=()=>deleteFeedModal(button.dataset.id));
+}
+
+function sectionModal(){
+  openModal(`<div class="row"><h2>New section</h2><button class="btn small-btn" id="close-modal">Close</button></div>
+    <p class="muted small">A section becomes one EPUB in each delivery.</p>
+    <form id="section-form"><div class="field"><label for="section-name">Name</label><input id="section-name" class="input" name="name" required maxlength="80" placeholder="Technology, Essays, Design…"></div><button class="btn primary">Create section</button></form>`);
+  document.querySelector('#close-modal').onclick=closeModal;
+  document.querySelector('#section-form').onsubmit=async e=>{
+    e.preventDefault();
+    try{state=await api('/sections',{method:'POST',body:{name:new FormData(e.currentTarget).get('name')}});closeModal();dashboard();toast('Section created')}
+    catch(err){toast(err.message)}
+  };
+}
+function deleteFeedModal(id){
+  const feed=state.sections.flatMap(s=>s.feeds).find(f=>f.id===id);
+  openModal(`<h2>Delete feed?</h2><p>This removes <strong>${esc(feed?.name||'this feed')}</strong> from future editions. Past delivery history remains.</p><div class="row wrap" style="justify-content:flex-start"><button class="btn danger" id="confirm-delete">Delete feed</button><button class="btn" id="cancel-delete">Cancel</button></div>`);
+  document.querySelector('#cancel-delete').onclick=closeModal;
+  document.querySelector('#confirm-delete').onclick=async()=>{
+    try{state=await api('/feeds/'+id,{method:'DELETE'});closeModal();dashboard();toast('Feed deleted')}
+    catch(err){toast(err.message)}
+  };
+}
+function settingsModal(){
+  const s=state.settings;
+  openModal(`<div class="row"><h2>Delivery settings</h2><button class="btn small-btn" id="close-modal">Close</button></div>
+    <form id="settings-form">
+      <div class="field"><label>Send-to-Kindle address</label><input class="input" type="email" name="kindle_email" required value="${esc(s.kindle_email||'')}"></div>
+      <div class="row wrap">
+        <div class="field" style="flex:1;min-width:150px"><label>Delivery time</label><input class="input" type="time" name="delivery_time" value="${esc((s.delivery_time||'06:00').slice(0,5))}"></div>
+        <div class="field" style="flex:2;min-width:220px"><label>Timezone</label><input class="input" name="timezone" value="${esc(s.timezone)}"></div>
+      </div>
+      <div class="notice info">Need to change Amazon setup? <a href="${AMAZON_SETTINGS}" target="_blank" rel="noopener"><strong>Open Personal Document Settings ↗</strong></a></div>
+      <div style="margin-top:16px"><button class="btn primary">Save settings</button></div>
+    </form>`);
+  document.querySelector('#close-modal').onclick=closeModal;
+  document.querySelector('#settings-form').onsubmit=async e=>{
+    e.preventDefault();const form=new FormData(e.currentTarget);
+    try{state=await api('/settings',{method:'PATCH',body:{kindle_email:form.get('kindle_email'),delivery_time:form.get('delivery_time'),timezone:form.get('timezone')}});closeModal();dashboard();toast('Settings saved')}
+    catch(err){toast(err.message)}
+  };
+}
+async function previewModal(){
+  openModal('<div class="row"><h2>Latest articles</h2><button class="btn small-btn" id="close-modal">Close</button></div><p class="muted">Checking your active feeds…</p>');
+  document.querySelector('#close-modal').onclick=closeModal;
+  try{
+    const result=await api('/preview',{method:'POST'});
+    const items=result.items||[];
+    modal.querySelector('.modal-card').innerHTML=`<div class="row"><h2>Latest articles</h2><button class="btn small-btn" id="close-modal">Close</button></div>
+      <p class="muted small">${items.length} recent item${items.length===1?'':'s'} across active feeds. This is a preview only; nothing was sent.</p>
+      <div class="preview-list">${items.slice(0,40).map(item=>`<div class="preview-item"><a href="${esc(item.url)}" target="_blank" rel="noopener">${esc(item.title)}</a><div class="preview-source">${esc(item.source)}${item.published_at?' · '+fmtDate(item.published_at):''}</div></div>`).join('')||'<p class="muted">No recent articles found.</p>'}</div>`;
+    document.querySelector('#close-modal').onclick=closeModal;
+  }catch(err){modal.querySelector('.modal-card').innerHTML=`<h2>Preview unavailable</h2><div class="notice error">${esc(err.message)}</div><div style="margin-top:16px"><button class="btn" id="close-modal">Close</button></div>`;document.querySelector('#close-modal').onclick=closeModal}
+}
+async function queueSend(path,message){
+  const button=path==='/send-test'?document.querySelector('#send-test'):document.querySelector('#send-now');
+  button.disabled=true; const old=button.textContent; button.textContent='Queuing…';
+  try{
+    await api(path,{method:'POST'}); toast(message);
+    setTimeout(async()=>{try{state=await api('/me');dashboard()}catch{}},4500);
+  }catch(err){button.disabled=false;button.textContent=old;toast(err.message)}
+}
+function render(){state?.settings?.onboarding_complete?dashboard():onboarding()}
+
+(async()=>{
+  if(!token)return landing();
+  try{state=await api('/me');render()}catch{token='';localStorage.removeItem('morningReaderToken');landing()}
+})();
 </script>
+</body>
+</html>
