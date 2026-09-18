@@ -471,7 +471,7 @@ function wireDashboard(){
     }catch(err){
       button.disabled=false;button.textContent='Add source';toast(err.message);
     }
-  });
+  };
   document.querySelectorAll('.rename-section').forEach(button=>button.onclick=()=>renameSectionModal(button.dataset.id));
   document.querySelectorAll('.move-feed').forEach(button=>button.onclick=()=>moveFeedModal(button.dataset.id,button.dataset.section));
   document.querySelectorAll('.toggle-feed').forEach(button=>button.onclick=async()=>{
