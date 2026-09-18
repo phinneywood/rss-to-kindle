@@ -318,6 +318,7 @@
       border-top:1px solid var(--line)
     }
     .source-actions.compact-actions .source-action{
+      -webkit-appearance:none;appearance:none;color:var(--ink);font:inherit;cursor:pointer;
       width:100%;min-height:0;padding:12px 0;border:0;border-bottom:1px solid var(--line);
       background:transparent;display:flex;align-items:center;justify-content:space-between;
       text-align:left
@@ -378,6 +379,7 @@
     .menu-action:hover{color:var(--red)}
     @media(max-width:760px){
       .dashboard-main .editorial-section{padding:17px 0}
+      .dashboard-main .editorial-section:last-child{border-bottom:0}
       .dashboard-main .editorial-head h2{font-size:28px}
       .dashboard-main .add-sources-head h2{font-size:22px}
       .dashboard-main .add-sources-head .editorial-copy{display:none}
@@ -385,7 +387,8 @@
       .source-actions.compact-actions .source-action{padding:11px 0}
       .section-head{padding:12px 0}
       .section-name h3{font-size:23px}
-      .editions-heading .edition-total{font-size:9px}
+      .editions-heading{display:block}
+      .editions-heading .edition-total{font-size:9px;margin-top:7px;padding-bottom:0}
       .dashboard-side{margin-top:2px}
       .side-card.compact-panel{padding:17px 0}
       .delivery-time{font-size:43px}
