@@ -22,6 +22,38 @@
   ],
   "rewrites": [
     {
+      "source": "/.well-known/oauth-protected-resource",
+      "destination": "https://wuikfmmwvrzpaoevtskn.supabase.co/functions/v1/oauth/oauth-protected-resource"
+    },
+    {
+      "source": "/.well-known/oauth-authorization-server",
+      "destination": "https://wuikfmmwvrzpaoevtskn.supabase.co/functions/v1/oauth/oauth-authorization-server"
+    },
+    {
+      "source": "/oauth/authorize",
+      "destination": "https://wuikfmmwvrzpaoevtskn.supabase.co/functions/v1/oauth/authorize"
+    },
+    {
+      "source": "/oauth/request-code",
+      "destination": "https://wuikfmmwvrzpaoevtskn.supabase.co/functions/v1/oauth/request-code"
+    },
+    {
+      "source": "/oauth/verify-code",
+      "destination": "https://wuikfmmwvrzpaoevtskn.supabase.co/functions/v1/oauth/verify-code"
+    },
+    {
+      "source": "/oauth/token",
+      "destination": "https://wuikfmmwvrzpaoevtskn.supabase.co/functions/v1/oauth/token"
+    },
+    {
+      "source": "/oauth/test-client.json",
+      "destination": "https://wuikfmmwvrzpaoevtskn.supabase.co/functions/v1/oauth/test-client.json"
+    },
+    {
+      "source": "/oauth/test-callback",
+      "destination": "https://wuikfmmwvrzpaoevtskn.supabase.co/functions/v1/oauth/test-callback"
+    },
+    {
       "source": "/api/mcp",
       "destination": "https://wuikfmmwvrzpaoevtskn.supabase.co/functions/v1/mcp"
     }
