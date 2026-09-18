@@ -123,49 +123,57 @@ function localDateKey(timeZone:string){
   const get=(type:string)=>parts.find(x=>x.type===type)?.value||"";
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
-function coverPalette(name:string){
-  const palettes=[
-    {bg:"#173f35",accent:"#e6a75c",paper:"#f4efe5",ink:"#17211e"},
-    {bg:"#1e3150",accent:"#e48b6b",paper:"#f2eee6",ink:"#182132"},
-    {bg:"#5a2d34",accent:"#d6b35f",paper:"#f4eee5",ink:"#2b1c1e"},
-    {bg:"#214b55",accent:"#efc56f",paper:"#f3efe7",ink:"#172529"}
-  ];
-  let hash=0;for(const c of name)hash=(hash*31+c.charCodeAt(0))>>>0;
-  return palettes[hash%palettes.length];
-}
-async function makeCoverPng(sectionName:string,displayDate:string,itemCount:number,sources:string[]){
-  const e=React.createElement,p=coverPalette(sectionName);
-  const sourceLine=sources.slice(0,4).join(" · ")+(sources.length>4?` · +${sources.length-4} more`:"");
-  const titleSize=sectionName.length>52?72:sectionName.length>34?84:sectionName.length>20?98:116;
+async function makeCoverPng(sectionName:string,displayDate:string,itemCount:number){
+  const e=React.createElement;
+  const titleSize=sectionName.length>52?70:sectionName.length>34?82:sectionName.length>20?94:110;
+  const paper="#f7f5ef",ink="#11110f",muted="#67645e",line="#bdb9b0",red="#b3131b";
   const cover=e("div",{style:{
     width:"100%",height:"100%",display:"flex",flexDirection:"column",
-    background:p.bg,color:"#fffaf0",fontFamily:"serif",borderTop:`18px solid ${p.accent}`
+    background:paper,color:ink,fontFamily:"serif",borderTop:`16px solid ${red}`
   }},
-    e("div",{style:{display:"flex",flexDirection:"column",padding:"76px 84px 62px",flex:1}},
-      e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:"sans-serif",fontSize:26,fontWeight:800,letterSpacing:4,color:p.accent}},
+    e("div",{style:{display:"flex",flexDirection:"column",padding:"72px 78px 58px",flex:1}},
+      e("div",{style:{
+        display:"flex",justifyContent:"space-between",alignItems:"baseline",
+        fontFamily:"monospace",fontSize:21,fontWeight:800,letterSpacing:3.2,textTransform:"uppercase"
+      }},
         e("div",null,"MORNING READER"),
-        e("div",{style:{fontSize:20,letterSpacing:2,color:"#fffaf0"}},"KINDLE EDITION")
+        e("div",{style:{fontSize:17,color:muted,letterSpacing:2.2}},"KINDLE EDITION")
       ),
-      e("div",{style:{height:2,background:"rgba(255,250,240,.32)",marginTop:34,marginBottom:92}}),
+      e("div",{style:{height:2,background:ink,marginTop:28,marginBottom:78}}),
       e("div",{style:{display:"flex",flexDirection:"column",maxWidth:1010}},
-        e("div",{style:{fontFamily:"sans-serif",fontSize:22,fontWeight:800,letterSpacing:3,color:p.accent,marginBottom:22}},"EDITION"),
-        e("div",{style:{fontSize:titleSize,fontWeight:700,lineHeight:.96,letterSpacing:-3}},sectionName)
+        e("div",{style:{
+          fontFamily:"monospace",fontSize:18,fontWeight:800,letterSpacing:3,
+          color:red,marginBottom:24,textTransform:"uppercase"
+        }},"YOUR PERSONAL MORNING PAPER"),
+        e("div",{style:{
+          fontSize:titleSize,fontWeight:700,lineHeight:.96,letterSpacing:-3.4,
+          maxWidth:1020
+        }},sectionName)
+      ),
+      e("div",{style:{display:"flex",flex:1}}),
+      e("div",{style:{height:1,background:line,marginBottom:26}}),
+      e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:28}},
+        e("div",{style:{display:"flex",flexDirection:"column"}},
+          e("div",{style:{fontFamily:"serif",fontSize:30,fontWeight:700}},displayDate),
+          e("div",{style:{
+            fontFamily:"monospace",fontSize:16,color:muted,letterSpacing:1.8,
+            marginTop:8,textTransform:"uppercase"
+          }},"MORNING EDITION")
+        ),
+        e("div",{style:{display:"flex",alignItems:"baseline",gap:10,fontFamily:"monospace"}},
+          e("div",{style:{fontSize:46,fontWeight:800,color:red}},String(itemCount)),
+          e("div",{style:{fontSize:15,fontWeight:700,color:muted,letterSpacing:2}},
+            itemCount===1?"ARTICLE":"ARTICLES")
+        )
       )
     ),
-    e("div",{style:{display:"flex",flexDirection:"column",background:p.paper,color:p.ink,padding:"54px 84px 62px",minHeight:390}},
-      e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}},
-        e("div",{style:{display:"flex",flexDirection:"column",maxWidth:760}},
-          e("div",{style:{fontFamily:"sans-serif",fontSize:31,fontWeight:800,marginBottom:14}},displayDate),
-          e("div",{style:{fontFamily:"sans-serif",fontSize:25,color:"#665f55",lineHeight:1.35}},sourceLine||"Morning Reader")
-        ),
-        e("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",fontFamily:"sans-serif"}},
-          e("div",{style:{fontSize:54,fontWeight:800,color:p.bg}},String(itemCount)),
-          e("div",{style:{fontSize:20,fontWeight:700,color:"#665f55",letterSpacing:2}},itemCount===1?"ARTICLE":"ARTICLES")
-        )
-      ),
-      e("div",{style:{height:2,background:"#d3c8b7",marginTop:48,marginBottom:30}}),
-      e("div",{style:{fontFamily:"sans-serif",fontSize:23,fontWeight:800,color:p.bg,marginBottom:8}},"Compiled by Morning Reader"),
-      e("div",{style:{fontFamily:"sans-serif",fontSize:21,color:"#71695e"}},"reader.antonioskilton.com")
+    e("div",{style:{
+      display:"flex",justifyContent:"space-between",alignItems:"center",
+      borderTop:`2px solid ${ink}`,padding:"26px 78px 30px",
+      fontFamily:"monospace",fontSize:16,fontWeight:700,letterSpacing:1.1
+    }},
+      e("div",null,"MADE WITH MORNING READER"),
+      e("div",{style:{color:red}},"reader.antonioskilton.com")
     )
   );
   const response=new ImageResponse(cover,{width:1200,height:1600});
@@ -176,8 +184,7 @@ async function makeEpub(section:any, items:any[], displayDate:string) {
   const zip=new JSZip(); zip.file("mimetype","application/epub+zip",{compression:"STORE"});
   zip.folder("META-INF")!.file("container.xml",`<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`);
   const o=zip.folder("OEBPS")!; const bookId=crypto.randomUUID();
-  const sources=[...new Set(items.map((x:any)=>String(x.source||"")).filter(Boolean))];
-  const coverPng=await makeCoverPng(section.name,displayDate,items.length,sources);
+  const coverPng=await makeCoverPng(section.name,displayDate,items.length);
   o.file("cover.png",coverPng);
 
   const nav=`<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${esc(section.name)}</title><link rel="stylesheet" href="style.css"/></head><body><h1>${esc(section.name)}</h1><p class="date">${esc(displayDate)}</p><ol>${items.map((a:any,i:number)=>`<li><a href="article-${i+1}.xhtml">${esc(a.title)}</a><span class="source">${esc(a.source)}</span></li>`).join("")}</ol></body></html>`;
