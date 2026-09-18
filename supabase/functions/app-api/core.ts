@@ -27,6 +27,51 @@ export async function requestCode(email:string){const since=new Date(Date.now()-
 export async function verifyCode(email:string,c:string){const{data:login,error}=await admin.from("login_codes").select("*").eq("email",email).is("consumed_at",null).gt("expires_at",new Date().toISOString()).lt("attempts",5).order("created_at",{ascending:false}).limit(1).maybeSingle();if(error)throw error;if(!login)throw Object.assign(new Error("That code has expired. Request a new one."),{status:401});if(await codeHash(email,c)!==login.code_hash){await admin.from("login_codes").update({attempts:login.attempts+1}).eq("id",login.id);throw Object.assign(new Error("That code is not correct."),{status:401})}await admin.from("login_codes").update({consumed_at:new Date().toISOString()}).eq("id",login.id);const{data:user,error:userError}=await admin.from("app_users").upsert({email},{onConflict:"email"}).select("id,email").single();if(userError)throw userError;const{data:settings}=await admin.from("user_settings").select("user_id").eq("user_id",user.id).maybeSingle();if(!settings)await admin.from("user_settings").insert({user_id:user.id,timezone:"America/Los_Angeles",delivery_time:"06:00:00"});const{count}=await admin.from("sections").select("id",{count:"exact",head:true}).eq("user_id",user.id).is("archived_at",null);if(!count)await admin.from("sections").insert({user_id:user.id,name:"Reading",position:0});const raw=token(),expiresAt=new Date(Date.now()+30*86400_000).toISOString();const{error:se}=await admin.from("sessions").insert({user_id:user.id,token_hash:await sha256(raw),expires_at:expiresAt});if(se)throw se;return{raw,expiresAt,user}}
 export async function auth(req:Request){const h=req.headers.get("authorization")||"",raw=h.startsWith("Bearer ")?h.slice(7).trim():"";if(!raw)return null;const{data,error}=await admin.from("sessions").select("id,user_id,app_users(id,email)").eq("token_hash",await sha256(raw)).is("revoked_at",null).gt("expires_at",new Date().toISOString()).maybeSingle();if(error||!data)return null;await admin.from("sessions").update({last_seen_at:new Date().toISOString()}).eq("id",data.id);const u:any=Array.isArray((data as any).app_users)?(data as any).app_users[0]:(data as any).app_users;return{sessionId:data.id,user:{id:data.user_id,email:u?.email||""}}}
 export async function dashboard(userId:string,email:string){const[s,se,fe,di,jo]=await Promise.all([admin.from("user_settings").select("*").eq("user_id",userId).single(),admin.from("sections").select("*").eq("user_id",userId).is("archived_at",null).order("position").order("created_at"),admin.from("feeds").select("*").eq("user_id",userId).is("archived_at",null).order("created_at"),admin.from("digests").select("id,section_id,status,article_count,error,created_at,sent_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(25),admin.from("digest_jobs").select("id,reason,status,result,error,created_at,started_at,finished_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(15)]);if(s.error)throw s.error;const sections=(se.data||[]).map((x:any)=>({...x,feeds:(fe.data||[]).filter((f:any)=>f.section_id===x.id)}));return{user:{id:userId,email},settings:s.data,sections,digests:di.data||[],jobs:jo.data||[],sender_email:"reader@antonioskilton.com"}}
+export async function systemHealth(userId:string){
+  const since=new Date(Date.now()-24*3600_000).toISOString();
+  const [settingsR,feedsR,jobsR,articlesR]=await Promise.all([
+    admin.from("user_settings").select("paused,onboarding_complete,next_run_at,kindle_email").eq("user_id",userId).single(),
+    admin.from("feeds").select("id,name,last_fetch_at,last_success_at,last_error,consecutive_failures,enabled").eq("user_id",userId).eq("enabled",true).is("archived_at",null).order("consecutive_failures",{ascending:false}),
+    admin.from("digest_jobs").select("id,reason,status,result,error,created_at,started_at,finished_at").eq("user_id",userId).gte("created_at",since).order("created_at",{ascending:false}).limit(100),
+    admin.from("article_deliveries").select("id",{count:"exact",head:true}).eq("user_id",userId).gte("delivered_at",since)
+  ]);
+  if(settingsR.error)throw settingsR.error;if(feedsR.error)throw feedsR.error;if(jobsR.error)throw jobsR.error;if(articlesR.error)throw articlesR.error;
+  const settings=settingsR.data,feeds=feedsR.data||[],jobs=jobsR.data||[];
+  const completed=jobs.filter((j:any)=>["sent","empty","partial","failed"].includes(j.status));
+  const successful=completed.filter((j:any)=>j.status==="sent"||j.status==="empty").length;
+  const durations=completed.map((j:any)=>j.started_at&&j.finished_at?new Date(j.finished_at).getTime()-new Date(j.started_at).getTime():null).filter((x:any)=>typeof x==="number"&&x>=0).sort((a:number,b:number)=>a-b);
+  const medianMs=durations.length?durations[Math.floor((durations.length-1)/2)]:null;
+  const failingFeeds=feeds.filter((f:any)=>f.last_error);
+  const repeatedFeeds=feeds.filter((f:any)=>Number(f.consecutive_failures||0)>=3);
+  const failedJobs=jobs.filter((j:any)=>j.status==="failed");
+  const alerts:any[]=[];
+  if(settings?.onboarding_complete&&!settings?.paused&&settings?.next_run_at&&new Date(settings.next_run_at).getTime()<Date.now()-30*60_000)alerts.push({severity:"error",type:"delivery_overdue",message:"Scheduled delivery is overdue by more than 30 minutes."});
+  if(failedJobs.length)alerts.push({severity:"error",type:"delivery_failed",message:`${failedJobs.length} delivery ${failedJobs.length===1?"job has":"jobs have"} failed in the last 24 hours.`});
+  if(repeatedFeeds.length)alerts.push({severity:"warning",type:"feeds_repeatedly_failing",message:`${repeatedFeeds.length} source${repeatedFeeds.length===1?" is":"s are"} failing repeatedly.`});
+  return{
+    generated_at:new Date().toISOString(),
+    window_hours:24,
+    delivery:{
+      jobs:jobs.length,
+      completed:completed.length,
+      successful,
+      failed:failedJobs.length,
+      empty:jobs.filter((j:any)=>j.status==="empty").length,
+      success_rate:completed.length?Math.round((successful/completed.length)*1000)/10:null,
+      median_duration_ms:medianMs,
+      articles_delivered:articlesR.count||0
+    },
+    feeds:{
+      total:feeds.length,
+      healthy:feeds.length-failingFeeds.length,
+      failing:failingFeeds.length,
+      repeatedly_failing:repeatedFeeds.length
+    },
+    alerts,
+    recent_jobs:jobs.slice(0,12),
+    source_issues:failingFeeds.slice(0,20).map((f:any)=>({id:f.id,name:f.name,last_error:f.last_error,consecutive_failures:f.consecutive_failures||0,last_fetch_at:f.last_fetch_at,last_success_at:f.last_success_at}))
+  };
+}
 export async function nextRun(tz:string,time:string){const{data,error}=await admin.rpc("next_delivery_at",{p_timezone:tz,p_time:time.length===5?`${time}:00`:time,p_from:new Date().toISOString()});if(error)throw error;return data}
 function isPrivateV4(ip:string){const p=ip.split(".").map(Number);if(p.length!==4||p.some(n=>!Number.isInteger(n)||n<0||n>255))return false;const[a,b]=p;return a===10||a===127||a===0||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&b===168)||a>=224}
 function isPrivateV6(ip:string){const x=ip.toLowerCase();return x==="::1"||x==="::"||x.startsWith("fc")||x.startsWith("fd")||x.startsWith("fe8")||x.startsWith("fe9")||x.startsWith("fea")||x.startsWith("feb")}
@@ -85,5 +130,5 @@ export async function probe(url:string){const feeds=await discoverFeeds(url);ret
 function arr(x:any){return x==null?[]:Array.isArray(x)?x:[x]}
 function text(x:any):string{if(x==null)return"";if(typeof x==="string"||typeof x==="number")return String(x);if(typeof x==="object"){if("__cdata"in x)return text(x.__cdata);if("#text"in x)return text(x["#text"])}return""}
 function link(x:any):string{if(typeof x==="string")return x;for(const v of arr(x)){if(typeof v==="string")return v;if(v&&typeof v==="object"&&v["@_href"])return String(v["@_href"])}return""}
-export async function preview(feed:any){try{const raw=await safeFetch(feed.url);const p=new XMLParser({ignoreAttributes:false,attributeNamePrefix:"@_",textNodeName:"#text",cdataPropName:"__cdata"}),d:any=p.parse(raw);let es:any[]=[];if(d?.rss?.channel?.item)es=arr(d.rss.channel.item);else if(d?.feed?.entry)es=arr(d.feed.entry);else if(d?.["rdf:RDF"]?.item)es=arr(d["rdf:RDF"].item);const items=es.slice(0,10).map(e=>{const raw=text(e.pubDate||e.published||e.updated||e["dc:date"]),dt=raw?new Date(raw):null;return{title:text(e.title).replace(/<[^>]+>/g,"").trim()||"Untitled",url:link(e.link)||text(e.guid||e.id),published_at:dt&&!isNaN(+dt)?dt.toISOString():null,source:feed.name}}).filter(x=>x.url);await admin.from("feeds").update({last_fetch_at:new Date().toISOString(),last_error:null}).eq("id",feed.id);return{feed_id:feed.id,items}}catch(e){const m=e instanceof Error?e.message:String(e);await admin.from("feeds").update({last_fetch_at:new Date().toISOString(),last_error:m.slice(0,500)}).eq("id",feed.id);return{feed_id:feed.id,items:[],error:m}}}
+export async function preview(feed:any){try{const raw=await safeFetch(feed.url);const p=new XMLParser({ignoreAttributes:false,attributeNamePrefix:"@_",textNodeName:"#text",cdataPropName:"__cdata"}),d:any=p.parse(raw);let es:any[]=[];if(d?.rss?.channel?.item)es=arr(d.rss.channel.item);else if(d?.feed?.entry)es=arr(d.feed.entry);else if(d?.["rdf:RDF"]?.item)es=arr(d["rdf:RDF"].item);const items=es.slice(0,10).map(e=>{const raw=text(e.pubDate||e.published||e.updated||e["dc:date"]),dt=raw?new Date(raw):null;return{title:text(e.title).replace(/<[^>]+>/g,"").trim()||"Untitled",url:link(e.link)||text(e.guid||e.id),published_at:dt&&!isNaN(+dt)?dt.toISOString():null,source:feed.name}}).filter(x=>x.url);const now=new Date().toISOString();await admin.from("feeds").update({last_fetch_at:now,last_success_at:now,last_error:null,consecutive_failures:0}).eq("id",feed.id);return{feed_id:feed.id,items}}catch(e){const m=e instanceof Error?e.message:String(e),failures=Number(feed.consecutive_failures||0)+1;await admin.from("feeds").update({last_fetch_at:new Date().toISOString(),last_error:m.slice(0,500),consecutive_failures:failures}).eq("id",feed.id);return{feed_id:feed.id,items:[],error:m}}}
 export function emailConfigured(){return Boolean(RESEND_API_KEY)}

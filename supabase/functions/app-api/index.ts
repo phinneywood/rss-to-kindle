@@ -1,6 +1,12 @@
-import {admin,auth,cors,dashboard,discoverFeeds,emailConfigured,json,nextRun,normEmail,normalizeUrl,preview,probe,requestCode,routePath,validEmail,validTimezone,validUrl,verifyCode} from "./core.ts";
+import {admin,auth,cors,dashboard,discoverFeeds,emailConfigured,json,nextRun,normEmail,normalizeUrl,preview,probe,requestCode,routePath,systemHealth,validEmail,validTimezone,validUrl,verifyCode} from "./core.ts";
+
+function logEvent(event:string,fields:Record<string,unknown>={},level:"info"|"warn"|"error"="info"){
+  const line=JSON.stringify({ts:new Date().toISOString(),service:"app-api",event,...fields});
+  if(level==="error")console.error(line);else if(level==="warn")console.warn(line);else console.log(line);
+}
 
 Deno.serve(async(req)=>{
+  const requestId=crypto.randomUUID();
   const origin=req.headers.get("origin");
   const allowedOrigin=!origin||origin==="https://morning-reader.vercel.app"||origin==="https://reader.antonioskilton.com"||origin==="http://localhost:3000"||origin==="http://127.0.0.1:3000"||/^https:\/\/morning-reader(?:-[a-z0-9]+)?-phinneywood\.vercel\.app$/.test(origin);
   if(!allowedOrigin)return json({error:"Origin not allowed"},403);
@@ -10,16 +16,17 @@ Deno.serve(async(req)=>{
     if(route==="/"||route==="/health")return json({ok:true,service:"morning-reader",email_configured:emailConfigured(),time:new Date().toISOString()});
     if(route==="/auth/request-code"&&req.method==="POST"){
       const b=await req.json().catch(()=>({})),email=normEmail(b.email);if(!validEmail(email))return json({error:"Enter a valid email address."},400);
-      await requestCode(email);return json({ok:true});
+      await requestCode(email);logEvent("auth.code_requested",{request_id:requestId});return json({ok:true});
     }
     if(route==="/auth/verify-code"&&req.method==="POST"){
       const b=await req.json().catch(()=>({})),email=normEmail(b.email),code=String(b.code||"").replace(/\D/g,"");
       if(!validEmail(email)||!/^\d{6}$/.test(code))return json({error:"Invalid code."},400);
-      const v=await verifyCode(email,code);return json({ok:true,token:v.raw,expires_at:v.expiresAt,...await dashboard(v.user.id,v.user.email)});
+      const v=await verifyCode(email,code);logEvent("auth.verified",{request_id:requestId,user_id:v.user.id});return json({ok:true,token:v.raw,expires_at:v.expiresAt,...await dashboard(v.user.id,v.user.email)});
     }
     const a=await auth(req);if(!a)return json({error:"Unauthorized"},401);const {user,sessionId}=a;
     if(route==="/auth/logout"&&req.method==="POST"){await admin.from("sessions").update({revoked_at:new Date().toISOString()}).eq("id",sessionId);return json({ok:true})}
     if(route==="/me"&&req.method==="GET")return json(await dashboard(user.id,user.email));
+    if(route==="/system"&&req.method==="GET"){const health=await systemHealth(user.id);logEvent("system.health_viewed",{request_id:requestId,user_id:user.id,alerts:health.alerts.length});return json(health)}
     if(route==="/export"&&req.method==="GET")return json({exported_at:new Date().toISOString(),...await dashboard(user.id,user.email)});
     if(route==="/account"&&req.method==="DELETE"){const{error}=await admin.from("app_users").delete().eq("id",user.id);if(error)throw error;return json({ok:true})}
 
@@ -116,6 +123,7 @@ Deno.serve(async(req)=>{
         activeCount++;results.push({index:item.index,input:item.input,name:item.name,url:item.url,section_id:section.id,status:"added"});
       }
       const summary=results.reduce((x:any,r:any)=>{x[r.status]=(x[r.status]||0)+1;return x},{added:0,restored:0,duplicate:0,failed:0});
+      logEvent("feeds.bulk_imported",{request_id:requestId,user_id:user.id,...summary});
       return json({ok:true,summary,results,dashboard:await dashboard(user.id,user.email)});
     }
 
@@ -129,11 +137,11 @@ Deno.serve(async(req)=>{
       if(existing){
         if(!existing.archived_at)return json({error:"This source is already in one of your editions. Move it instead of adding it again."},409);
         const{error}=await admin.from("feeds").update({section_id:sectionId,name,kind:"standard",enabled:true,archived_at:null,last_error:null,last_fetch_at:new Date().toISOString()}).eq("id",existing.id).eq("user_id",user.id);if(error)throw error;
-        return json(await dashboard(user.id,user.email),200);
+        logEvent("feed.restored",{request_id:requestId,user_id:user.id,feed_id:existing.id,section_id:sectionId});return json(await dashboard(user.id,user.email),200);
       }
       const{error}=await admin.from("feeds").insert({user_id:user.id,section_id:sectionId,name,url,kind:"standard",enabled:true});
       if(error){if((error as any)?.code==="23505")return json({error:"This source is already in one of your editions. Move it instead of adding it again."},409);throw error}
-      return json(await dashboard(user.id,user.email),201);
+      logEvent("feed.added",{request_id:requestId,user_id:user.id,section_id:sectionId});return json(await dashboard(user.id,user.email),201);
     }
     const fm=route.match(/^\/feeds\/([0-9a-f-]+)$/i);
     if(fm&&req.method==="PATCH"){
@@ -145,15 +153,16 @@ Deno.serve(async(req)=>{
 
     if(route==="/preview"&&req.method==="POST"){
       const{data:feeds,error}=await admin.from("feeds").select("*").eq("user_id",user.id).eq("enabled",true).is("archived_at",null).limit(40);if(error)throw error;const rs=[];for(const f of feeds||[])rs.push(await preview(f));
-      const items=rs.flatMap((r:any)=>r.items).sort((a:any,b:any)=>(b.published_at?+new Date(b.published_at):0)-(a.published_at?+new Date(a.published_at):0)).slice(0,60);return json({items,feeds:rs});
+      const items=rs.flatMap((r:any)=>r.items).sort((a:any,b:any)=>(b.published_at?+new Date(b.published_at):0)-(a.published_at?+new Date(a.published_at):0)).slice(0,60);logEvent("preview.generated",{request_id:requestId,user_id:user.id,feeds:(feeds||[]).length,items:items.length,feed_errors:rs.filter((r:any)=>r.error).length});return json({items,feeds:rs});
     }
     if((route==="/send-now"||route==="/send-test")&&req.method==="POST"){
       const{data:s}=await admin.from("user_settings").select("kindle_email").eq("user_id",user.id).single();if(!s?.kindle_email)return json({error:"Add your Send-to-Kindle email first."},400);const reason=route==="/send-test"?"test":"manual";
       const{data:job,error}=await admin.from("digest_jobs").insert({user_id:user.id,reason,lookback_hours:168,idempotency_key:`${reason}:${user.id}:${crypto.randomUUID()}`,run_after:new Date().toISOString()}).select("id,status,reason,created_at").single();if(error)throw error;
       const now=Date.now(),nextBoundary=new Date(Math.ceil((now+1000)/300000)*300000).toISOString();
       const{data:kick,error:kickError}=await admin.rpc("kick_digest_worker");
+      logEvent("delivery.queued",{request_id:requestId,user_id:user.id,job_id:job.id,reason,worker_triggered:!kickError&&Boolean(kick)});
       return json({ok:true,job,worker_triggered:!kickError&&Boolean(kick),next_worker_check_at:nextBoundary},202);
     }
     return json({error:"Not found"},404);
-  }catch(e:any){console.error(e);return json({error:String(e?.message||e).slice(0,600)},Number(e?.status)||500)}
+  }catch(e:any){const status=Number(e?.status)||500;logEvent("request.failed",{request_id:requestId,route,status,error:String(e?.message||e).slice(0,600)},status>=500?"error":"warn");return json({error:String(e?.message||e).slice(0,600)},status)}
 });
