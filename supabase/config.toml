@@ -1,0 +1,8 @@
+project_id = "wuikfmmwvrzpaoevtskn"
+
+[functions.app-api]
+verify_jwt = false
+
+[functions.worker]
+# Protected by x-worker-secret generated in Supabase Vault.
+verify_jwt = false
