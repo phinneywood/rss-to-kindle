@@ -472,6 +472,38 @@
       .source-index-title{font-size:18px}
       .source-index-meta{margin-top:5px}
     }
+
+    /* System health */
+    .system-page{max-width:920px;margin:0 auto;padding:34px 0 12px}
+    .system-page h1{font-family:Georgia,"Times New Roman",serif;font-size:clamp(42px,7vw,64px);line-height:.96;font-weight:600;letter-spacing:-.045em;margin:9px 0 12px}
+    .system-page .system-copy{max-width:620px;color:var(--muted);font-size:14px;line-height:1.5}
+    .system-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid var(--ink);border-bottom:1px solid var(--ink);margin:28px 0 0}
+    .system-metric{padding:18px 16px 17px 0;min-width:0}
+    .system-metric + .system-metric{padding-left:16px;border-left:1px solid var(--line)}
+    .system-metric-label{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+    .system-metric-value{font-family:Georgia,"Times New Roman",serif;font-size:30px;line-height:1;margin-top:8px;letter-spacing:-.03em}
+    .system-section{padding:24px 0;border-bottom:1px solid var(--ink)}
+    .system-section h2{margin:5px 0 13px}
+    .health-alert{display:grid;grid-template-columns:74px minmax(0,1fr);gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+    .health-alert:first-of-type{border-top:1px solid var(--line)}
+    .health-alert-severity{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;font-weight:800}
+    .health-alert.error .health-alert-severity{color:var(--red)}
+    .health-alert.warning .health-alert-severity{color:#8a5b12}
+    .health-clear{font-family:Georgia,"Times New Roman",serif;font-size:19px;padding:10px 0 2px}
+    .system-list{border-top:1px solid var(--line)}
+    .system-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;padding:12px 0;border-bottom:1px solid var(--line);align-items:start}
+    .system-row-title{font-family:Georgia,"Times New Roman",serif;font-size:17px;font-weight:600}
+    .system-row-meta{margin-top:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;line-height:1.45;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+    .system-row-error{margin-top:5px;font-size:12px;line-height:1.45;color:var(--red)}
+    .system-note{margin-top:18px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;line-height:1.55;color:var(--muted)}
+    @media(max-width:760px){
+      .system-page{padding-top:26px}
+      .system-page h1{font-size:46px}
+      .system-metrics{grid-template-columns:1fr 1fr}
+      .system-metric:nth-child(3){border-left:0;border-top:1px solid var(--line);padding-left:0}
+      .system-metric:nth-child(4){border-top:1px solid var(--line)}
+      .system-row{grid-template-columns:1fr}
+    }
   </style>
 </head>
 <body>
@@ -496,6 +528,7 @@ let toastTimer=null;
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const fmtDate=value=>{try{return new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(value))}catch{return ''}};
 const fmtTime=value=>{try{return new Intl.DateTimeFormat(undefined,{hour:'numeric',minute:'2-digit'}).format(new Date(value))}catch{return ''}};
+const fmtDuration=ms=>ms==null?'—':ms<1000?Math.round(ms)+'ms':(ms/1000).toFixed(ms<10000?1:0)+'s';
 function maskEmail(value){
   if(!value)return 'Not connected';
   const parts=String(value).split('@');if(parts.length!==2)return value;
@@ -946,9 +979,55 @@ function kindleManageModal(){
 
 function accountMenuModal(){
   openModal(`<div class="row"><div><div class="editorial-label">Morning Reader</div><h2 style="margin-top:6px">Account</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
-    <div class="menu-list"><button class="menu-action" id="account-sign-out">Sign out</button></div>`);
+    <div class="menu-list"><button class="menu-action" id="account-system-health">System health</button><button class="menu-action" id="account-sign-out">Sign out</button></div>`);
   document.querySelector('#close-modal').onclick=closeModal;
+  document.querySelector('#account-system-health').onclick=()=>{closeModal();systemHealthPage()};
   document.querySelector('#account-sign-out').onclick=()=>{closeModal();signOut()};
+}
+
+async function systemHealthPage(){
+  app.innerHTML=shell(`<section class="system-page"><div class="editorial-label">Observability</div><h1>System health.</h1><div class="system-copy">Loading the last 24 hours of delivery and feed health…</div></section>`,'<button class="btn small-btn" id="system-back">Back</button>');
+  document.querySelector('#system-back').onclick=dashboard;
+  try{renderSystemHealth(await api('/system'))}catch(err){toast(err.message);dashboard()}
+}
+function renderSystemHealth(h){
+  const d=h.delivery||{},f=h.feeds||{},alerts=h.alerts||[],jobs=h.recent_jobs||[],issues=h.source_issues||[];
+  const deliveryRate=d.success_rate==null?'—':d.success_rate+'%';
+  app.innerHTML=shell(`
+    <section class="system-page">
+      <div class="editorial-label">Observability · last ${h.window_hours||24} hours</div>
+      <h1>System health.</h1>
+      <div class="system-copy">Operational health for your Morning Reader account. Job IDs tie API activity to worker logs when you need to investigate a delivery.</div>
+
+      <div class="system-metrics">
+        <div class="system-metric"><div class="system-metric-label">Delivery health</div><div class="system-metric-value">${esc(deliveryRate)}</div></div>
+        <div class="system-metric"><div class="system-metric-label">Articles delivered</div><div class="system-metric-value">${esc(d.articles_delivered??0)}</div></div>
+        <div class="system-metric"><div class="system-metric-label">Feed health</div><div class="system-metric-value">${esc(f.healthy??0)}/${esc(f.total??0)}</div></div>
+        <div class="system-metric"><div class="system-metric-label">Median build</div><div class="system-metric-value">${esc(fmtDuration(d.median_duration_ms))}</div></div>
+      </div>
+
+      <section class="system-section">
+        <div class="editorial-label">Alerts</div>
+        <h2>${alerts.length?alerts.length+' need attention':'All clear'}</h2>
+        ${alerts.length?alerts.map(a=>`<div class="health-alert ${esc(a.severity)}"><div class="health-alert-severity">${esc(a.severity)}</div><div>${esc(a.message)}</div></div>`).join(''):'<div class="health-clear">No delivery or repeated-feed failures detected.</div>'}
+      </section>
+
+      <section class="system-section">
+        <div class="editorial-label">Recent jobs</div>
+        <h2>Delivery runs</h2>
+        <div class="system-list">${jobs.length?jobs.map(j=>`<div class="system-row"><div><div class="system-row-title">${esc(j.reason==='scheduled'?'Scheduled delivery':j.reason==='test'?'Test delivery':'Manual delivery')}</div><div class="system-row-meta">${esc(String(j.id).slice(0,8))} · ${esc(fmtDate(j.created_at))}${j.started_at&&j.finished_at?' · '+esc(fmtDuration(new Date(j.finished_at)-new Date(j.started_at))):''}</div>${j.error?`<div class="system-row-error">${esc(j.error)}</div>`:''}</div><div>${runBadge(j.status)}</div></div>`).join(''):'<div class="empty">No jobs in the last 24 hours.</div>'}</div>
+      </section>
+
+      <section class="system-section">
+        <div class="editorial-label">Sources</div>
+        <h2>${issues.length?'Feed issues':'Feeds are healthy'}</h2>
+        ${issues.length?`<div class="system-list">${issues.map(x=>`<div class="system-row"><div><div class="system-row-title">${esc(x.name)}</div><div class="system-row-meta">${esc(x.consecutive_failures)} consecutive failure${x.consecutive_failures===1?'':'s'}${x.last_fetch_at?' · last checked '+esc(fmtDate(x.last_fetch_at)):''}</div><div class="system-row-error">${esc(x.last_error||'Unknown error')}</div></div></div>`).join('')}</div>`:'<div class="health-clear">No active source errors.</div>'}
+      </section>
+
+      <div class="system-note">Structured logs are emitted by both app-api and the digest worker. Use a job ID above to correlate queueing, feed failures, EPUB generation, and delivery in Supabase Logs Explorer.</div>
+    </section>`,
+    '<button class="btn small-btn" id="system-back">Back</button>');
+  document.querySelector('#system-back').onclick=dashboard;
 }
 
 function sectionModal(){
