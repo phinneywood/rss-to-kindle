@@ -304,6 +304,94 @@
       .setup-row{grid-template-columns:34px minmax(0,1fr);gap:10px}
       .ready-actions .btn,.setup-actions .btn{width:100%}
     }
+
+    /* Compact dashboard pass */
+    .dashboard-main .editorial-section{padding:20px 0}
+    .dashboard-main .editorial-section:first-child{padding-top:4px}
+    .dashboard-main .editorial-head{margin-bottom:10px}
+    .dashboard-main .editorial-head h2{font-size:31px}
+    .dashboard-main .editorial-copy{font-size:15px;max-width:560px}
+    .dashboard-main .add-sources-head h2{font-size:25px}
+    .dashboard-main .add-sources-head .editorial-copy{margin-top:5px;font-size:14px}
+    .source-actions.compact-actions{
+      display:flex;flex-direction:column;gap:0;max-width:none;margin-top:10px;
+      border-top:1px solid var(--line)
+    }
+    .source-actions.compact-actions .source-action{
+      width:100%;min-height:0;padding:12px 0;border:0;border-bottom:1px solid var(--line);
+      background:transparent;display:flex;align-items:center;justify-content:space-between;
+      text-align:left
+    }
+    .source-actions.compact-actions .source-action:hover{background:transparent;color:var(--red)}
+    .source-actions.compact-actions .source-action strong{
+      font-family:Georgia,"Times New Roman",serif;font-size:16px;font-weight:600
+    }
+    .source-action-arrow{font-family:Georgia,"Times New Roman",serif;font-size:22px;line-height:1;color:var(--ink)}
+    .source-action:hover .source-action-arrow{color:var(--red)}
+    .editions-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+    .editions-heading .edition-total{
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;
+      letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding-bottom:4px
+    }
+    .section-head{padding:13px 0}
+    .section-name h3{font-size:25px}
+    .section-meta{font-size:10px;letter-spacing:.04em;text-transform:uppercase}
+    .disclosure-btn{
+      color:var(--ink)!important;font-family:Georgia,"Times New Roman",serif;
+      font-size:23px!important;font-weight:400;border:0!important
+    }
+    .new-edition-row{padding-top:10px}
+    .new-edition-row .btn{border:0;padding:7px 0;background:transparent}
+    .new-edition-row .btn:hover{color:var(--red);background:transparent}
+    .dashboard-side{display:flex;flex-direction:column;gap:0}
+    .side-card.compact-panel{padding:16px 0;margin:0;border-top:1px solid var(--ink)}
+    .compact-panel + .compact-panel{margin-top:16px}
+    .delivery-main.compact-delivery{display:block}
+    .delivery-time{font-size:46px}
+    .delivery-meta{margin-top:5px}
+    .delivery-actions.compact-delivery-actions{
+      margin-top:14px;display:flex;gap:7px;justify-content:flex-start;align-items:center
+    }
+    .delivery-actions.compact-delivery-actions .overflow-btn{
+      width:34px;height:34px;padding:0!important;font-size:17px;display:grid;place-items:center
+    }
+    .latest-run.human-run{
+      margin-top:13px;padding-top:11px;border-top:1px solid var(--line-soft);
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;
+      line-height:1.45;color:var(--muted)
+    }
+    .kindle-status-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-top:12px}
+    .kindle-state{font-family:Georgia,"Times New Roman",serif;font-size:18px;font-weight:600}
+    .kindle-address{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;color:var(--muted);margin-top:5px}
+    .kindle-manage{border:0!important;background:transparent!important;padding:4px 0!important;white-space:nowrap}
+    .kindle-manage:hover{color:var(--red)}
+    .account-menu-btn{
+      width:34px;height:30px;padding:0!important;border:0!important;background:transparent!important;
+      font-size:18px;letter-spacing:.08em
+    }
+    .account-menu-btn:hover{color:var(--red)}
+    .menu-list{display:flex;flex-direction:column;border-top:1px solid var(--line);margin-top:14px}
+    .menu-action{
+      border:0;border-bottom:1px solid var(--line);background:transparent;padding:13px 0;
+      text-align:left;font-weight:700
+    }
+    .menu-action:hover{color:var(--red)}
+    @media(max-width:760px){
+      .dashboard-main .editorial-section{padding:17px 0}
+      .dashboard-main .editorial-head h2{font-size:28px}
+      .dashboard-main .add-sources-head h2{font-size:22px}
+      .dashboard-main .add-sources-head .editorial-copy{display:none}
+      .source-actions.compact-actions{margin-top:7px}
+      .source-actions.compact-actions .source-action{padding:11px 0}
+      .section-head{padding:12px 0}
+      .section-name h3{font-size:23px}
+      .editions-heading .edition-total{font-size:9px}
+      .dashboard-side{margin-top:2px}
+      .side-card.compact-panel{padding:17px 0}
+      .delivery-time{font-size:43px}
+      .delivery-actions.compact-delivery-actions .btn{width:auto}
+      .kindle-status-row{align-items:center}
+    }
   </style>
 </head>
 <body>
@@ -327,6 +415,25 @@ let toastTimer=null;
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const fmtDate=value=>{try{return new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(value))}catch{return ''}};
+const fmtTime=value=>{try{return new Intl.DateTimeFormat(undefined,{hour:'numeric',minute:'2-digit'}).format(new Date(value))}catch{return ''}};
+function maskEmail(value){
+  if(!value)return 'Not connected';
+  const parts=String(value).split('@');if(parts.length!==2)return value;
+  const local=parts[0],domain=parts[1];
+  const shown=local.slice(0,Math.min(2,local.length));
+  return shown+'••••••@'+domain;
+}
+function latestRunText(job){
+  if(!job)return '';
+  const when=fmtTime(job.finished_at||job.updated_at||job.created_at);
+  const articles=job.result?.articles;
+  if(job.status==='sent')return `Last sent ${when}${articles!=null?' · '+articles+' article'+(articles===1?'':'s'):''}`;
+  if(job.status==='empty')return `Last checked ${when} · No new articles`;
+  if(job.status==='failed')return `Last send failed ${when}`;
+  if(job.status==='running')return 'Building your edition…';
+  if(job.status==='queued')return 'Send queued…';
+  return `Last run ${when} · ${String(job.status||'').toLowerCase()}`;
+}
 const shell=(body,actions='')=>`<div class="shell">
   <div class="topbar">
     <div class="brand-wrap"><div class="brand">Morning Reader</div><div class="brand-kicker">Your personal morning paper</div></div>
@@ -600,7 +707,7 @@ function sectionCard(section,index){
         <h3>${esc(section.name)}</h3>
         <span class="section-meta">${section.feeds.length} source${section.feeds.length===1?'':'s'}</span>
       </div>
-      <button class="disclosure-btn toggle-sources" data-id="${section.id}" aria-expanded="${expanded}" aria-label="${expanded?'Collapse':'Expand'} ${esc(section.name)} edition">${expanded?'↑':'↓'}</button>
+      <button class="disclosure-btn toggle-sources" data-id="${section.id}" aria-expanded="${expanded}" aria-label="${expanded?'Collapse':'Expand'} ${esc(section.name)} edition">${expanded?'⌄':'›'}</button>
     </div>
     <div class="edition-details" ${!expanded?'hidden':''}>
       <div class="edition-manage"><button class="btn small-btn rename-section" data-id="${section.id}">Rename edition</button></div>
@@ -618,92 +725,91 @@ function dashboard(){
   const allFeeds=state.sections.flatMap(s=>s.feeds);
   const problemFeeds=allFeeds.filter(f=>f.last_error).length;
   const latestJob=(state.jobs||[])[0];
+  const editionCount=state.sections.length;
 
   app.innerHTML=shell(`
     <div class="grid editorial-grid">
-      <main>
-        ${problemFeeds?`<div class="problem-banner"><strong>${problemFeeds} source${problemFeeds===1?' needs':'s need'} attention.</strong> Expand an edition to review the affected feed.</div>`:''}
+      <main class="dashboard-main">
+        ${problemFeeds?`<div class="problem-banner"><strong>${problemFeeds} source${problemFeeds===1?' needs':'s need'} attention.</strong> Expand an edition to review it.</div>`:''}
 
         <section class="editorial-section">
-          <div class="editorial-head">
+          <div class="editorial-head add-sources-head">
             <div>
               <div class="editorial-label">Build your morning paper</div>
-              <h1>Add sources</h1>
-              <div class="editorial-copy">Add one publication, or bring in a collection from another RSS reader.</div>
+              <h2>Add sources</h2>
+              <div class="editorial-copy">Add one publication or bring in a collection.</div>
             </div>
           </div>
-          <div class="source-actions">
-            <button class="btn source-action" id="add-single-feed">
+          <div class="source-actions compact-actions">
+            <button class="source-action" id="add-single-feed">
               <strong>Add a single feed</strong>
-              <span>Website or RSS</span>
+              <span class="source-action-arrow">›</span>
             </button>
-            <button class="btn source-action" id="import-opml">
-              <strong>Bulk upload</strong>
-              <span>OPML</span>
+            <button class="source-action" id="import-opml">
+              <strong>Bulk upload (OPML)</strong>
+              <span class="source-action-arrow">›</span>
             </button>
           </div>
         </section>
 
         <section class="editorial-section">
-          <div class="editorial-head">
+          <div class="editorial-head editions-heading">
             <div>
               <div class="editorial-label">Kindle editions</div>
               <h2>Your editions</h2>
-              <div class="editorial-copy">Each edition becomes a separate EPUB delivered to your Kindle. Use editions to keep reading topics apart.</div>
             </div>
+            <div class="edition-total">${editionCount} edition${editionCount===1?'':'s'} · ${allFeeds.length} sources</div>
           </div>
           <div class="editions-list">${state.sections.map((section,index)=>sectionCard(section,index)).join('')}</div>
-          <div class="new-edition-row"><button class="btn" id="add-section">+ Create a new edition</button></div>
+          <div class="new-edition-row"><button class="btn" id="add-section">+ New edition</button></div>
         </section>
       </main>
 
-      <aside>
-        <section class="side-card">
+      <aside class="dashboard-side">
+        <section class="side-card compact-panel">
           <div class="editorial-label">Delivery</div>
-          <div class="delivery-main" style="margin-top:12px">
-            <div>
-              <div class="delivery-time">${esc((settings.delivery_time||'06:00').slice(0,5))}</div>
-              <div class="delivery-meta">${esc(settings.timezone)} · ${settings.paused?'PAUSED':'SCHEDULED'}</div>
-            </div>
-            <div class="delivery-actions">
+          <div class="delivery-main compact-delivery" style="margin-top:10px">
+            <div class="delivery-time">${esc((settings.delivery_time||'06:00').slice(0,5))}</div>
+            <div class="delivery-meta">${settings.paused?'PAUSED':'SCHEDULED'} · ${esc(settings.timezone)}</div>
+            <div class="delivery-actions compact-delivery-actions">
               <button class="btn small-btn" id="preview">Preview</button>
               ${settings.onboarding_complete?`
-                <button class="btn small-btn" id="send-test">Send test</button>
                 <button class="btn primary small-btn" id="send-now">Send now</button>
-                <button class="btn small-btn" id="edit-settings">Edit</button>
-                <button class="btn small-btn" id="toggle-schedule">${settings.paused?'Resume':'Pause'}</button>
+                <button class="btn small-btn overflow-btn" id="delivery-menu" aria-label="More delivery options">•••</button>
               `:`<button class="btn primary small-btn" id="connect-kindle">Connect Kindle →</button>`}
             </div>
           </div>
-          ${latestJob?`<div class="latest-run">LATEST · ${esc(latestJob.status.toUpperCase())} · ${fmtDate(latestJob.created_at)}${latestJob.result?.articles!=null?' · '+latestJob.result.articles+' ARTICLES':''}</div>`:''}
+          ${latestJob?`<div class="latest-run human-run">${esc(latestRunText(latestJob))}</div>`:''}
         </section>
 
-        <section class="side-card">
+        <section class="side-card compact-panel">
           <div class="editorial-label">Kindle</div>
-          <div style="margin-top:12px;font-family:Georgia,'Times New Roman',serif;font-size:16px;word-break:break-word">${esc(settings.kindle_email||'Not connected yet')}</div>
-          <div class="technical-note">Approved sender: ${SENDER}</div>
-          <div style="margin-top:12px">${settings.onboarding_complete?`<a class="btn small-btn" href="${AMAZON_SETTINGS}" target="_blank" rel="noopener">Amazon settings ↗</a>`:`<button class="btn small-btn" id="connect-kindle-secondary">Connect Kindle →</button>`}</div>
+          <div class="kindle-status-row">
+            <div>
+              <div class="kindle-state">Kindle · ${settings.onboarding_complete?'Connected':'Not connected'}</div>
+              <div class="kindle-address">${esc(maskEmail(settings.kindle_email))}</div>
+            </div>
+            ${settings.onboarding_complete
+              ?'<button class="btn small-btn kindle-manage" id="manage-kindle">Manage →</button>'
+              :'<button class="btn small-btn kindle-manage" id="connect-kindle-secondary">Connect →</button>'}
+          </div>
         </section>
       </aside>
     </div>`,
-    '<button class="btn small-btn" id="sign-out">Sign out</button>');
+    '<button class="btn account-menu-btn" id="account-menu" aria-label="Account menu">•••</button>');
   wireDashboard();
 }
 
 function wireDashboard(){
-  document.querySelector('#sign-out').onclick=signOut;
+  document.querySelector('#account-menu').onclick=accountMenuModal;
   document.querySelector('#add-section').onclick=()=>sectionModal();
   document.querySelector('#add-single-feed').onclick=singleFeedModal;
   document.querySelector('#import-opml').onclick=opmlImportModal;
-  const toggleSchedule=document.querySelector('#toggle-schedule');
-  if(toggleSchedule)toggleSchedule.onclick=async()=>{
-    try{state=await api('/settings',{method:'PATCH',body:{paused:!state.settings.paused}});dashboard();toast(state.settings.paused?'Delivery paused':'Delivery resumed')}
-    catch(err){toast(err.message)}
-  };
-  const editSettings=document.querySelector('#edit-settings');if(editSettings)editSettings.onclick=settingsModal;
-  const sendTest=document.querySelector('#send-test');if(sendTest)sendTest.onclick=()=>queueSend('/send-test','Test edition queued');
+
   const sendNow=document.querySelector('#send-now');if(sendNow)sendNow.onclick=()=>queueSend('/send-now','Edition queued');
   const preview=document.querySelector('#preview');if(preview)preview.onclick=previewModal;
+  const deliveryMenu=document.querySelector('#delivery-menu');if(deliveryMenu)deliveryMenu.onclick=deliveryMenuModal;
+  const manageKindle=document.querySelector('#manage-kindle');if(manageKindle)manageKindle.onclick=kindleManageModal;
   const connectKindle=document.querySelector('#connect-kindle');if(connectKindle)connectKindle.onclick=onboarding;
   const connectKindleSecondary=document.querySelector('#connect-kindle-secondary');if(connectKindleSecondary)connectKindleSecondary.onclick=onboarding;
 
@@ -714,6 +820,44 @@ function wireDashboard(){
   });
   document.querySelectorAll('.rename-section').forEach(button=>button.onclick=()=>renameSectionModal(button.dataset.id));
   document.querySelectorAll('.manage-feed').forEach(button=>button.onclick=()=>feedActionsModal(button.dataset.id));
+}
+
+function deliveryMenuModal(){
+  openModal(`<div class="row"><div><div class="editorial-label">Delivery</div><h2 style="margin-top:6px">More options</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
+    <div class="menu-list">
+      <button class="menu-action" id="menu-send-test">Send a test edition</button>
+      <button class="menu-action" id="menu-edit-delivery">Edit delivery settings</button>
+      <button class="menu-action" id="menu-toggle-schedule">${state.settings.paused?'Resume scheduled delivery':'Pause scheduled delivery'}</button>
+    </div>`);
+  document.querySelector('#close-modal').onclick=closeModal;
+  document.querySelector('#menu-send-test').onclick=()=>{closeModal();queueSend('/send-test','Test edition queued')};
+  document.querySelector('#menu-edit-delivery').onclick=settingsModal;
+  document.querySelector('#menu-toggle-schedule').onclick=async()=>{
+    try{
+      state=await api('/settings',{method:'PATCH',body:{paused:!state.settings.paused}});
+      closeModal();dashboard();toast(state.settings.paused?'Delivery paused':'Delivery resumed');
+    }catch(err){toast(err.message)}
+  };
+}
+
+function kindleManageModal(){
+  const s=state.settings;
+  openModal(`<div class="row"><div><div class="editorial-label">Kindle</div><h2 style="margin-top:6px">Connected</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
+    <div style="margin-top:14px;font-family:Georgia,'Times New Roman',serif;font-size:18px;word-break:break-word">${esc(s.kindle_email||'Not configured')}</div>
+    <div class="technical-note" style="margin-top:7px">Approved sender: ${SENDER}</div>
+    <div class="menu-list">
+      <button class="menu-action" id="kindle-edit-settings">Edit Kindle & delivery settings</button>
+      <a class="menu-action" href="${AMAZON_SETTINGS}" target="_blank" rel="noopener" style="text-decoration:none">Open Amazon settings ↗</a>
+    </div>`);
+  document.querySelector('#close-modal').onclick=closeModal;
+  document.querySelector('#kindle-edit-settings').onclick=settingsModal;
+}
+
+function accountMenuModal(){
+  openModal(`<div class="row"><div><div class="editorial-label">Morning Reader</div><h2 style="margin-top:6px">Account</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
+    <div class="menu-list"><button class="menu-action" id="account-sign-out">Sign out</button></div>`);
+  document.querySelector('#close-modal').onclick=closeModal;
+  document.querySelector('#account-sign-out').onclick=()=>{closeModal();signOut()};
 }
 
 function sectionModal(){
