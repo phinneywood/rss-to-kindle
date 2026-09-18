@@ -136,6 +136,7 @@
 <div id="app"></div>
 <div id="modal" class="modal" aria-hidden="true"></div>
 <div id="toast" class="toast" role="status"></div>
+<script src="/opml.js"></script>
 <script>
 const API='https://wuikfmmwvrzpaoevtskn.supabase.co/functions/v1/app-api';
 const SENDER='reader@antonioskilton.com';
@@ -386,7 +387,7 @@ function dashboard(){
       <div class="stack">
         <div class="row wrap">
           <div><h2 style="margin:0">Kindle editions</h2><div class="small muted">Group sources into the separate EPUBs you want delivered.</div></div>
-          <button class="btn" id="add-section">+ New edition</button>
+          <div class="row wrap">\n            <button class="btn" id="import-opml">Import OPML</button>\n            <button class="btn" id="add-section">+ New edition</button>\n          </div>
         </div>
         ${state.sections.map(sectionCard).join('')}
       </div>
@@ -428,7 +429,7 @@ function dashboard(){
 
 function wireDashboard(){
   document.querySelector('#sign-out').onclick=signOut;
-  document.querySelector('#add-section').onclick=()=>sectionModal();
+  document.querySelector('#add-section').onclick=()=>sectionModal();\n  document.querySelector('#import-opml').onclick=opmlImportModal;
   document.querySelector('#toggle-schedule').onclick=async()=>{
     try{state=await api('/settings',{method:'PATCH',body:{paused:!state.settings.paused}});dashboard();toast(state.settings.paused?'Delivery paused':'Delivery resumed')}
     catch(err){toast(err.message)}
