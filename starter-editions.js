@@ -17,8 +17,7 @@ const STARTER_EDITIONS = [
     sources: [
       {name:"Kottke", url:"https://feeds.kottke.org/main"},
       {name:"Derek Sivers", url:"https://sive.rs/articles.xml"},
-      {name:"Seth's Blog", url:"https://seths.blog/feed/"},
-      {name:"The Marginalian", url:"https://www.themarginalian.org/feed/"}
+      {name:"Seth's Blog", url:"https://seths.blog/feed/"}
     ]
   },
   {
