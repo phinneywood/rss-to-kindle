@@ -12,6 +12,11 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession:
 const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_", textNodeName: "#text", cdataPropName: "__cdata" });
 const cors = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
 
+function logEvent(event:string,fields:Record<string,unknown>={},level:"info"|"warn"|"error"="info"){
+  const line=JSON.stringify({ts:new Date().toISOString(),service:"worker",event,...fields});
+  if(level==="error")console.error(line);else if(level==="warn")console.warn(line);else console.log(line);
+}
+
 function json(data: unknown, status = 200) { return new Response(JSON.stringify(data), { status, headers: cors }); }
 function arr<T = any>(x: T | T[] | null | undefined): T[] { return x == null ? [] : Array.isArray(x) ? x : [x]; }
 function txt(x: any): string {
@@ -94,7 +99,8 @@ async function pageBody(url:string) {
 }
 function contentOf(e:any){ return txt(e["content:encoded"] || e.content || e.description || e.summary || ""); }
 function dateOf(e:any) { const raw = txt(e.pubDate || e.published || e.updated || e["dc:date"]); if (!raw) return null; const d = new Date(raw); return isNaN(+d)?null:d.toISOString(); }
-async function readFeed(feed:any, cutoff:Date) {
+async function readFeed(feed:any, cutoff:Date, jobId:string) {
+  const started=performance.now();
   try {
     const {text} = await safeFetch(feed.url, {headers:{Accept:"application/rss+xml, application/atom+xml, application/xml, text/xml, */*"}}, 2_000_000);
     const d:any = parser.parse(text); let entries:any[]=[];
@@ -110,10 +116,15 @@ async function readFeed(feed:any, cutoff:Date) {
       if(!body) body = "<p>Article text was not available in the feed. Use the original article link below.</p>";
       out.push({feed_id:feed.id,section_id:feed.section_id,source:feed.name,title,url,canonical_url:url,published_at,body,article_hash:await sha256(url)});
     }
-    await admin.from("feeds").update({last_fetch_at:new Date().toISOString(),last_error:null}).eq("id",feed.id);
+    const now=new Date().toISOString();
+    await admin.from("feeds").update({last_fetch_at:now,last_success_at:now,last_error:null,consecutive_failures:0}).eq("id",feed.id);
     return out;
   } catch(e) {
-    const m=e instanceof Error?e.message:String(e); await admin.from("feeds").update({last_fetch_at:new Date().toISOString(),last_error:m.slice(0,500)}).eq("id",feed.id); return [];
+    const m=e instanceof Error?e.message:String(e),failures=Number(feed.consecutive_failures||0)+1;
+    await admin.from("feeds").update({last_fetch_at:new Date().toISOString(),last_error:m.slice(0,500),consecutive_failures:failures}).eq("id",feed.id);
+    let host="";try{host=new URL(feed.url).hostname}catch{}
+    logEvent("feed.fetch_failed",{job_id:jobId,user_id:feed.user_id,feed_id:feed.id,host,error:m.slice(0,300),consecutive_failures:failures,duration_ms:Math.round(performance.now()-started)},failures>=3?"error":"warn");
+    return [];
   }
 }
 function esc(s:string){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
@@ -221,11 +232,13 @@ async function queueScheduled() {
   for(const s of due||[]){const key=`scheduled:${s.user_id}:${s.next_run_at}`;await admin.from("digest_jobs").upsert({user_id:s.user_id,reason:"scheduled",lookback_hours:48,idempotency_key:key,run_after:now},{onConflict:"idempotency_key",ignoreDuplicates:true});const from=new Date(new Date(s.next_run_at).getTime()+60_000).toISOString();const{data:n}=await admin.rpc("next_delivery_at",{p_timezone:s.timezone,p_time:s.delivery_time,p_from:from});if(n)await admin.from("user_settings").update({next_run_at:n}).eq("user_id",s.user_id)}
 }
 async function processJob(job:any) {
+  const jobStarted=performance.now();
   const claim=await admin.from("digest_jobs").update({status:"running",started_at:new Date().toISOString(),attempts:job.attempts+1,error:null}).eq("id",job.id).eq("status","queued").select("*").maybeSingle(); if(!claim.data)return null; job=claim.data;
   try{
+    logEvent("digest.started",{job_id:job.id,user_id:job.user_id,reason:job.reason,attempt:job.attempts});
     const [setR,secR,feedR]=await Promise.all([admin.from("user_settings").select("*").eq("user_id",job.user_id).single(),admin.from("sections").select("*").eq("user_id",job.user_id).eq("enabled",true).is("archived_at",null).order("position"),admin.from("feeds").select("*").eq("user_id",job.user_id).eq("enabled",true).is("archived_at",null)]);
     const settings=setR.data;if(!settings?.kindle_email)throw new Error("No Send-to-Kindle email is configured."); const sections=secR.data||[],feeds=feedR.data||[]; const cutoff=new Date(Date.now()-job.lookback_hours*3600_000);
-    let all:any[]=[]; for(const feed of feeds.slice(0,100)) all.push(...await readFeed(feed,cutoff));
+    let all:any[]=[]; for(const feed of feeds.slice(0,100)) all.push(...await readFeed(feed,cutoff,job.id));
     const hashes=[...new Set(all.map(x=>x.article_hash))]; let delivered=new Set<string>(); for(let i=0;i<hashes.length;i+=200){const{data}=await admin.from("article_deliveries").select("article_hash").eq("user_id",job.user_id).in("article_hash",hashes.slice(i,i+200));for(const x of data||[])delivered.add(x.article_hash)}
     all=all.filter(x=>!delivered.has(x.article_hash)); all.sort((a,b)=>(b.published_at?+new Date(b.published_at):0)-(a.published_at?+new Date(a.published_at):0));
     const timezone=settings.timezone||"UTC";
@@ -233,15 +246,19 @@ async function processJob(job:any) {
     const displayDate=new Intl.DateTimeFormat("en-US",{dateStyle:"long",timeZone:timezone}).format(new Date());
     const filenameDate=localDateKey(timezone);
     for(const section of sections){let items=all.filter(x=>x.section_id===section.id);if(job.reason==="test")items=items.slice(0,3);else items=items.slice(0,80);if(!items.length)continue;const bytes=await makeEpub(section,items,displayDate);attachments.push({filename:`${slug(section.name)}-${filenameDate}.epub`,content:b64(bytes),content_type:"application/epub+zip"});groups.push({section,items})}
-    if(!attachments.length){await admin.from("digest_jobs").update({status:"empty",finished_at:new Date().toISOString(),result:{articles:0,sections:0}}).eq("id",job.id);return{job:job.id,status:"empty"}}
+    if(!attachments.length){await admin.from("digest_jobs").update({status:"empty",finished_at:new Date().toISOString(),result:{articles:0,sections:0,feeds:feeds.length}}).eq("id",job.id);logEvent("digest.empty",{job_id:job.id,user_id:job.user_id,reason:job.reason,feeds:feeds.length,duration_ms:Math.round(performance.now()-jobStarted)});return{job:job.id,status:"empty"}}
     const sent=await sendResend(settings.kindle_email,attachments,job.id,displayDate); let total=0;
     for(const g of groups){const{data:d,error}=await admin.from("digests").upsert({user_id:job.user_id,section_id:g.section.id,job_id:job.id,scheduled_for:job.reason==="scheduled"?job.run_after:null,status:"sent",article_count:g.items.length,provider_email_id:sent.id,sent_at:new Date().toISOString()},{onConflict:"job_id,section_id"}).select("id").single();if(error)throw error;const rows=g.items.map((a:any)=>({user_id:job.user_id,feed_id:a.feed_id,section_id:a.section_id,digest_id:d.id,canonical_url:a.canonical_url,article_hash:a.article_hash,title:a.title,published_at:a.published_at,delivered_at:new Date().toISOString()}));if(rows.length){const{error:e}=await admin.from("article_deliveries").upsert(rows,{onConflict:"user_id,article_hash",ignoreDuplicates:true});if(e)throw e}total+=g.items.length}
-    await admin.from("digest_jobs").update({status:"sent",finished_at:new Date().toISOString(),result:{articles:total,sections:groups.length,provider_email_id:sent.id}}).eq("id",job.id);return{job:job.id,status:"sent",articles:total,sections:groups.length};
-  }catch(e){const msg=(e instanceof Error?e.message:String(e)).slice(0,800),attempts=job.attempts+1,next=attempts<3?"queued":"failed";const patch:any={status:next,error:msg};if(next==="queued")patch.run_after=new Date(Date.now()+attempts*10*60_000).toISOString();else patch.finished_at=new Date().toISOString();await admin.from("digest_jobs").update(patch).eq("id",job.id);return{job:job.id,status:next,error:msg}}
+    await admin.from("digest_jobs").update({status:"sent",finished_at:new Date().toISOString(),result:{articles:total,sections:groups.length,feeds:feeds.length,provider_email_id:sent.id}}).eq("id",job.id);
+    logEvent("digest.sent",{job_id:job.id,user_id:job.user_id,reason:job.reason,articles:total,sections:groups.length,feeds:feeds.length,duration_ms:Math.round(performance.now()-jobStarted)});
+    return{job:job.id,status:"sent",articles:total,sections:groups.length};
+  }catch(e){const msg=(e instanceof Error?e.message:String(e)).slice(0,800),attempts=job.attempts+1,next=attempts<3?"queued":"failed";const patch:any={status:next,error:msg};if(next==="queued")patch.run_after=new Date(Date.now()+attempts*10*60_000).toISOString();else patch.finished_at=new Date().toISOString();await admin.from("digest_jobs").update(patch).eq("id",job.id);logEvent(next==="failed"?"digest.failed":"digest.retry_scheduled",{job_id:job.id,user_id:job.user_id,reason:job.reason,error:msg,attempt:attempts,duration_ms:Math.round(performance.now()-jobStarted)},next==="failed"?"error":"warn");return{job:job.id,status:next,error:msg}}
 }
 Deno.serve(async(req)=>{
+  const invocationId=crypto.randomUUID(),started=performance.now();
   if(req.method!=="POST"&&req.method!=="GET")return json({error:"Method not allowed"},405);
   try{
+    logEvent("worker.invoked",{invocation_id:invocationId,method:req.method});
     const workerSecret=req.headers.get("x-worker-secret")||"";
     if(!workerSecret)return json({error:"Unauthorized"},401);
     const {data:authorized,error:authError}=await admin.rpc("verify_worker_secret",{p_secret:workerSecret});
@@ -249,8 +266,8 @@ Deno.serve(async(req)=>{
     const force=req.headers.get("x-worker-force")==="1";
     const {data:claimed,error:claimError}=await admin.rpc("claim_worker_run",{p_name:"digest-worker",p_min_interval_seconds:force?0:240});
     if(claimError)throw claimError;
-    if(!claimed)return json({ok:true,skipped:"recently-run"});
+    if(!claimed){logEvent("worker.skipped",{invocation_id:invocationId,reason:"recently-run",duration_ms:Math.round(performance.now()-started)});return json({ok:true,skipped:"recently-run"})};
     await admin.from("digest_jobs").update({status:"queued",run_after:new Date().toISOString(),error:"Recovered after stale worker claim."}).eq("status","running").lt("started_at",new Date(Date.now()-30*60_000).toISOString()).lt("attempts",3);
-    await queueScheduled(); const {data:jobs,error}=await admin.from("digest_jobs").select("*").eq("status","queued").lte("run_after",new Date().toISOString()).order("created_at").limit(3);if(error)throw error;const results=[];for(const j of jobs||[])results.push(await processJob(j));return json({ok:true,processed:results});
-  }catch(e){console.error(e);return json({ok:false,error:(e instanceof Error?e.message:String(e)).slice(0,800)},500)}
+    await queueScheduled(); const {data:jobs,error}=await admin.from("digest_jobs").select("*").eq("status","queued").lte("run_after",new Date().toISOString()).order("created_at").limit(3);if(error)throw error;const results=[];for(const j of jobs||[])results.push(await processJob(j));logEvent("worker.completed",{invocation_id:invocationId,jobs:(jobs||[]).length,duration_ms:Math.round(performance.now()-started)});return json({ok:true,processed:results});
+  }catch(e){const msg=(e instanceof Error?e.message:String(e)).slice(0,800);logEvent("worker.failed",{invocation_id:invocationId,error:msg,duration_ms:Math.round(performance.now()-started)},"error");return json({ok:false,error:msg},500)}
 });
