@@ -27,6 +27,41 @@ const PROFILE_SCHEMA = {
   additionalProperties: false
 };
 
+const SOURCE_SCHEMA = {
+  type: "object",
+  properties: {
+    id: { type: "string" },
+    name: { type: "string" },
+    url: { type: "string" },
+    enabled: { type: "boolean" },
+    last_error: { type: ["string","null"] }
+  },
+  required: ["id","name","url","enabled","last_error"],
+  additionalProperties: false
+};
+const EDITION_SCHEMA = {
+  type: "object",
+  properties: {
+    id: { type: "string" },
+    name: { type: "string" },
+    enabled: { type: "boolean" },
+    sources: { type: "array", items: SOURCE_SCHEMA }
+  },
+  required: ["id","name","enabled","sources"],
+  additionalProperties: false
+};
+const ARTICLE_SCHEMA = {
+  type: "object",
+  properties: {
+    title: { type: "string" },
+    url: { type: "string" },
+    published_at: { type: ["string","null"] },
+    source: { type: "string" }
+  },
+  required: ["title","url","published_at","source"],
+  additionalProperties: true
+};
+
 const TOOLS: any[] = [
   {
     name: "get_profile",
@@ -35,14 +70,16 @@ const TOOLS: any[] = [
     outputSchema: PROFILE_SCHEMA,
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     securitySchemes: READ_SECURITY,
-    _meta: { "openai/profile": true }
+    _meta: { "openai/profile": true, securitySchemes: READ_SECURITY }
   },
   {
     name: "list_editions",
     description: "List this user's Morning Reader Kindle editions and the sources grouped into each edition.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    outputSchema: { type: "object", properties: { editions: { type: "array", items: EDITION_SCHEMA } }, required: ["editions"], additionalProperties: false },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-    securitySchemes: READ_SECURITY
+    securitySchemes: READ_SECURITY,
+    _meta: { securitySchemes: READ_SECURITY }
   },
   {
     name: "create_edition",
@@ -53,8 +90,10 @@ const TOOLS: any[] = [
       required: ["name"],
       additionalProperties: false
     },
+    outputSchema: { type: "object", properties: { edition: EDITION_SCHEMA }, required: ["edition"], additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
-    securitySchemes: WRITE_SECURITY
+    securitySchemes: WRITE_SECURITY,
+    _meta: { securitySchemes: WRITE_SECURITY }
   },
   {
     name: "find_feeds",
@@ -65,8 +104,18 @@ const TOOLS: any[] = [
       required: ["url"],
       additionalProperties: false
     },
+    outputSchema: {
+      type: "object",
+      properties: {
+        feeds: { type: "array", items: { type: "object", properties: { url:{type:"string"}, title:{type:"string"}, method:{type:"string"} }, required:["url","title","method"], additionalProperties:true } },
+        powered_by: { type: "string" }
+      },
+      required: ["feeds"],
+      additionalProperties: true
+    },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-    securitySchemes: READ_SECURITY
+    securitySchemes: READ_SECURITY,
+    _meta: { securitySchemes: READ_SECURITY }
   },
   {
     name: "add_source",
@@ -81,8 +130,10 @@ const TOOLS: any[] = [
       required: ["edition_id", "url"],
       additionalProperties: false
     },
+    outputSchema: { type: "object", properties: { edition: EDITION_SCHEMA }, required: ["edition"], additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
-    securitySchemes: WRITE_SECURITY
+    securitySchemes: WRITE_SECURITY,
+    _meta: { securitySchemes: WRITE_SECURITY }
   },
   {
     name: "preview_edition",
@@ -93,15 +144,28 @@ const TOOLS: any[] = [
       required: ["edition_id"],
       additionalProperties: false
     },
+    outputSchema: {
+      type: "object",
+      properties: {
+        edition: { type: "object", properties: { id:{type:"string"}, name:{type:"string"} }, required:["id","name"], additionalProperties:false },
+        items: { type: "array", items: ARTICLE_SCHEMA },
+        feeds: { type: "array", items: { type: "object", additionalProperties: true } }
+      },
+      required: ["edition","items","feeds"],
+      additionalProperties: false
+    },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
-    securitySchemes: READ_SECURITY
+    securitySchemes: READ_SECURITY,
+    _meta: { securitySchemes: READ_SECURITY }
   },
   {
     name: "send_now",
     description: "Queue the user's current Morning Reader editions for immediate delivery to the configured Send-to-Kindle address.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    outputSchema: { type: "object", additionalProperties: true },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
-    securitySchemes: WRITE_SECURITY
+    securitySchemes: WRITE_SECURITY,
+    _meta: { securitySchemes: WRITE_SECURITY }
   }
 ];
 
