@@ -147,6 +147,7 @@ const modal=document.querySelector('#modal');
 const toastEl=document.querySelector('#toast');
 let token=localStorage.morningReaderToken||'';
 let state=null;
+const expandedSections=new Set();
 let toastTimer=null;
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -324,6 +325,7 @@ function feedRow(feed){
   </div>`;
 }
 function sectionCard(section){
+  const expanded=expandedSections.has(section.id);
   return `<section class="card section-card">
     <div class="section-head row wrap">
       <div>
@@ -331,6 +333,7 @@ function sectionCard(section){
         <div class="tiny muted" style="margin-top:6px">${section.feeds.length} source${section.feeds.length===1?'':'s'} grouped into this Kindle edition</div>
       </div>
       <div class="row wrap" style="justify-content:flex-end">
+        ${section.feeds.length?`<button class="btn small-btn toggle-sources" data-id="${section.id}" aria-expanded="${expanded}">${expanded?'Hide sources':'Show sources'}</button>`:''}
         <button class="btn small-btn rename-section" data-id="${section.id}">Rename</button>
         <button class="btn small-btn show-add-feed" data-id="${section.id}">+ Add source</button>
       </div>
@@ -342,7 +345,7 @@ function sectionCard(section){
       </div>
       <button class="btn primary small-btn">Find feed</button>
     </form>
-    <div class="feed-list">${section.feeds.length?section.feeds.map(feedRow).join(''):'<div class="empty">No sources yet. Add a website or RSS feed to build this Kindle edition.</div>'}</div>
+    <div class="feed-list" data-id="${section.id}" ${section.feeds.length&&!expanded?'hidden':''}>${section.feeds.length?section.feeds.map(feedRow).join(''):'<div class="empty">No sources yet. Add a website or RSS feed to build this Kindle edition.</div>'}</div>
   </section>`;
 }
 function runBadge(status){
@@ -443,6 +446,11 @@ function wireDashboard(){
   document.querySelector('#send-now').onclick=()=>queueSend('/send-now','Edition queued');
   document.querySelector('#preview').onclick=previewModal;
 
+  document.querySelectorAll('.toggle-sources').forEach(button=>button.onclick=()=>{
+    const id=button.dataset.id;
+    if(expandedSections.has(id))expandedSections.delete(id);else expandedSections.add(id);
+    dashboard();
+  });
   document.querySelectorAll('.show-add-feed').forEach(button=>button.onclick=()=>{
     const form=document.querySelector(`.add-feed-form[data-id="${button.dataset.id}"]`);
     form.hidden=!form.hidden;
