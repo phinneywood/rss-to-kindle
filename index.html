@@ -316,6 +316,7 @@ function feedRow(feed){
     </div>
     <div class="feed-actions">
       ${feedStatus(feed)}
+      <button class="btn small-btn move-feed" data-id="${feed.id}" data-section="${feed.section_id}">Move</button>
       <button class="btn small-btn toggle-feed" data-id="${feed.id}" data-enabled="${feed.enabled}">${feed.enabled?'Pause':'Resume'}</button>
       <button class="btn small-btn danger delete-feed" data-id="${feed.id}">Delete</button>
     </div>
@@ -324,7 +325,10 @@ function feedRow(feed){
 function sectionCard(section){
   return `<section class="card section-card">
     <div class="section-head row wrap">
-      <div class="section-name"><h3>${esc(section.name)}</h3><span class="tiny muted">${section.feeds.length} feed${section.feeds.length===1?'':'s'}</span></div>
+      <div>
+        <div class="section-name"><h3>${esc(section.name)}</h3><span class="status"><span class="dot"></span>1 EPUB</span></div>
+        <div class="tiny muted" style="margin-top:6px">${section.feeds.length} source${section.feeds.length===1?'':'s'} grouped into this Kindle edition</div>
+      </div>
       <div class="row wrap" style="justify-content:flex-end">
         <button class="btn small-btn rename-section" data-id="${section.id}">Rename</button>
         <button class="btn small-btn show-add-feed" data-id="${section.id}">+ Add source</button>
@@ -337,7 +341,7 @@ function sectionCard(section){
       </div>
       <button class="btn primary small-btn">Find feed</button>
     </form>
-    <div class="feed-list">${section.feeds.length?section.feeds.map(feedRow).join(''):'<div class="empty">No feeds yet. Add an RSS or Atom URL to start this section.</div>'}</div>
+    <div class="feed-list">${section.feeds.length?section.feeds.map(feedRow).join(''):'<div class="empty">No sources yet. Add a website or RSS feed to build this Kindle edition.</div>'}</div>
   </section>`;
 }
 function runBadge(status){
@@ -367,9 +371,13 @@ function dashboard(){
     </div>
 
     <div class="stat-grid">
-      <div class="stat"><div class="tiny muted">Active feeds</div><div class="value">${activeFeeds}</div></div>
-      <div class="stat"><div class="tiny muted">Sections</div><div class="value">${state.sections.length}</div></div>
+      <div class="stat"><div class="tiny muted">Active sources</div><div class="value">${activeFeeds}</div></div>
+      <div class="stat"><div class="tiny muted">Kindle editions</div><div class="value">${state.sections.filter(s=>s.feeds.some(f=>f.enabled)).length}</div></div>
       <div class="stat"><div class="tiny muted">Latest run</div><div style="margin-top:6px">${latestJob?runBadge(latestJob.status):'<span class="muted small">None yet</span>'}</div></div>
+    </div>
+
+    <div class="notice info" style="margin-bottom:20px">
+      <strong>How grouping works:</strong> each edition below becomes a separate EPUB on your Kindle when it has new articles. Add multiple sources to one edition to combine them, or create another edition to keep topics separate.
     </div>
 
     ${problemFeeds?`<div class="notice error" style="margin-bottom:16px">${problemFeeds} feed${problemFeeds===1?' has':'s have'} a fetch error. Open the affected feed below for details.</div>`:''}
@@ -377,8 +385,8 @@ function dashboard(){
     <div class="grid">
       <div class="stack">
         <div class="row wrap">
-          <div><h2 style="margin:0">Sections & sources</h2><div class="small muted">Each section becomes its own named Kindle edition and cover.</div></div>
-          <button class="btn" id="add-section">+ New section</button>
+          <div><h2 style="margin:0">Kindle editions</h2><div class="small muted">Group sources into the separate EPUBs you want delivered.</div></div>
+          <button class="btn" id="add-section">+ New edition</button>
         </div>
         ${state.sections.map(sectionCard).join('')}
       </div>
@@ -451,6 +459,7 @@ function wireDashboard(){
     }catch(err){button.disabled=false;button.textContent='Find feed';toast(err.message)}
   });
   document.querySelectorAll('.rename-section').forEach(button=>button.onclick=()=>renameSectionModal(button.dataset.id));
+  document.querySelectorAll('.move-feed').forEach(button=>button.onclick=()=>moveFeedModal(button.dataset.id,button.dataset.section));
   document.querySelectorAll('.toggle-feed').forEach(button=>button.onclick=async()=>{
     try{state=await api('/feeds/'+button.dataset.id,{method:'PATCH',body:{enabled:button.dataset.enabled!=='true'}});dashboard()}
     catch(err){toast(err.message)}
@@ -459,13 +468,13 @@ function wireDashboard(){
 }
 
 function sectionModal(){
-  openModal(`<div class="row"><h2>New section</h2><button class="btn small-btn" id="close-modal">Close</button></div>
-    <p class="muted small">This name becomes the title of the EPUB and its Kindle cover. Short, distinctive names work best.</p>
-    <form id="section-form"><div class="field"><label for="section-name">Edition name</label><input id="section-name" class="input" name="name" required maxlength="80" placeholder="Technology, Essays, Design…"></div><button class="btn primary">Create section</button></form>`);
+  openModal(`<div class="row"><h2>New Kindle edition</h2><button class="btn small-btn" id="close-modal">Close</button></div>
+    <p class="muted small">Every edition is delivered as its own EPUB. Add related sources to the same edition; create separate editions for topics you want to keep apart. The edition name also becomes the Kindle cover title.</p>
+    <form id="section-form"><div class="field"><label for="section-name">Edition name</label><input id="section-name" class="input" name="name" required maxlength="80" placeholder="Technology, Essays, Design…"></div><button class="btn primary">Create edition</button></form>`);
   document.querySelector('#close-modal').onclick=closeModal;
   document.querySelector('#section-form').onsubmit=async e=>{
     e.preventDefault();
-    try{state=await api('/sections',{method:'POST',body:{name:new FormData(e.currentTarget).get('name')}});closeModal();dashboard();toast('Section created')}
+    try{state=await api('/sections',{method:'POST',body:{name:new FormData(e.currentTarget).get('name')}});closeModal();dashboard();toast('Edition created')}
     catch(err){toast(err.message)}
   };
 }
@@ -494,6 +503,22 @@ function chooseFeedModal(sectionId,feeds){
     const feed=feeds[Number(button.dataset.i)];button.disabled=true;
     try{state=await api('/feeds',{method:'POST',body:{section_id:sectionId,url:feed.url}});closeModal();dashboard();toast('Source added')}
     catch(err){button.disabled=false;toast(err.message)}
+  });
+}
+function moveFeedModal(id,currentSectionId){
+  const feed=state.sections.flatMap(s=>s.feeds).find(f=>f.id===id);
+  const choices=state.sections.filter(s=>s.id!==currentSectionId);
+  if(!feed||!choices.length){toast('Create another edition first.');return}
+  openModal(`<div class="row"><h2>Move source</h2><button class="btn small-btn" id="close-modal">Close</button></div>
+    <p class="muted small">Move <strong>${esc(feed.name)}</strong> into a different Kindle edition.</p>
+    <div class="stack">${choices.map(section=>`<button class="card move-to-edition" data-id="${section.id}" style="text-align:left;cursor:pointer"><strong>${esc(section.name)}</strong><div class="tiny muted" style="margin-top:4px">This source will be included in that EPUB instead.</div></button>`).join('')}</div>`);
+  document.querySelector('#close-modal').onclick=closeModal;
+  document.querySelectorAll('.move-to-edition').forEach(button=>button.onclick=async()=>{
+    button.disabled=true;
+    try{
+      state=await api('/feeds/'+id,{method:'PATCH',body:{section_id:button.dataset.id}});
+      closeModal();dashboard();toast('Source moved to another edition');
+    }catch(err){button.disabled=false;toast(err.message)}
   });
 }
 function deleteFeedModal(id){
