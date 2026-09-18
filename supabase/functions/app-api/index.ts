@@ -58,7 +58,15 @@ Deno.serve(async(req)=>{
       const{count}=await admin.from("feeds").select("id",{count:"exact",head:true}).eq("user_id",user.id).is("archived_at",null);if((count||0)>=100)return json({error:"You can have up to 100 feeds."},400);
       let pr;try{pr=await probe(input)}catch(e){return json({error:e instanceof Error?e.message:String(e)},400)}
       const url=normalizeUrl(pr.url),name=(String(b.name||"").trim()||pr.title||new URL(url).hostname.replace(/^www\./,"")).slice(0,120);
-      const{error}=await admin.from("feeds").insert({user_id:user.id,section_id:sectionId,name,url,kind:"standard",enabled:true});if(error)throw error;return json(await dashboard(user.id,user.email),201);
+      const{data:existing,error:existingError}=await admin.from("feeds").select("id,archived_at").eq("user_id",user.id).eq("url",url).maybeSingle();if(existingError)throw existingError;
+      if(existing){
+        if(!existing.archived_at)return json({error:"This source is already in one of your editions. Move it instead of adding it again."},409);
+        const{error}=await admin.from("feeds").update({section_id:sectionId,name,kind:"standard",enabled:true,archived_at:null,last_error:null,last_fetch_at:new Date().toISOString()}).eq("id",existing.id).eq("user_id",user.id);if(error)throw error;
+        return json(await dashboard(user.id,user.email),200);
+      }
+      const{error}=await admin.from("feeds").insert({user_id:user.id,section_id:sectionId,name,url,kind:"standard",enabled:true});
+      if(error){if((error as any)?.code==="23505")return json({error:"This source is already in one of your editions. Move it instead of adding it again."},409);throw error}
+      return json(await dashboard(user.id,user.email),201);
     }
     const fm=route.match(/^\/feeds\/([0-9a-f-]+)$/i);
     if(fm&&req.method==="PATCH"){
