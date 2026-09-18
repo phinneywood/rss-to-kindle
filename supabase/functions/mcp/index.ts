@@ -1,14 +1,48 @@
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const admin = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false, autoRefreshToken: false } });
+
 const APP_API = "https://wuikfmmwvrzpaoevtskn.supabase.co/functions/v1/app-api";
+const RESOURCE = "https://reader.antonioskilton.com/api/mcp";
+const RESOURCE_METADATA = "https://reader.antonioskilton.com/.well-known/oauth-protected-resource";
 const PROTOCOL_VERSION = "2025-06-18";
 
 type RpcId = string | number | null;
+type AuthInfo = { userId: string; email: string; clientId: string; scopes: string[]; tokenId: string };
 
-const TOOLS = [
+const READ_SECURITY = [{ type: "oauth2", scopes: ["reader:read"] }];
+const WRITE_SECURITY = [{ type: "oauth2", scopes: ["reader:read", "reader:write"] }];
+
+const PROFILE_SCHEMA = {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  type: "object",
+  properties: {
+    id: { type: "string", minLength: 1, pattern: "\\S", description: "Opaque stable Morning Reader profile identifier." },
+    email: { type: "string", description: "Morning Reader account email for display." },
+    nickname: { type: "string", description: "Useful account label." }
+  },
+  required: ["id"],
+  additionalProperties: false
+};
+
+const TOOLS: any[] = [
+  {
+    name: "get_profile",
+    description: "Return the Morning Reader profile represented by the authenticated connection.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    outputSchema: PROFILE_SCHEMA,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    securitySchemes: READ_SECURITY,
+    _meta: { "openai/profile": true }
+  },
   {
     name: "list_editions",
     description: "List this user's Morning Reader Kindle editions and the sources grouped into each edition.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    securitySchemes: READ_SECURITY
   },
   {
     name: "create_edition",
@@ -19,7 +53,8 @@ const TOOLS = [
       required: ["name"],
       additionalProperties: false
     },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    securitySchemes: WRITE_SECURITY
   },
   {
     name: "find_feeds",
@@ -30,7 +65,8 @@ const TOOLS = [
       required: ["url"],
       additionalProperties: false
     },
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    securitySchemes: READ_SECURITY
   },
   {
     name: "add_source",
@@ -45,7 +81,8 @@ const TOOLS = [
       required: ["edition_id", "url"],
       additionalProperties: false
     },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    securitySchemes: WRITE_SECURITY
   },
   {
     name: "preview_edition",
@@ -56,13 +93,15 @@ const TOOLS = [
       required: ["edition_id"],
       additionalProperties: false
     },
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true }
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    securitySchemes: READ_SECURITY
   },
   {
     name: "send_now",
     description: "Queue the user's current Morning Reader editions for immediate delivery to the configured Send-to-Kindle address.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true }
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    securitySchemes: WRITE_SECURITY
   }
 ];
 
@@ -72,53 +111,85 @@ function rpcResult(id: RpcId, result: unknown) {
     headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }
   });
 }
-
 function rpcError(id: RpcId, code: number, message: string, data?: unknown, status = 200) {
   return new Response(JSON.stringify({ jsonrpc: "2.0", id, error: { code, message, ...(data === undefined ? {} : { data }) } }), {
     status,
     headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }
   });
 }
-
-function toolResult(data: unknown, isError = false) {
+function toolResult(data: unknown, isError = false, meta?: Record<string,unknown>) {
   return {
     content: [{ type: "text", text: typeof data === "string" ? data : JSON.stringify(data, null, 2) }],
     structuredContent: typeof data === "object" && data !== null ? data : { value: data },
+    ...(meta ? { _meta: meta } : {}),
     ...(isError ? { isError: true } : {})
   };
 }
-
 function bearer(req: Request) {
   const h = req.headers.get("authorization") || "";
   return h.startsWith("Bearer ") ? h.slice(7).trim() : "";
 }
-
-async function api(path: string, token: string, method = "GET", body?: unknown) {
-  const r = await fetch(APP_API + path, {
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json"
-    },
-    body: body === undefined ? undefined : JSON.stringify(body)
-  });
-  const text = await r.text();
-  let data: any = {};
-  try { data = text ? JSON.parse(text) : {}; } catch { data = { error: text || `HTTP ${r.status}` }; }
-  if (!r.ok) {
-    const e: any = new Error(data?.error || `Morning Reader API returned HTTP ${r.status}`);
-    e.status = r.status;
-    e.data = data;
-    throw e;
+function randomToken() {
+  const b = new Uint8Array(32); crypto.getRandomValues(b);
+  let s = ""; for (const x of b) s += String.fromCharCode(x);
+  return "mr_delegate_" + btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+async function sha256(v: string) {
+  const b = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(v)));
+  return Array.from(b).map(x => x.toString(16).padStart(2, "0")).join("");
+}
+async function authenticate(raw: string): Promise<AuthInfo | null> {
+  if (!raw) return null;
+  const { data: access, error } = await admin.schema("private").from("oauth_access_tokens")
+    .select("id,user_id,client_id,scopes,resource,expires_at,revoked_at")
+    .eq("token_hash", await sha256(raw))
+    .is("revoked_at", null)
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+  if (error || !access || access.resource !== RESOURCE) return null;
+  const { data: user } = await admin.from("app_users").select("id,email").eq("id", access.user_id).maybeSingle();
+  if (!user) return null;
+  return { userId: user.id, email: user.email, clientId: access.client_id, scopes: access.scopes || [], tokenId: access.id };
+}
+function hasScopes(auth: AuthInfo, required: string[]) {
+  return required.every(s => auth.scopes.includes(s));
+}
+function authChallenge(required: string[], kind: "invalid_token" | "insufficient_scope" = "invalid_token") {
+  const scope = required.join(" ");
+  const description = kind === "invalid_token" ? "Connect Morning Reader to continue." : "Reconnect Morning Reader with the requested permissions.";
+  return `Bearer resource_metadata="${RESOURCE_METADATA}", scope="${scope}", error="${kind}", error_description="${description}"`;
+}
+function authToolError(required: string[], kind: "invalid_token" | "insufficient_scope" = "invalid_token") {
+  return toolResult(
+    { error: kind === "invalid_token" ? "Authentication required." : "Additional Morning Reader permission is required." },
+    true,
+    { "mcp/www_authenticate": [authChallenge(required, kind)] }
+  );
+}
+async function apiAsUser(userId: string, path: string, method = "GET", body?: unknown) {
+  const raw = randomToken();
+  const hash = await sha256(raw);
+  const { data: session, error: se } = await admin.from("sessions").insert({
+    user_id: userId,
+    token_hash: hash,
+    expires_at: new Date(Date.now() + 2 * 60_000).toISOString()
+  }).select("id").single();
+  if (se) throw se;
+  try {
+    const r = await fetch(APP_API + path, {
+      method,
+      headers: { Authorization: `Bearer ${raw}`, "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body)
+    });
+    const text = await r.text();
+    let data: any = {};
+    try { data = text ? JSON.parse(text) : {}; } catch { data = { error: text || `HTTP ${r.status}` }; }
+    if (!r.ok) throw Object.assign(new Error(data?.error || `Morning Reader API returned HTTP ${r.status}`), { status: r.status, data });
+    return data;
+  } finally {
+    await admin.from("sessions").delete().eq("id", session.id);
   }
-  return data;
 }
-
-async function requireUser(token: string) {
-  if (!token) return null;
-  try { return await api("/me", token); } catch { return null; }
-}
-
 function editionView(section: any) {
   return {
     id: section.id,
@@ -133,32 +204,44 @@ function editionView(section: any) {
     }))
   };
 }
-
-async function callTool(name: string, args: any, token: string, me: any) {
+async function dashboard(userId: string) {
+  return await apiAsUser(userId, "/me");
+}
+function requiredScopes(toolName: string) {
+  const tool = TOOLS.find(t => t.name === toolName);
+  return (tool?.securitySchemes?.find((s: any) => s.type === "oauth2")?.scopes || []) as string[];
+}
+async function callTool(name: string, args: any, auth: AuthInfo) {
   switch (name) {
-    case "list_editions":
+    case "get_profile": {
+      const profile = { id: auth.userId, email: auth.email, nickname: "Morning Reader" };
+      return {
+        content: [{ type: "text", text: JSON.stringify(profile) }],
+        structuredContent: profile,
+        isError: false
+      };
+    }
+    case "list_editions": {
+      const me = await dashboard(auth.userId);
       return toolResult({ editions: (me.sections || []).map(editionView) });
-
+    }
     case "create_edition": {
       const nameArg = String(args?.name || "").trim();
       if (!nameArg || nameArg.length > 80) return toolResult({ error: "Edition name must be 1–80 characters." }, true);
-      const after = await api("/sections", token, "POST", { name: nameArg });
+      const after = await apiAsUser(auth.userId, "/sections", "POST", { name: nameArg });
       const edition = [...(after.sections || [])].reverse().find((s: any) => s.name === nameArg);
       return toolResult({ edition: edition ? editionView(edition) : { name: nameArg } });
     }
-
     case "find_feeds": {
       const url = String(args?.url || "").trim();
       if (!url) return toolResult({ error: "url is required." }, true);
-      const found = await api("/discover", token, "POST", { url });
-      return toolResult(found);
+      return toolResult(await apiAsUser(auth.userId, "/discover", "POST", { url }));
     }
-
     case "add_source": {
       const editionId = String(args?.edition_id || "");
       const url = String(args?.url || "").trim();
       if (!editionId || !url) return toolResult({ error: "edition_id and url are required." }, true);
-      const after = await api("/feeds", token, "POST", {
+      const after = await apiAsUser(auth.userId, "/feeds", "POST", {
         section_id: editionId,
         url,
         ...(args?.name ? { name: String(args.name).trim() } : {})
@@ -166,24 +249,20 @@ async function callTool(name: string, args: any, token: string, me: any) {
       const edition = (after.sections || []).find((s: any) => s.id === editionId);
       return toolResult({ edition: edition ? editionView(edition) : null });
     }
-
     case "preview_edition": {
       const editionId = String(args?.edition_id || "");
+      const me = await dashboard(auth.userId);
       const edition = (me.sections || []).find((s: any) => s.id === editionId);
       if (!edition) return toolResult({ error: "Edition not found." }, true);
       const feedIds = new Set((edition.feeds || []).filter((f: any) => f.enabled).map((f: any) => f.id));
-      const result = await api("/preview", token, "POST", {});
+      const result = await apiAsUser(auth.userId, "/preview", "POST", {});
       const matching = (result.feeds || []).filter((f: any) => feedIds.has(f.feed_id));
       const items = matching.flatMap((f: any) => f.items || [])
         .sort((a: any, b: any) => (b.published_at ? +new Date(b.published_at) : 0) - (a.published_at ? +new Date(a.published_at) : 0));
       return toolResult({ edition: { id: edition.id, name: edition.name }, items, feeds: matching });
     }
-
-    case "send_now": {
-      const queued = await api("/send-now", token, "POST", {});
-      return toolResult(queued);
-    }
-
+    case "send_now":
+      return toolResult(await apiAsUser(auth.userId, "/send-now", "POST", {}));
     default:
       throw Object.assign(new Error(`Unknown tool: ${name}`), { rpcCode: -32602 });
   }
@@ -191,49 +270,54 @@ async function callTool(name: string, args: any, token: string, me: any) {
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, content-type, accept", "Access-Control-Allow-Methods": "POST, OPTIONS" } });
+    return new Response(null, { status: 204, headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "authorization, content-type, accept, mcp-protocol-version",
+      "Access-Control-Allow-Methods": "POST, OPTIONS"
+    } });
   }
-  if (req.method !== "POST") return new Response(JSON.stringify({ error: "Method not allowed" }), { status: 405, headers: { "Content-Type": "application/json", "Allow": "POST" } });
+  if (req.method !== "POST") {
+    return new Response(JSON.stringify({ error: "Method not allowed" }), {
+      status: 405,
+      headers: { "Content-Type": "application/json", "Allow": "POST", "Cache-Control": "no-store" }
+    });
+  }
 
   let msg: any;
   try { msg = await req.json(); } catch { return rpcError(null, -32700, "Parse error", undefined, 400); }
   const id: RpcId = msg?.id ?? null;
   if (msg?.jsonrpc !== "2.0" || typeof msg?.method !== "string") return rpcError(id, -32600, "Invalid Request", undefined, 400);
 
-  const token = bearer(req);
-  const me = await requireUser(token);
-  if (!me) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json", "WWW-Authenticate": "Bearer", "Cache-Control": "no-store" }
-    });
-  }
-
   try {
     if (msg.method === "initialize") {
+      const requested = String(msg.params?.protocolVersion || PROTOCOL_VERSION);
+      const protocolVersion = ["2025-06-18", "2025-03-26"].includes(requested) ? requested : PROTOCOL_VERSION;
       return rpcResult(id, {
-        protocolVersion: PROTOCOL_VERSION,
+        protocolVersion,
         capabilities: { tools: {} },
-        serverInfo: { name: "morning-reader", version: "0.1.0" },
-        instructions: "Manage Morning Reader Kindle editions and RSS/Atom sources. Each edition becomes a separate EPUB."
+        serverInfo: { name: "morning-reader", version: "0.2.0" },
+        instructions: "Manage Morning Reader Kindle editions and RSS/Atom sources. Each edition becomes a separate EPUB delivered to the user's Kindle."
       });
     }
     if (msg.method === "ping") return rpcResult(id, {});
     if (msg.method === "tools/list") return rpcResult(id, { tools: TOOLS });
+    if (msg.method.startsWith("notifications/")) return new Response(null, { status: 202 });
+
     if (msg.method === "tools/call") {
       const name = String(msg.params?.name || "");
       const args = msg.params?.arguments || {};
+      const required = requiredScopes(name);
+      const auth = await authenticate(bearer(req));
+      if (!auth) return rpcResult(id, authToolError(required.length ? required : ["reader:read"]));
+      if (!hasScopes(auth, required)) return rpcResult(id, authToolError(required, "insufficient_scope"));
       try {
-        return rpcResult(id, await callTool(name, args, token, me));
+        return rpcResult(id, await callTool(name, args, auth));
       } catch (e: any) {
         if (e?.rpcCode) return rpcError(id, e.rpcCode, e.message);
-        if (e?.status === 401) {
-          return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json", "WWW-Authenticate": "Bearer" } });
-        }
         return rpcResult(id, toolResult({ error: String(e?.message || e) }, true));
       }
     }
-    if (msg.method.startsWith("notifications/")) return new Response(null, { status: 202 });
+
     return rpcError(id, -32601, "Method not found");
   } catch (e: any) {
     console.error(e);
