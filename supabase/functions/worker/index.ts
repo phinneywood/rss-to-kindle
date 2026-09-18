@@ -118,23 +118,54 @@ async function readFeed(feed:any, cutoff:Date) {
 }
 function esc(s:string){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
 function slug(s:string){return s.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,50)||"reading"}
-async function makeCoverPng(sectionName:string,displayDate:string,itemCount:number,sourceCount:number){
-  const e=React.createElement;
+function localDateKey(timeZone:string){
+  const parts=new Intl.DateTimeFormat("en-US",{timeZone,year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+  const get=(type:string)=>parts.find(x=>x.type===type)?.value||"";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+function coverPalette(name:string){
+  const palettes=[
+    {bg:"#173f35",accent:"#e6a75c",paper:"#f4efe5",ink:"#17211e"},
+    {bg:"#1e3150",accent:"#e48b6b",paper:"#f2eee6",ink:"#182132"},
+    {bg:"#5a2d34",accent:"#d6b35f",paper:"#f4eee5",ink:"#2b1c1e"},
+    {bg:"#214b55",accent:"#efc56f",paper:"#f3efe7",ink:"#172529"}
+  ];
+  let hash=0;for(const c of name)hash=(hash*31+c.charCodeAt(0))>>>0;
+  return palettes[hash%palettes.length];
+}
+async function makeCoverPng(sectionName:string,displayDate:string,itemCount:number,sources:string[]){
+  const e=React.createElement,p=coverPalette(sectionName);
+  const sourceLine=sources.slice(0,4).join(" · ")+(sources.length>4?` · +${sources.length-4} more`:"");
+  const titleSize=sectionName.length>52?72:sectionName.length>34?84:sectionName.length>20?98:116;
   const cover=e("div",{style:{
-    width:"100%",height:"100%",display:"flex",flexDirection:"column",justifyContent:"space-between",
-    background:"#f4efe5",color:"#1e1b17",padding:"90px 92px",fontFamily:"serif"
+    width:"100%",height:"100%",display:"flex",flexDirection:"column",
+    background:p.bg,color:"#fffaf0",fontFamily:"serif",borderTop:`18px solid ${p.accent}`
   }},
-    e("div",{style:{display:"flex",flexDirection:"column"}},
-      e("div",{style:{fontFamily:"sans-serif",fontSize:32,fontWeight:800,letterSpacing:4,color:"#174f3c"}},"MORNING READER"),
-      e("div",{style:{height:3,background:"#d8cfbf",marginTop:46,marginBottom:110}}),
-      e("div",{style:{fontSize:112,fontWeight:700,lineHeight:0.98,letterSpacing:-3,maxWidth:1010}},sectionName)
+    e("div",{style:{display:"flex",flexDirection:"column",padding:"76px 84px 62px",flex:1}},
+      e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",fontFamily:"sans-serif",fontSize:26,fontWeight:800,letterSpacing:4,color:p.accent}},
+        e("div",null,"MORNING READER"),
+        e("div",{style:{fontSize:20,letterSpacing:2,color:"#fffaf0"}},"KINDLE EDITION")
+      ),
+      e("div",{style:{height:2,background:"rgba(255,250,240,.32)",marginTop:34,marginBottom:92}}),
+      e("div",{style:{display:"flex",flexDirection:"column",maxWidth:1010}},
+        e("div",{style:{fontFamily:"sans-serif",fontSize:22,fontWeight:800,letterSpacing:3,color:p.accent,marginBottom:22}},"EDITION"),
+        e("div",{style:{fontSize:titleSize,fontWeight:700,lineHeight:.96,letterSpacing:-3}},sectionName)
+      )
     ),
-    e("div",{style:{display:"flex",flexDirection:"column"}},
-      e("div",{style:{fontFamily:"sans-serif",fontSize:32,color:"#71695e",marginBottom:18}},displayDate),
-      e("div",{style:{fontFamily:"sans-serif",fontSize:27,color:"#71695e"}},`${itemCount} article${itemCount===1?"":"s"} · ${sourceCount} source${sourceCount===1?"":"s"}`),
-      e("div",{style:{height:3,background:"#d8cfbf",marginTop:94,marginBottom:42}}),
-      e("div",{style:{fontFamily:"sans-serif",fontSize:27,fontWeight:800,color:"#174f3c",marginBottom:10}},"Compiled by Morning Reader"),
-      e("div",{style:{fontFamily:"sans-serif",fontSize:24,color:"#71695e"}},"reader.antonioskilton.com")
+    e("div",{style:{display:"flex",flexDirection:"column",background:p.paper,color:p.ink,padding:"54px 84px 62px",minHeight:390}},
+      e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}},
+        e("div",{style:{display:"flex",flexDirection:"column",maxWidth:760}},
+          e("div",{style:{fontFamily:"sans-serif",fontSize:31,fontWeight:800,marginBottom:14}},displayDate),
+          e("div",{style:{fontFamily:"sans-serif",fontSize:25,color:"#665f55",lineHeight:1.35}},sourceLine||"Morning Reader")
+        ),
+        e("div",{style:{display:"flex",flexDirection:"column",alignItems:"flex-end",fontFamily:"sans-serif"}},
+          e("div",{style:{fontSize:54,fontWeight:800,color:p.bg}},String(itemCount)),
+          e("div",{style:{fontSize:20,fontWeight:700,color:"#665f55",letterSpacing:2}},itemCount===1?"ARTICLE":"ARTICLES")
+        )
+      ),
+      e("div",{style:{height:2,background:"#d3c8b7",marginTop:48,marginBottom:30}}),
+      e("div",{style:{fontFamily:"sans-serif",fontSize:23,fontWeight:800,color:p.bg,marginBottom:8}},"Compiled by Morning Reader"),
+      e("div",{style:{fontFamily:"sans-serif",fontSize:21,color:"#71695e"}},"reader.antonioskilton.com")
     )
   );
   const response=new ImageResponse(cover,{width:1200,height:1600});
@@ -145,8 +176,8 @@ async function makeEpub(section:any, items:any[], displayDate:string) {
   const zip=new JSZip(); zip.file("mimetype","application/epub+zip",{compression:"STORE"});
   zip.folder("META-INF")!.file("container.xml",`<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`);
   const o=zip.folder("OEBPS")!; const bookId=crypto.randomUUID();
-  const sourceCount=new Set(items.map((x:any)=>x.source)).size;
-  const coverPng=await makeCoverPng(section.name,displayDate,items.length,sourceCount);
+  const sources=[...new Set(items.map((x:any)=>String(x.source||"")).filter(Boolean))];
+  const coverPng=await makeCoverPng(section.name,displayDate,items.length,sources);
   o.file("cover.png",coverPng);
 
   const nav=`<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${esc(section.name)}</title><link rel="stylesheet" href="style.css"/></head><body><h1>${esc(section.name)}</h1><p class="date">${esc(displayDate)}</p><ol>${items.map((a:any,i:number)=>`<li><a href="article-${i+1}.xhtml">${esc(a.title)}</a><span class="source">${esc(a.source)}</span></li>`).join("")}</ol></body></html>`;
@@ -169,9 +200,9 @@ async function makeEpub(section:any, items:any[], displayDate:string) {
   return await zip.generateAsync({type:"uint8array",mimeType:"application/epub+zip",compression:"DEFLATE",compressionOptions:{level:6}});
 }
 function b64(bytes:Uint8Array){let out="";for(let i=0;i<bytes.length;i+=0x8000)out+=String.fromCharCode(...bytes.subarray(i,i+0x8000));return btoa(out)}
-async function sendResend(to:string, attachments:any[], jobId:string) {
+async function sendResend(to:string, attachments:any[], jobId:string, displayDate:string) {
   if(!RESEND_API_KEY) throw new Error("RESEND_API_KEY is missing.");
-  const r=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${RESEND_API_KEY}`,"Content-Type":"application/json","Idempotency-Key":`morning-reader-${jobId}`},body:JSON.stringify({from:"Morning Reader <reader@antonioskilton.com>",to:[to],subject:`Morning Reader — ${new Intl.DateTimeFormat("en-US",{dateStyle:"medium"}).format(new Date())}`,text:"Your Morning Reader EPUBs are attached.",attachments})});
+  const r=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${RESEND_API_KEY}`,"Content-Type":"application/json","Idempotency-Key":`morning-reader-${jobId}`},body:JSON.stringify({from:"Morning Reader <reader@antonioskilton.com>",to:[to],subject:`Morning Reader — ${displayDate}`,text:"Your Morning Reader EPUBs are attached.",attachments})});
   const body=await r.text(); if(!r.ok)throw new Error(`Email provider error (${r.status}): ${body.slice(0,400)}`); return JSON.parse(body);
 }
 async function queueScheduled() {
@@ -189,10 +220,13 @@ async function processJob(job:any) {
     let all:any[]=[]; for(const feed of feeds.slice(0,100)) all.push(...await readFeed(feed,cutoff));
     const hashes=[...new Set(all.map(x=>x.article_hash))]; let delivered=new Set<string>(); for(let i=0;i<hashes.length;i+=200){const{data}=await admin.from("article_deliveries").select("article_hash").eq("user_id",job.user_id).in("article_hash",hashes.slice(i,i+200));for(const x of data||[])delivered.add(x.article_hash)}
     all=all.filter(x=>!delivered.has(x.article_hash)); all.sort((a,b)=>(b.published_at?+new Date(b.published_at):0)-(a.published_at?+new Date(a.published_at):0));
-    const attachments:any[]=[];const groups:any[]=[];const displayDate=new Intl.DateTimeFormat("en-US",{dateStyle:"long",timeZone:settings.timezone||"UTC"}).format(new Date());
-    for(const section of sections){let items=all.filter(x=>x.section_id===section.id);if(job.reason==="test")items=items.slice(0,3);else items=items.slice(0,80);if(!items.length)continue;const bytes=await makeEpub(section,items,displayDate);attachments.push({filename:`${slug(section.name)}-${new Date().toISOString().slice(0,10)}.epub`,content:b64(bytes),content_type:"application/epub+zip"});groups.push({section,items})}
+    const timezone=settings.timezone||"UTC";
+    const attachments:any[]=[];const groups:any[]=[];
+    const displayDate=new Intl.DateTimeFormat("en-US",{dateStyle:"long",timeZone:timezone}).format(new Date());
+    const filenameDate=localDateKey(timezone);
+    for(const section of sections){let items=all.filter(x=>x.section_id===section.id);if(job.reason==="test")items=items.slice(0,3);else items=items.slice(0,80);if(!items.length)continue;const bytes=await makeEpub(section,items,displayDate);attachments.push({filename:`${slug(section.name)}-${filenameDate}.epub`,content:b64(bytes),content_type:"application/epub+zip"});groups.push({section,items})}
     if(!attachments.length){await admin.from("digest_jobs").update({status:"empty",finished_at:new Date().toISOString(),result:{articles:0,sections:0}}).eq("id",job.id);return{job:job.id,status:"empty"}}
-    const sent=await sendResend(settings.kindle_email,attachments,job.id); let total=0;
+    const sent=await sendResend(settings.kindle_email,attachments,job.id,displayDate); let total=0;
     for(const g of groups){const{data:d,error}=await admin.from("digests").upsert({user_id:job.user_id,section_id:g.section.id,job_id:job.id,scheduled_for:job.reason==="scheduled"?job.run_after:null,status:"sent",article_count:g.items.length,provider_email_id:sent.id,sent_at:new Date().toISOString()},{onConflict:"job_id,section_id"}).select("id").single();if(error)throw error;const rows=g.items.map((a:any)=>({user_id:job.user_id,feed_id:a.feed_id,section_id:a.section_id,digest_id:d.id,canonical_url:a.canonical_url,article_hash:a.article_hash,title:a.title,published_at:a.published_at,delivered_at:new Date().toISOString()}));if(rows.length){const{error:e}=await admin.from("article_deliveries").upsert(rows,{onConflict:"user_id,article_hash",ignoreDuplicates:true});if(e)throw e}total+=g.items.length}
     await admin.from("digest_jobs").update({status:"sent",finished_at:new Date().toISOString(),result:{articles:total,sections:groups.length,provider_email_id:sent.id}}).eq("id",job.id);return{job:job.id,status:"sent",articles:total,sections:groups.length};
   }catch(e){const msg=(e instanceof Error?e.message:String(e)).slice(0,800),attempts=job.attempts+1,next=attempts<3?"queued":"failed";const patch:any={status:next,error:msg};if(next==="queued")patch.run_after=new Date(Date.now()+attempts*10*60_000).toISOString();else patch.finished_at=new Date().toISOString();await admin.from("digest_jobs").update(patch).eq("id",job.id);return{job:job.id,status:next,error:msg}}
