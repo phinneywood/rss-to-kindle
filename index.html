@@ -118,6 +118,25 @@
     .toast.show{display:block}
     footer{margin-top:38px;padding-top:18px;border-top:1px solid rgba(126,111,92,.25);color:var(--muted);font-size:12px}
     footer a{margin-right:15px}
+    [hidden]{display:none!important}
+    .content-section{display:flex;flex-direction:column;gap:12px}
+    .content-section + .content-section{margin-top:30px}
+    .section-intro{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+    .section-intro h2{margin:0}
+    .section-copy{font-size:14px;color:var(--muted);line-height:1.5;margin-top:5px;max-width:620px}
+    .feed-intake{padding:20px}
+    .feed-intake-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:16px}
+    .feed-intake-head h2{margin:0}
+    .feed-intake-form{display:grid;grid-template-columns:minmax(0,1fr) minmax(150px,210px) auto;gap:10px;align-items:end}
+    .feed-intake-form .field{margin:0;min-width:0}
+    .feed-intake-form .btn{min-height:43px}
+    .section-card{padding:0;overflow:hidden}
+    .section-head{padding:17px 18px}
+    .section-name{display:flex;align-items:baseline;gap:8px;min-width:0}
+    .section-name h3{font-size:22px}
+    .section-meta{font-size:13px;color:var(--muted);white-space:nowrap}
+    .disclosure-btn{width:36px;height:36px;padding:0!important;display:grid;place-items:center;font-size:18px;line-height:1;flex:0 0 auto}
+    .edition-manage{display:flex;align-items:center;justify-content:flex-end;padding:10px 18px;background:#fbf7ef;border-top:1px solid var(--line-soft)}
     @media(max-width:760px){
       .shell{padding:18px 14px 58px}
       .hero{padding-top:50px}
@@ -127,6 +146,14 @@
       .feed{grid-template-columns:1fr}
       .feed-actions{justify-content:flex-start;flex-wrap:wrap}
       .toolbar{align-items:flex-start;flex-direction:column}
+      .feed-intake{padding:18px}
+      .feed-intake-head{flex-direction:column;margin-bottom:14px}
+      .feed-intake-form{grid-template-columns:1fr}
+      .feed-intake-form .btn{width:100%}
+      .section-intro{align-items:flex-start}
+      .section-head{padding:16px}
+      .section-name{gap:7px}
+      .section-name h3{font-size:21px}
       .inline-form{grid-template-columns:1fr}
       .topbar{align-items:flex-start}
     }
@@ -330,14 +357,14 @@ function sectionCard(section){
     <div class="section-head row">
       <div class="section-name">
         <h3>${esc(section.name)}</h3>
-        <span class="section-meta">· ${section.feeds.length} source${section.feeds.length===1?'':'s'}</span>
+        <span class="section-meta">${section.feeds.length} source${section.feeds.length===1?'':'s'}</span>
       </div>
-      <div class="row" style="justify-content:flex-end;gap:8px">
-        <button class="btn small-btn rename-section" data-id="${section.id}">Rename</button>
-        ${section.feeds.length?`<button class="btn small-btn disclosure-btn toggle-sources" data-id="${section.id}" aria-expanded="${expanded}" aria-label="${expanded?'Collapse':'Expand'} ${esc(section.name)} sources" title="${expanded?'Collapse':'Expand'} sources">${expanded?'⌃':'⌄'}</button>`:''}
-      </div>
+      <button class="btn small-btn disclosure-btn toggle-sources" data-id="${section.id}" aria-expanded="${expanded}" aria-label="${expanded?'Collapse':'Expand'} ${esc(section.name)} edition" title="${expanded?'Collapse':'Expand'} edition">${expanded?'⌃':'⌄'}</button>
     </div>
-    <div class="feed-list" data-id="${section.id}" ${section.feeds.length&&!expanded?'hidden':''}>${section.feeds.length?section.feeds.map(feedRow).join(''):'<div class="empty">No sources yet.</div>'}</div>
+    <div class="edition-details" ${!expanded?'hidden':''}>
+      <div class="edition-manage"><button class="btn small-btn rename-section" data-id="${section.id}">Rename edition</button></div>
+      <div class="feed-list">${section.feeds.length?section.feeds.map(feedRow).join(''):'<div class="empty">No sources in this edition yet.</div>'}</div>
+    </div>
   </section>`;
 }
 function runBadge(status){
@@ -379,22 +406,42 @@ function dashboard(){
     ${problemFeeds?`<div class="notice error" style="margin-bottom:16px">${problemFeeds} feed${problemFeeds===1?' has':'s have'} a fetch error. Open the affected feed below for details.</div>`:''}
 
     <div class="grid">
-      <div class="stack">
-        <div class="row wrap">
-          <div><h2 style="margin:0">Kindle editions</h2><div class="small muted">Group sources into the separate EPUBs you want delivered.</div></div>
-          <div class="row wrap">
-            <button class="btn" id="import-opml">Import OPML</button>
+      <div>
+        <section class="content-section">
+          <div class="card feed-intake">
+            <div class="feed-intake-head">
+              <div>
+                <h2>Add feeds</h2>
+                <div class="section-copy">Add one website or RSS feed, or import many at once from another RSS reader.</div>
+              </div>
+              <button class="btn small-btn" id="import-opml">Import OPML</button>
+            </div>
+            <form class="feed-intake-form" id="add-source-form">
+              <div class="field">
+                <label for="source-url">Website or RSS feed</label>
+                <input id="source-url" class="input" name="url" required placeholder="https://example.com">
+              </div>
+              <div class="field">
+                <label for="source-edition">Add to edition</label>
+                <select id="source-edition" class="select" name="section_id">
+                  ${state.sections.map(section=>`<option value="${section.id}">${esc(section.name)}</option>`).join('')}
+                </select>
+              </div>
+              <button class="btn primary">Add feed</button>
+            </form>
+          </div>
+        </section>
+
+        <section class="content-section">
+          <div class="section-intro">
+            <div>
+              <h2>Kindle editions</h2>
+              <div class="section-copy">Each edition becomes its own EPUB on your Kindle. Group feeds into editions when you want separate reading bundles, such as AI, TPM, or News.</div>
+            </div>
             <button class="btn" id="add-section">+ New edition</button>
           </div>
-        </div>
-        <form class="source-add-form" id="add-source-form">
-          <input class="input" name="url" required placeholder="Paste a website or RSS feed" aria-label="Website or RSS feed">
-          <select class="select" name="section_id" aria-label="Kindle edition">
-            ${state.sections.map(section=>`<option value="${section.id}">${esc(section.name)}</option>`).join('')}
-          </select>
-          <button class="btn primary">Add source</button>
-        </form>
-        ${state.sections.map(sectionCard).join('')}
+          ${state.sections.map(sectionCard).join('')}
+        </section>
       </div>
 
       <aside>
