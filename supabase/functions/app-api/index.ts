@@ -1,6 +1,9 @@
 import {admin,auth,cors,dashboard,emailConfigured,json,nextRun,normEmail,preview,probe,requestCode,routePath,validEmail,validTimezone,validUrl,verifyCode} from "./core.ts";
 
 Deno.serve(async(req)=>{
+  const origin=req.headers.get("origin");
+  const allowedOrigin=!origin||origin==="https://morning-reader.vercel.app"||origin==="https://reader.antonioskilton.com"||origin==="http://localhost:3000"||origin==="http://127.0.0.1:3000"||/^https:\/\/morning-reader(?:-[a-z0-9]+)?-phinneywood\.vercel\.app$/.test(origin);
+  if(!allowedOrigin)return json({error:"Origin not allowed"},403);
   if(req.method==="OPTIONS")return new Response(null,{status:204,headers:cors});
   const route=routePath(req);
   try{
