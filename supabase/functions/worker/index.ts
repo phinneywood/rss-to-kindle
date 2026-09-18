@@ -125,55 +125,56 @@ function localDateKey(timeZone:string){
 }
 async function makeCoverPng(sectionName:string,displayDate:string,itemCount:number){
   const e=React.createElement;
-  const titleSize=sectionName.length>52?70:sectionName.length>34?82:sectionName.length>20?94:110;
+  const titleSize=sectionName.length<=10?238:sectionName.length<=20?168:sectionName.length<=34?128:sectionName.length<=52?102:82;
   const paper="#f7f5ef",ink="#11110f",muted="#67645e",line="#bdb9b0",red="#b3131b";
   const cover=e("div",{style:{
     width:"100%",height:"100%",display:"flex",flexDirection:"column",
-    background:paper,color:ink,fontFamily:"serif",borderTop:`16px solid ${red}`
+    background:paper,color:ink,fontFamily:"serif",borderTop:`18px solid ${red}`
   }},
-    e("div",{style:{display:"flex",flexDirection:"column",padding:"72px 78px 58px",flex:1}},
+    e("div",{style:{display:"flex",flexDirection:"column",padding:"66px 76px 48px",flex:1}},
       e("div",{style:{
         display:"flex",justifyContent:"space-between",alignItems:"baseline",
-        fontFamily:"monospace",fontSize:21,fontWeight:800,letterSpacing:3.2,textTransform:"uppercase"
+        fontFamily:"monospace",fontSize:21,fontWeight:800,letterSpacing:3.4,textTransform:"uppercase"
       }},
         e("div",null,"MORNING READER"),
-        e("div",{style:{fontSize:17,color:muted,letterSpacing:2.2}},"KINDLE EDITION")
+        e("div",{style:{fontSize:16,color:muted,letterSpacing:2.1}},displayDate.toUpperCase())
       ),
-      e("div",{style:{height:2,background:ink,marginTop:28,marginBottom:78}}),
-      e("div",{style:{display:"flex",flexDirection:"column",maxWidth:1010}},
+      e("div",{style:{height:2,background:ink,marginTop:26}}),
+
+      e("div",{style:{
+        display:"flex",flexDirection:"column",justifyContent:"center",
+        flex:1,paddingTop:56,paddingBottom:42
+      }},
         e("div",{style:{
-          fontFamily:"monospace",fontSize:18,fontWeight:800,letterSpacing:3,
+          fontFamily:"monospace",fontSize:17,fontWeight:800,letterSpacing:3.2,
           color:red,marginBottom:24,textTransform:"uppercase"
-        }},"YOUR PERSONAL MORNING PAPER"),
+        }},"KINDLE EDITION"),
         e("div",{style:{
-          fontSize:titleSize,fontWeight:700,lineHeight:.96,letterSpacing:-3.4,
-          maxWidth:1020
-        }},sectionName)
-      ),
-      e("div",{style:{display:"flex",flex:1}}),
-      e("div",{style:{height:1,background:line,marginBottom:26}}),
-      e("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-end",gap:28}},
-        e("div",{style:{display:"flex",flexDirection:"column"}},
-          e("div",{style:{fontFamily:"serif",fontSize:30,fontWeight:700}},displayDate),
-          e("div",{style:{
-            fontFamily:"monospace",fontSize:16,color:muted,letterSpacing:1.8,
-            marginTop:8,textTransform:"uppercase"
-          }},"MORNING EDITION")
-        ),
-        e("div",{style:{display:"flex",alignItems:"baseline",gap:10,fontFamily:"monospace"}},
-          e("div",{style:{fontSize:46,fontWeight:800,color:red}},String(itemCount)),
-          e("div",{style:{fontSize:15,fontWeight:700,color:muted,letterSpacing:2}},
-            itemCount===1?"ARTICLE":"ARTICLES")
+          fontSize:titleSize,fontWeight:700,lineHeight:.88,letterSpacing:-5,
+          maxWidth:1050
+        }},sectionName),
+        e("div",{style:{height:2,background:ink,marginTop:48,marginBottom:24}}),
+        e("div",{style:{
+          display:"flex",justifyContent:"space-between",alignItems:"baseline",
+          fontFamily:"monospace",textTransform:"uppercase"
+        }},
+          e("div",{style:{fontSize:17,fontWeight:800,letterSpacing:2.5}},"MORNING EDITION"),
+          e("div",{style:{display:"flex",alignItems:"baseline",gap:12}},
+            e("div",{style:{fontSize:56,fontWeight:800,color:red,lineHeight:1}},String(itemCount)),
+            e("div",{style:{fontSize:15,fontWeight:800,color:muted,letterSpacing:2}},
+              itemCount===1?"ARTICLE":"ARTICLES")
+          )
         )
       )
     ),
     e("div",{style:{
       display:"flex",justifyContent:"space-between",alignItems:"center",
-      borderTop:`2px solid ${ink}`,padding:"26px 78px 30px",
-      fontFamily:"monospace",fontSize:16,fontWeight:700,letterSpacing:1.1
+      borderTop:`2px solid ${ink}`,padding:"24px 76px 28px",
+      fontFamily:"monospace",fontSize:15,fontWeight:800,letterSpacing:1.3,
+      textTransform:"uppercase"
     }},
       e("div",null,"MADE WITH MORNING READER"),
-      e("div",{style:{color:red}},"reader.antonioskilton.com")
+      e("div",{style:{color:red,textTransform:"none",letterSpacing:.8}},"reader.antonioskilton.com")
     )
   );
   const response=new ImageResponse(cover,{width:1200,height:1600});
