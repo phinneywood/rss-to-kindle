@@ -8,7 +8,7 @@ const APP_API = "https://wuikfmmwvrzpaoevtskn.supabase.co/functions/v1/app-api";
 const ISSUER = "https://reader.antonioskilton.com";
 const RESOURCE = `${ISSUER}/api/mcp`;
 const TEST_CLIENT = `${ISSUER}/oauth/test-client.json`;
-const SCOPES = ["reader:read", "reader:write"];
+const SCOPES = ["reader:read", "reader:write", "offline_access"];
 
 function routePath(req: Request) {
   const p = new URL(req.url).pathname;
