@@ -1,4 +1,4 @@
-import {admin,auth,cors,dashboard,emailConfigured,json,nextRun,normEmail,preview,probe,requestCode,routePath,validEmail,validTimezone,validUrl,verifyCode} from "./core.ts";
+import {admin,auth,cors,dashboard,discoverFeeds,emailConfigured,json,nextRun,normEmail,normalizeUrl,preview,probe,requestCode,routePath,validEmail,validTimezone,validUrl,verifyCode} from "./core.ts";
 
 Deno.serve(async(req)=>{
   const origin=req.headers.get("origin");
@@ -48,12 +48,17 @@ Deno.serve(async(req)=>{
       await admin.from("feeds").update({archived_at:now,enabled:false}).eq("section_id",sm[1]).eq("user_id",user.id);const{error}=await admin.from("sections").update({archived_at:now,enabled:false}).eq("id",sm[1]).eq("user_id",user.id);if(error)throw error;return json(await dashboard(user.id,user.email));
     }
 
+    if(route==="/discover"&&req.method==="POST"){
+      const b=await req.json().catch(()=>({})),input=String(b.url||"").trim();if(!validUrl(input))return json({error:"Enter a valid website or RSS/Atom address."},400);
+      try{return json({feeds:await discoverFeeds(input),powered_by:"Feedsearch"})}catch(e){return json({error:e instanceof Error?e.message:String(e)},400)}
+    }
     if(route==="/feeds"&&req.method==="POST"){
-      const b=await req.json().catch(()=>({})),url=String(b.url||"").trim(),sectionId=String(b.section_id||"");if(!validUrl(url))return json({error:"Enter a valid http(s) RSS or Atom URL."},400);
+      const b=await req.json().catch(()=>({})),input=String(b.url||"").trim(),sectionId=String(b.section_id||"");if(!validUrl(input))return json({error:"Enter a valid website or RSS/Atom address."},400);
       const{data:sec}=await admin.from("sections").select("id").eq("id",sectionId).eq("user_id",user.id).is("archived_at",null).maybeSingle();if(!sec)return json({error:"Section not found."},404);
       const{count}=await admin.from("feeds").select("id",{count:"exact",head:true}).eq("user_id",user.id).is("archived_at",null);if((count||0)>=100)return json({error:"You can have up to 100 feeds."},400);
-      let pr;try{pr=await probe(url)}catch(e){return json({error:e instanceof Error?e.message:String(e)},400)}let name=String(b.name||"").trim()||pr.title;if(!name)name=new URL(url).hostname.replace(/^www\./,"");
-      const{error}=await admin.from("feeds").insert({user_id:user.id,section_id:sectionId,name:name.slice(0,120),url,kind:"standard",enabled:true});if(error)throw error;return json(await dashboard(user.id,user.email),201);
+      let pr;try{pr=await probe(input)}catch(e){return json({error:e instanceof Error?e.message:String(e)},400)}
+      const url=normalizeUrl(pr.url),name=(String(b.name||"").trim()||pr.title||new URL(url).hostname.replace(/^www\./,"")).slice(0,120);
+      const{error}=await admin.from("feeds").insert({user_id:user.id,section_id:sectionId,name,url,kind:"standard",enabled:true});if(error)throw error;return json(await dashboard(user.id,user.email),201);
     }
     const fm=route.match(/^\/feeds\/([0-9a-f-]+)$/i);
     if(fm&&req.method==="PATCH"){
@@ -69,7 +74,10 @@ Deno.serve(async(req)=>{
     }
     if((route==="/send-now"||route==="/send-test")&&req.method==="POST"){
       const{data:s}=await admin.from("user_settings").select("kindle_email").eq("user_id",user.id).single();if(!s?.kindle_email)return json({error:"Add your Send-to-Kindle email first."},400);const reason=route==="/send-test"?"test":"manual";
-      const{data:job,error}=await admin.from("digest_jobs").insert({user_id:user.id,reason,lookback_hours:168,idempotency_key:`${reason}:${user.id}:${crypto.randomUUID()}`,run_after:new Date().toISOString()}).select("id,status,reason,created_at").single();if(error)throw error;return json({ok:true,job},202);
+      const{data:job,error}=await admin.from("digest_jobs").insert({user_id:user.id,reason,lookback_hours:168,idempotency_key:`${reason}:${user.id}:${crypto.randomUUID()}`,run_after:new Date().toISOString()}).select("id,status,reason,created_at").single();if(error)throw error;
+      const now=Date.now(),nextBoundary=new Date(Math.ceil((now+1000)/300000)*300000).toISOString();
+      const{data:kick,error:kickError}=await admin.rpc("kick_digest_worker");
+      return json({ok:true,job,worker_triggered:!kickError&&Boolean(kick),next_worker_check_at:nextBoundary},202);
     }
     return json({error:"Not found"},404);
   }catch(e:any){console.error(e);return json({error:String(e?.message||e).slice(0,600)},Number(e?.status)||500)}
