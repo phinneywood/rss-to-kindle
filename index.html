@@ -429,7 +429,7 @@
       text-transform:uppercase;letter-spacing:.1em;color:var(--muted)
     }
     .auth-form-actions{display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap}
-    .auth-form-actions .btn{min-height:40px}
+    .auth-form-actions .btn{min-height:40px;display:inline-flex;align-items:center;justify-content:center;line-height:1.1}
     .auth-note{
       margin-top:18px;padding-top:13px;border-top:1px solid var(--line-soft);
       font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;
@@ -446,9 +446,10 @@
       font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--red);
       font-weight:800;font-size:13px
     }
+    .source-index-copy{display:block;min-width:0}
     .source-index-title{
-      font-family:Georgia,"Times New Roman",serif;font-size:19px;font-weight:600;
-      letter-spacing:-.015em
+      display:block;font-family:Georgia,"Times New Roman",serif;font-size:19px;font-weight:600;
+      line-height:1.08;letter-spacing:-.015em
     }
     .source-index-meta{
       display:block;margin-top:3px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
@@ -468,8 +469,9 @@
       .auth-form-actions .btn{width:auto}
       .dashboard-main .add-sources-head{margin-bottom:0}
       .dashboard-main .add-sources-head .editorial-copy{display:none}
-      .source-index-action{padding:12px 0}
+      .source-index-action{padding:14px 0}
       .source-index-title{font-size:18px}
+      .source-index-meta{margin-top:5px}
     }
   </style>
 </head>
@@ -551,7 +553,7 @@ function landing(error=''){
   app.innerHTML=shell(`
     <section class="auth-page">
       <div class="auth-hero">
-        <div class="auth-kicker">Your personal morning paper</div>
+        <div class="auth-kicker">RSS → EPUB → KINDLE</div>
         <h1>Good things to read.<br>Every morning.</h1>
         <div class="auth-lede">Choose a thoughtful starter edition or bring the sites you already follow. Morning Reader turns them into a clean Kindle edition made for reading.</div>
       </div>
@@ -831,12 +833,12 @@ function dashboard(){
           <div class="source-index-list">
             <button class="source-index-action" id="add-single-feed">
               <span class="source-index-number">01</span>
-              <span><span class="source-index-title">Add a single feed</span><span class="source-index-meta">Website or RSS address</span></span>
+              <span class="source-index-copy"><span class="source-index-title">Add a single feed</span><span class="source-index-meta">Website or RSS address</span></span>
               <span class="source-index-arrow">›</span>
             </button>
             <button class="source-index-action" id="import-opml">
               <span class="source-index-number">02</span>
-              <span><span class="source-index-title">Bulk upload</span><span class="source-index-meta">Import an OPML file</span></span>
+              <span class="source-index-copy"><span class="source-index-title">Bulk upload</span><span class="source-index-meta">Import an OPML file</span></span>
               <span class="source-index-arrow">›</span>
             </button>
           </div>
