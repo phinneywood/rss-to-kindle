@@ -151,18 +151,16 @@ async function makeEpub(section:any, items:any[], displayDate:string) {
   <text x="92" y="1494" font-family="Arial,Helvetica,sans-serif" font-size="24" fill="#71695e">reader.antonioskilton.com</text>
 </svg>`;
   o.file("cover.svg",coverSvg);
-  o.file("cover.xhtml",`<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${esc(section.name)}</title><style>html,body{margin:0;padding:0;width:100%;height:100%}body{text-align:center}img{width:100%;height:100%;object-fit:contain}</style></head><body><img src="cover.svg" alt="${esc(section.name)}"/></body></html>`);
 
   const nav=`<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${esc(section.name)}</title><link rel="stylesheet" href="style.css"/></head><body><h1>${esc(section.name)}</h1><p class="date">${esc(displayDate)}</p><ol>${items.map((a:any,i:number)=>`<li><a href="article-${i+1}.xhtml">${esc(a.title)}</a><span class="source">${esc(a.source)}</span></li>`).join("")}</ol></body></html>`;
   o.file("nav.xhtml",nav);
   o.file("style.css",`body{font-family:serif;line-height:1.55;margin:5%;color:#171717}h1,h2,h3{line-height:1.18}.date,.source,.meta{color:#666;font-size:.9em}.source{display:block;margin:.2em 0 1em}a{color:#111}pre{white-space:pre-wrap}blockquote{margin-left:1em;border-left:2px solid #aaa;padding-left:1em}`);
   const manifest=[
     `<item id="cover-image" href="cover.svg" media-type="image/svg+xml" properties="cover-image"/>`,
-    `<item id="cover-page" href="cover.xhtml" media-type="application/xhtml+xml"/>`,
     `<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>`,
     `<item id="css" href="style.css" media-type="text/css"/>`
   ];
-  const spine=[`<itemref idref="cover-page"/>`,`<itemref idref="nav"/>`];
+  const spine=[`<itemref idref="nav"/>`];
   items.forEach((a:any,i:number)=>{
     const id=`a${i+1}`,file=`article-${i+1}.xhtml`;
     manifest.push(`<item id="${id}" href="${file}" media-type="application/xhtml+xml"/>`);
