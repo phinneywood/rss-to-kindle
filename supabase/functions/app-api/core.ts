@@ -10,7 +10,8 @@ export function json(data:unknown,status=200){return new Response(JSON.stringify
 export function routePath(req:Request){const p=new URL(req.url).pathname,m="/app-api",i=p.indexOf(m);return i>=0?p.slice(i+m.length)||"/":p}
 export function normEmail(v:unknown){return String(v||"").trim().toLowerCase()}
 export function validEmail(v:string){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)&&v.length<=320}
-export function validUrl(v:string){try{const u=new URL(v);return["http:","https:"].includes(u.protocol)&&!u.username&&!u.password}catch{return false}}
+export function normalizeUrl(v:string){const s=String(v||"").trim();if(!s)return"";return /^[a-z][a-z0-9+.-]*:\/\//i.test(s)?s:`https://${s}`}
+export function validUrl(v:string){try{const u=new URL(normalizeUrl(v));return["http:","https:"].includes(u.protocol)&&!u.username&&!u.password}catch{return false}}
 export function validTimezone(v:string){try{new Intl.DateTimeFormat("en-US",{timeZone:v}).format(new Date());return true}catch{return false}}
 function hex(b:Uint8Array){return Array.from(b).map(x=>x.toString(16).padStart(2,"0")).join("")}
 export async function sha256(v:string){return hex(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v))))}
@@ -30,8 +31,57 @@ export async function nextRun(tz:string,time:string){const{data,error}=await adm
 function isPrivateV4(ip:string){const p=ip.split(".").map(Number);if(p.length!==4||p.some(n=>!Number.isInteger(n)||n<0||n>255))return false;const[a,b]=p;return a===10||a===127||a===0||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&b===168)||a>=224}
 function isPrivateV6(ip:string){const x=ip.toLowerCase();return x==="::1"||x==="::"||x.startsWith("fc")||x.startsWith("fd")||x.startsWith("fe8")||x.startsWith("fe9")||x.startsWith("fea")||x.startsWith("feb")}
 async function assertPublic(u:URL){const h=u.hostname.toLowerCase().replace(/^\[|\]$/g,"");if(h==="localhost"||h.endsWith(".localhost")||h.endsWith(".local")||isPrivateV4(h)||isPrivateV6(h))throw new Error("Private network URLs are not allowed.");if(!/^\d+\.\d+\.\d+\.\d+$/.test(h)&&!h.includes(":")){const ips=[...await Deno.resolveDns(h,"A").catch(()=>[]),...await Deno.resolveDns(h,"AAAA").catch(()=>[])];if(!ips.length||ips.some((ip:string)=>isPrivateV4(ip)||isPrivateV6(ip)))throw new Error("Feed host did not resolve to a public address.")}}
-async function safeFetch(input:string,maxBytes=1_500_000){let u=new URL(input);for(let i=0;i<5;i++){await assertPublic(u);const c=new AbortController(),t=setTimeout(()=>c.abort(),10_000);let r:Response;try{r=await fetch(u,{signal:c.signal,redirect:"manual",headers:{"User-Agent":"MorningReader/1.0 (+https://morning-reader.vercel.app)"}})}finally{clearTimeout(t)}if([301,302,303,307,308].includes(r.status)){const l=r.headers.get("location");if(!l)break;u=new URL(l,u);continue}if(!r.ok)throw new Error(`Feed returned HTTP ${r.status}`);return(await r.text()).slice(0,maxBytes)}throw new Error("Too many redirects.")}
-export async function probe(url:string){const x=await safeFetch(url);if(!/(<rss\b|<feed\b|<rdf:RDF\b)/i.test(x))throw new Error("That URL did not look like an RSS or Atom feed.");const m=x.match(/<title(?:\s[^>]*)?>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/i);return{title:(m?.[1]||"").replace(/<[^>]+>/g,"").replace(/&amp;/g,"&").trim().slice(0,120)}}
+async function safeFetch(input:string,maxBytes=1_500_000){let u=new URL(input);for(let i=0;i<5;i++){await assertPublic(u);const c=new AbortController(),t=setTimeout(()=>c.abort(),10_000);let r:Response;try{r=await fetch(u,{signal:c.signal,redirect:"manual",headers:{"User-Agent":"MorningReader/1.0 (+https://morning-reader.vercel.app)"}})}finally{clearTimeout(t)}if([301,302,303,307,308].includes(r.status)){const l=r.headers.get("location");if(!l)break;u=new URL(l,u);continue}if(!r.ok){if(r.status===403)throw new Error("This publisher is blocking Morning Reader from fetching this address.");if(r.status===404)throw new Error("Morning Reader could not find anything at this address.");throw new Error(`This address returned HTTP ${r.status}.`)}return(await r.text()).slice(0,maxBytes)}throw new Error("Too many redirects.")}
+function looksLikeFeed(x:string){return /<(rss\b|feed\b|rdf:RDF\b)/i.test(x)}
+function feedTitle(x:string){const m=x.match(/<title(?:\s[^>]*)?>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/i);return(m?.[1]||"").replace(/<[^>]+>/g,"").replace(/&amp;/gi,"&").replace(/&#39;/g,"'").trim().slice(0,120)}
+function htmlAttr(tag:string,name:string){const m=tag.match(new RegExp(name+"\\s*=\\s*([\\\"'])(.*?)\\1","i"));return m?.[2]||""}
+function htmlFeedLinks(html:string,base:string){
+  const out:{url:string,title:string,method:string}[]=[];
+  for(const tag of html.match(/<link\b[^>]*>/gi)||[]){
+    const rel=htmlAttr(tag,"rel").toLowerCase(),type=htmlAttr(tag,"type").toLowerCase(),href=htmlAttr(tag,"href");
+    if(!href||!rel.split(/\s+/).includes("alternate")||!/(rss|atom|feed\+json)/.test(type))continue;
+    try{out.push({url:new URL(href,base).toString(),title:htmlAttr(tag,"title"),method:"autodiscovery"})}catch{}
+  }
+  return out;
+}
+async function verifyFeedCandidate(candidate:{url:string,title?:string,method?:string}){
+  if(!validUrl(candidate.url))return null;
+  try{const x=await safeFetch(candidate.url,1_500_000);if(!looksLikeFeed(x))return null;return{url:normalizeUrl(candidate.url),title:(candidate.title||feedTitle(x)||new URL(candidate.url).hostname).slice(0,120),method:candidate.method||"discovered"}}catch{return null}
+}
+export async function discoverFeeds(input:string){
+  const url=normalizeUrl(input);if(!validUrl(url))throw new Error("Enter a valid website or RSS/Atom address.");
+  let html="";let originalError="";
+  try{html=await safeFetch(url,1_500_000)}catch(e){originalError=e instanceof Error?e.message:String(e)}
+  if(html&&looksLikeFeed(html))return[{url,title:feedTitle(html)||new URL(url).hostname,method:"direct"}];
+
+  const found:{url:string,title:string,method:string}[]=[];
+  if(html){
+    for(const c of htmlFeedLinks(html,url).slice(0,8)){const v=await verifyFeedCandidate(c);if(v&&!found.some(x=>x.url===v.url))found.push(v)}
+  }
+  if(!found.length){
+    const base=new URL(url),paths=["/feed","/feed/","/rss","/rss.xml","/feed.xml","/atom.xml","/index.xml"];
+    for(const p of paths){const v=await verifyFeedCandidate({url:new URL(p,base.origin).toString(),method:"common-path"});if(v&&!found.some(x=>x.url===v.url))found.push(v);if(found.length>=4)break}
+  }
+  if(!found.length){
+    try{
+      const c=new AbortController(),timer=setTimeout(()=>c.abort(),8000);
+      const r=await fetch("https://origin.feedsearch.dev/api/v1/search?info=true&favicon=false&opml=false&url="+encodeURIComponent(url),{signal:c.signal,headers:{"User-Agent":"MorningReader/1.0 (+https://reader.antonioskilton.com)"}});
+      clearTimeout(timer);
+      if(r.ok){
+        const rows=await r.json();
+        for(const row of (Array.isArray(rows)?rows:[]).slice(0,8)){
+          const v=await verifyFeedCandidate({url:String(row.url||""),title:String(row.title||row.site_name||""),method:"feedsearch"});
+          if(v&&!found.some(x=>x.url===v.url))found.push(v);
+          if(found.length>=6)break;
+        }
+      }
+    }catch{}
+  }
+  if(found.length)return found;
+  if(originalError)throw new Error(originalError);
+  throw new Error("Morning Reader couldn't find an RSS or Atom feed for this site. Try a direct feed URL or search with Feedsearch.");
+}
+export async function probe(url:string){const feeds=await discoverFeeds(url);return feeds[0]}
 function arr(x:any){return x==null?[]:Array.isArray(x)?x:[x]}
 function text(x:any):string{if(x==null)return"";if(typeof x==="string"||typeof x==="number")return String(x);if(typeof x==="object"){if("__cdata"in x)return text(x.__cdata);if("#text"in x)return text(x["#text"])}return""}
 function link(x:any):string{if(typeof x==="string")return x;for(const v of arr(x)){if(typeof v==="string")return v;if(v&&typeof v==="object"&&v["@_href"])return String(v["@_href"])}return""}
