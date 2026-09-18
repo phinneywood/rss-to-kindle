@@ -45,7 +45,7 @@ supabase functions deploy worker --no-verify-jwt
 
 The worker uses custom `x-worker-secret` authentication even though Supabase JWT verification is disabled.
 
-Connect this repository to the existing Vercel `morning-reader` project and deploy `main` to production.
+The Vercel `morning-reader` project is connected to this GitHub repository. Pushes to `main` are the production deployment path.
 
 ## Security
 
