@@ -387,7 +387,10 @@ function dashboard(){
       <div class="stack">
         <div class="row wrap">
           <div><h2 style="margin:0">Kindle editions</h2><div class="small muted">Group sources into the separate EPUBs you want delivered.</div></div>
-          <div class="row wrap">\n            <button class="btn" id="import-opml">Import OPML</button>\n            <button class="btn" id="add-section">+ New edition</button>\n          </div>
+          <div class="row wrap">
+            <button class="btn" id="import-opml">Import OPML</button>
+            <button class="btn" id="add-section">+ New edition</button>
+          </div>
         </div>
         ${state.sections.map(sectionCard).join('')}
       </div>
@@ -429,7 +432,8 @@ function dashboard(){
 
 function wireDashboard(){
   document.querySelector('#sign-out').onclick=signOut;
-  document.querySelector('#add-section').onclick=()=>sectionModal();\n  document.querySelector('#import-opml').onclick=opmlImportModal;
+  document.querySelector('#add-section').onclick=()=>sectionModal();
+  document.querySelector('#import-opml').onclick=opmlImportModal;
   document.querySelector('#toggle-schedule').onclick=async()=>{
     try{state=await api('/settings',{method:'PATCH',body:{paused:!state.settings.paused}});dashboard();toast(state.settings.paused?'Delivery paused':'Delivery resumed')}
     catch(err){toast(err.message)}
