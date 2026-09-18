@@ -264,6 +264,38 @@
       .side-card{padding:20px 0}
       .top-actions .btn{padding:7px 9px;font-size:11px}
     }
+
+    .starter-page{max-width:780px;margin:0 auto;padding:42px 0 20px}
+    .starter-page h1{font-family:Georgia,"Times New Roman",serif;font-size:clamp(42px,7vw,64px);line-height:.98;font-weight:600;letter-spacing:-.04em;margin:10px 0 14px}
+    .starter-deck{border-top:1px solid var(--ink);margin-top:28px}
+    .starter-option{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;padding:20px 0;border-bottom:1px solid var(--line)}
+    .starter-option h3{font-family:Georgia,"Times New Roman",serif;font-size:25px;font-weight:600;margin:0}
+    .starter-option p{margin:5px 0 8px;color:#4f4c46;font-family:Georgia,"Times New Roman",serif;font-size:15px;line-height:1.4}
+    .starter-sources{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;line-height:1.5;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+    .starter-add{width:42px;height:42px;padding:0!important;font-size:24px;display:grid;place-items:center;border-color:var(--ink)}
+    .starter-add:hover{background:var(--red);border-color:var(--red);color:white}
+    .starter-footer{display:flex;justify-content:space-between;gap:12px;align-items:center;padding-top:18px;flex-wrap:wrap}
+    .starter-ready{max-width:720px;margin:0 auto;padding:54px 0 20px}
+    .starter-ready h1{font-family:Georgia,"Times New Roman",serif;font-size:clamp(44px,8vw,68px);font-weight:600;letter-spacing:-.04em;line-height:.98;margin:10px 0 16px}
+    .ready-edition{border-top:1px solid var(--ink);border-bottom:1px solid var(--ink);padding:18px 0;margin:26px 0}
+    .ready-edition-name{font-family:Georgia,"Times New Roman",serif;font-size:28px}
+    .ready-actions{display:flex;gap:9px;flex-wrap:wrap}
+    .setup-page{max-width:760px;margin:0 auto;padding:44px 0 20px}
+    .setup-page h1{font-family:Georgia,"Times New Roman",serif;font-size:clamp(42px,7vw,62px);font-weight:600;letter-spacing:-.04em;line-height:1;margin:10px 0 14px}
+    .setup-list{border-top:1px solid var(--ink);margin-top:28px}
+    .setup-row{display:grid;grid-template-columns:44px minmax(0,1fr);gap:14px;padding:20px 0;border-bottom:1px solid var(--line)}
+    .setup-num{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--red);font-weight:800;font-size:13px;padding-top:4px}
+    .setup-row h3{font-family:Georgia,"Times New Roman",serif;font-size:23px;font-weight:600;margin:0 0 6px}
+    .setup-row p{margin:0 0 12px;color:#504d47;font-size:14px;line-height:1.5}
+    .setup-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}
+    @media(max-width:760px){
+      .starter-page,.starter-ready,.setup-page{padding-top:28px}
+      .starter-option{padding:18px 0;gap:12px}
+      .starter-option h3{font-size:23px}
+      .starter-add{width:40px;height:40px}
+      .setup-row{grid-template-columns:34px minmax(0,1fr);gap:10px}
+      .ready-actions .btn,.setup-actions .btn{width:100%}
+    }
   </style>
 </head>
 <body>
@@ -271,6 +303,7 @@
 <div id="modal" class="modal" aria-hidden="true"></div>
 <div id="toast" class="toast" role="status"></div>
 <script src="/opml.js"></script>
+<script src="/starter-editions.js"></script>
 <script>
 const API='https://wuikfmmwvrzpaoevtskn.supabase.co/functions/v1/app-api';
 const SENDER='reader@antonioskilton.com';
@@ -323,9 +356,9 @@ async function refresh(){state=await api('/me');render()}
 function landing(error=''){
   app.innerHTML=shell(`
     <section class="hero">
-      <div class="eyebrow">A quiet RSS-to-Kindle service</div>
-      <h1>Your feeds.<br>Your Kindle.<br>Every morning.</h1>
-      <p class="lede">Turn the sources you already follow into clean, sectioned EPUB editions. No ranking, summaries, or recommendation algorithm.</p>
+      <div class="eyebrow">Your personal morning paper</div>
+      <h1>Good things to read.<br>On your Kindle.<br>Every morning.</h1>
+      <p class="lede">Start with a curated edition in one tap, or bring the sites you already follow. Morning Reader turns them into a clean EPUB made for reading.</p>
     </section>
     <section class="card auth-card">
       <h2>Sign in</h2>
@@ -369,72 +402,167 @@ function verify(email,error=''){
 }
 async function signOut(){
   try{await api('/auth/logout',{method:'POST'})}catch{}
-  token=''; localStorage.removeItem('morningReaderToken'); state=null; landing();
+  token=''; localStorage.removeItem('morningReaderToken'); localStorage.removeItem('morningReaderSkipStarters'); state=null; landing();
+}
+
+function feedCount(){
+  return state.sections.reduce((n,section)=>n+(section.feeds||[]).length,0);
+}
+
+function starterPicker(){
+  app.innerHTML=shell(`
+    <section class="starter-page">
+      <div class="editorial-label">Start reading first</div>
+      <h1>Build your first morning paper.</h1>
+      <div class="editorial-copy">You don't need to know anything about RSS. Pick a starter edition and Morning Reader will assemble it for you. Every source can be changed later.</div>
+
+      <div class="starter-deck">
+        ${STARTER_EDITIONS.map(pack=>`<div class="starter-option">
+          <div>
+            <h3>${esc(pack.name)}</h3>
+            <p>${esc(pack.description)}</p>
+            <div class="starter-sources">${pack.sources.map(source=>esc(source.name)).join(' · ')}</div>
+          </div>
+          <button class="btn starter-add add-starter" data-id="${pack.id}" aria-label="Add ${esc(pack.name)}">+</button>
+        </div>`).join('')}
+      </div>
+
+      <div class="starter-footer">
+        <span class="technical-note">One tap creates a real edition with live feeds.</span>
+        <button class="btn small-btn" id="bring-own-feeds">I already have feeds →</button>
+      </div>
+    </section>`,
+    '<button class="btn small-btn" id="sign-out">Sign out</button>');
+
+  document.querySelector('#sign-out').onclick=signOut;
+  document.querySelector('#bring-own-feeds').onclick=()=>{
+    localStorage.morningReaderSkipStarters='1';
+    dashboard();
+  };
+  document.querySelectorAll('.add-starter').forEach(button=>button.onclick=()=>installStarter(button.dataset.id,button));
+}
+
+async function installStarter(id,button){
+  const pack=STARTER_EDITIONS.find(item=>item.id===id);
+  if(!pack)return;
+  const old=button.textContent;button.disabled=true;button.textContent='…';
+  try{
+    const existingCount=feedCount();
+    let payload;
+    if(existingCount===0&&state.sections.length){
+      const section=state.sections[0];
+      state=await api('/sections/'+section.id,{method:'PATCH',body:{name:pack.name}});
+      const renamed=state.sections.find(s=>s.id===section.id)||state.sections[0];
+      payload=pack.sources.map(source=>({url:source.url,name:source.name,section_id:renamed.id}));
+    }else{
+      payload=pack.sources.map(source=>({url:source.url,name:source.name,section_name:pack.name}));
+    }
+    const result=await api('/feeds/bulk',{method:'POST',body:{feeds:payload}});
+    state=result.dashboard;
+    const summary=result.summary||{};
+    const usable=(summary.added||0)+(summary.restored||0)+(summary.duplicate||0);
+    if(!usable)throw new Error('Those starter feeds could not be added right now. Try another edition.');
+    starterReady(pack,summary);
+  }catch(err){
+    button.disabled=false;button.textContent=old;toast(err.message);
+  }
+}
+
+function starterReady(pack,summary={}){
+  const section=state.sections.find(s=>s.name.toLowerCase()===pack.name.toLowerCase())||state.sections.find(s=>s.feeds?.length);
+  const count=section?.feeds?.length||((summary.added||0)+(summary.restored||0));
+  app.innerHTML=shell(`
+    <section class="starter-ready">
+      <div class="editorial-label">Your first edition</div>
+      <h1>Your morning paper has something in it.</h1>
+      <div class="editorial-copy">Before setting up your Kindle, take a look at the reading experience. This is the part that matters.</div>
+
+      <div class="ready-edition">
+        <div class="ready-edition-name">${esc(pack.name)}</div>
+        <div class="technical-note">${count} source${count===1?'':'s'} · editable anytime</div>
+      </div>
+
+      <div class="ready-actions">
+        <button class="btn primary" id="starter-preview">Preview the edition →</button>
+        <button class="btn" id="starter-kindle">Send it to my Kindle</button>
+        <button class="btn" id="starter-another">+ Add another starter</button>
+      </div>
+    </section>`,
+    '<button class="btn small-btn" id="sign-out">Sign out</button>');
+
+  document.querySelector('#sign-out').onclick=signOut;
+  document.querySelector('#starter-preview').onclick=previewModal;
+  document.querySelector('#starter-kindle').onclick=onboarding;
+  document.querySelector('#starter-another').onclick=starterPicker;
 }
 
 function onboarding(){
   const settings=state.settings||{};
   const timezone=Intl.DateTimeFormat().resolvedOptions().timeZone||settings.timezone||'UTC';
   app.innerHTML=shell(`
-    <section class="onboarding">
-      <div class="eyebrow">Three quick steps</div>
-      <h1 style="font-size:clamp(44px,7vw,64px);margin-top:12px">Connect your Kindle.</h1>
-      <p class="lede">Amazon only accepts personal documents from approved senders, so Morning Reader needs one small setup step in your Amazon account.</p>
+    <section class="setup-page">
+      <div class="editorial-label">Final step</div>
+      <h1>Send it to your Kindle.</h1>
+      <div class="editorial-copy">Amazon requires two addresses to be connected once. After that, Morning Reader can deliver your editions automatically.</div>
 
-      <div class="card" style="margin-top:28px">
-        <div class="step">
-          <div class="step-num">1</div>
+      <div class="setup-list">
+        <div class="setup-row">
+          <div class="setup-num">01</div>
           <div>
             <h3>Approve Morning Reader</h3>
-            <p class="muted small">In Amazon's Personal Document Settings, add this address to your <strong>Approved Personal Document E-mail List</strong>.</p>
+            <p>Add our sender address to Amazon's <strong>Approved Personal Document E-mail List</strong>.</p>
             <div class="codebox"><code>${SENDER}</code><button class="btn small-btn" type="button" id="copy-sender">Copy</button></div>
             <div class="row wrap" style="justify-content:flex-start;margin-top:10px">
               <a class="btn small-btn" href="${AMAZON_SETTINGS}" target="_blank" rel="noopener">Open Amazon settings ↗</a>
-              <a class="btn ghost small-btn" href="${AMAZON_HELP}" target="_blank" rel="noopener">Amazon help ↗</a>
+              <a class="btn small-btn" href="${AMAZON_HELP}" target="_blank" rel="noopener">Amazon help ↗</a>
             </div>
           </div>
         </div>
 
-        <div class="step">
-          <div class="step-num">2</div>
+        <div class="setup-row">
+          <div class="setup-num">02</div>
           <div>
-            <h3>Find your Kindle email</h3>
-            <p class="muted small">On the same Amazon settings page, look under <strong>Send-to-Kindle E-Mail Settings</strong>, then paste that address below.</p>
+            <h3>Add your Kindle address</h3>
+            <p>On that same Amazon page, copy your <strong>Send-to-Kindle E-Mail</strong> address and paste it here.</p>
             <div class="field" style="margin-bottom:0"><label for="kindle-email">Send-to-Kindle address</label><input id="kindle-email" class="input" type="email" placeholder="yourname_123@kindle.com" value="${esc(settings.kindle_email||'')}"></div>
           </div>
         </div>
 
-        <div class="step">
-          <div class="step-num">3</div>
+        <div class="setup-row">
+          <div class="setup-num">03</div>
           <div>
-            <h3>Choose your delivery time</h3>
-            <p class="muted small">Morning Reader schedules against your local timezone and handles daylight-saving changes.</p>
+            <h3>Choose when it arrives</h3>
+            <p>Morning Reader uses your timezone and handles daylight-saving changes automatically.</p>
             <div class="row wrap">
-              <div class="field" style="flex:1;min-width:160px"><label for="delivery-time">Time</label><input id="delivery-time" class="input" type="time" value="${esc((settings.delivery_time||'06:00').slice(0,5))}"></div>
-              <div class="field" style="flex:2;min-width:220px"><label for="timezone">Timezone</label><input id="timezone" class="input" value="${esc(timezone)}"></div>
+              <div class="field" style="flex:1;min-width:145px"><label for="delivery-time">Time</label><input id="delivery-time" class="input" type="time" value="${esc((settings.delivery_time||'06:00').slice(0,5))}"></div>
+              <div class="field" style="flex:2;min-width:210px"><label for="timezone">Timezone</label><input id="timezone" class="input" value="${esc(timezone)}"></div>
             </div>
           </div>
         </div>
+      </div>
 
-        <div class="row wrap" style="padding-top:8px">
-          <button class="btn primary" id="finish-setup">Finish setup</button>
-          <span class="tiny muted">You can change these later.</span>
-        </div>
+      <div class="setup-actions">
+        <button class="btn primary" id="finish-setup">Save & send a test edition →</button>
+        <button class="btn" id="back-to-paper">Back to my paper</button>
       </div>
     </section>`,
-    '<button class="btn" id="sign-out">Sign out</button>');
+    '<button class="btn small-btn" id="sign-out">Sign out</button>');
 
   document.querySelector('#sign-out').onclick=signOut;
+  document.querySelector('#back-to-paper').onclick=()=>dashboard();
   document.querySelector('#copy-sender').onclick=async()=>{await navigator.clipboard.writeText(SENDER);toast('Sender address copied')};
   document.querySelector('#finish-setup').onclick=async()=>{
     const kindle=document.querySelector('#kindle-email').value.trim();
     const delivery=document.querySelector('#delivery-time').value;
     const tz=document.querySelector('#timezone').value.trim();
-    const button=document.querySelector('#finish-setup'); button.disabled=true; button.textContent='Saving…';
+    if(!kindle){toast('Enter your Send-to-Kindle address first.');return}
+    const button=document.querySelector('#finish-setup');button.disabled=true;button.textContent='Saving…';
     try{
       state=await api('/settings',{method:'PATCH',body:{kindle_email:kindle,delivery_time:delivery,timezone:tz,onboarding_complete:true}});
-      dashboard(); toast('Kindle connected');
-    }catch(err){button.disabled=false;button.textContent='Finish setup';toast(err.message)}
+      localStorage.removeItem('morningReaderSkipStarters');
+      dashboard();
+      await queueSend('/send-test','Your first test edition is queued');
+    }catch(err){button.disabled=false;button.textContent='Save & send a test edition →';toast(err.message)}
   };
 }
 
@@ -536,10 +664,12 @@ function dashboard(){
             </div>
             <div class="delivery-actions">
               <button class="btn small-btn" id="preview">Preview</button>
-              <button class="btn small-btn" id="send-test">Send test</button>
-              <button class="btn primary small-btn" id="send-now">Send now</button>
-              <button class="btn small-btn" id="edit-settings">Edit</button>
-              <button class="btn small-btn" id="toggle-schedule">${settings.paused?'Resume':'Pause'}</button>
+              ${settings.onboarding_complete?`
+                <button class="btn small-btn" id="send-test">Send test</button>
+                <button class="btn primary small-btn" id="send-now">Send now</button>
+                <button class="btn small-btn" id="edit-settings">Edit</button>
+                <button class="btn small-btn" id="toggle-schedule">${settings.paused?'Resume':'Pause'}</button>
+              `:`<button class="btn primary small-btn" id="connect-kindle">Connect Kindle →</button>`}
             </div>
           </div>
           ${latestJob?`<div class="latest-run">LATEST · ${esc(latestJob.status.toUpperCase())} · ${fmtDate(latestJob.created_at)}${latestJob.result?.articles!=null?' · '+latestJob.result.articles+' ARTICLES':''}</div>`:''}
@@ -547,9 +677,9 @@ function dashboard(){
 
         <section class="side-card">
           <div class="editorial-label">Kindle</div>
-          <div style="margin-top:12px;font-family:Georgia,'Times New Roman',serif;font-size:16px;word-break:break-word">${esc(settings.kindle_email||'Not configured')}</div>
+          <div style="margin-top:12px;font-family:Georgia,'Times New Roman',serif;font-size:16px;word-break:break-word">${esc(settings.kindle_email||'Not connected yet')}</div>
           <div class="technical-note">Approved sender: ${SENDER}</div>
-          <div style="margin-top:12px"><a class="btn small-btn" href="${AMAZON_SETTINGS}" target="_blank" rel="noopener">Amazon settings ↗</a></div>
+          <div style="margin-top:12px">${settings.onboarding_complete?`<a class="btn small-btn" href="${AMAZON_SETTINGS}" target="_blank" rel="noopener">Amazon settings ↗</a>`:`<button class="btn small-btn" id="connect-kindle-secondary">Connect Kindle →</button>`}</div>
         </section>
       </aside>
     </div>`,
@@ -561,14 +691,17 @@ function wireDashboard(){
   document.querySelector('#sign-out').onclick=signOut;
   document.querySelector('#add-section').onclick=()=>sectionModal();
   document.querySelector('#import-opml').onclick=opmlImportModal;
-  document.querySelector('#toggle-schedule').onclick=async()=>{
+  const toggleSchedule=document.querySelector('#toggle-schedule');
+  if(toggleSchedule)toggleSchedule.onclick=async()=>{
     try{state=await api('/settings',{method:'PATCH',body:{paused:!state.settings.paused}});dashboard();toast(state.settings.paused?'Delivery paused':'Delivery resumed')}
     catch(err){toast(err.message)}
   };
-  document.querySelector('#edit-settings').onclick=settingsModal;
-  document.querySelector('#send-test').onclick=()=>queueSend('/send-test','Test edition queued');
-  document.querySelector('#send-now').onclick=()=>queueSend('/send-now','Edition queued');
-  document.querySelector('#preview').onclick=previewModal;
+  const editSettings=document.querySelector('#edit-settings');if(editSettings)editSettings.onclick=settingsModal;
+  const sendTest=document.querySelector('#send-test');if(sendTest)sendTest.onclick=()=>queueSend('/send-test','Test edition queued');
+  const sendNow=document.querySelector('#send-now');if(sendNow)sendNow.onclick=()=>queueSend('/send-now','Edition queued');
+  const preview=document.querySelector('#preview');if(preview)preview.onclick=previewModal;
+  const connectKindle=document.querySelector('#connect-kindle');if(connectKindle)connectKindle.onclick=onboarding;
+  const connectKindleSecondary=document.querySelector('#connect-kindle-secondary');if(connectKindleSecondary)connectKindleSecondary.onclick=onboarding;
 
   document.querySelectorAll('.toggle-sources').forEach(button=>button.onclick=()=>{
     const id=button.dataset.id;
@@ -748,7 +881,12 @@ async function watchJob(jobId){
   }
   const box=document.querySelector('#job-progress');if(box)box.textContent='Still processing. You can close this window; Recent runs will keep showing the latest status.';
 }
-function render(){state?.settings?.onboarding_complete?dashboard():onboarding()}
+function render(){
+  if(state?.settings?.onboarding_complete)return dashboard();
+  if(feedCount()===0&&localStorage.morningReaderSkipStarters!=='1')return starterPicker();
+  if(feedCount()===0)return dashboard();
+  return onboarding();
+}
 
 (async()=>{
   if(!token)return landing();
