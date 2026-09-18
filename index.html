@@ -327,25 +327,17 @@ function feedRow(feed){
 function sectionCard(section){
   const expanded=expandedSections.has(section.id);
   return `<section class="card section-card">
-    <div class="section-head row wrap">
-      <div>
-        <div class="section-name"><h3>${esc(section.name)}</h3><span class="status"><span class="dot"></span>1 EPUB</span></div>
-        <div class="tiny muted" style="margin-top:6px">${section.feeds.length} source${section.feeds.length===1?'':'s'} grouped into this Kindle edition</div>
+    <div class="section-head row">
+      <div class="section-name">
+        <h3>${esc(section.name)}</h3>
+        <span class="section-meta">· ${section.feeds.length} source${section.feeds.length===1?'':'s'}</span>
       </div>
-      <div class="row wrap" style="justify-content:flex-end">
-        ${section.feeds.length?`<button class="btn small-btn toggle-sources" data-id="${section.id}" aria-expanded="${expanded}">${expanded?'Hide sources':'Show sources'}</button>`:''}
+      <div class="row" style="justify-content:flex-end;gap:8px">
         <button class="btn small-btn rename-section" data-id="${section.id}">Rename</button>
-        <button class="btn small-btn show-add-feed" data-id="${section.id}">+ Add source</button>
+        ${section.feeds.length?`<button class="btn small-btn disclosure-btn toggle-sources" data-id="${section.id}" aria-expanded="${expanded}" aria-label="${expanded?'Collapse':'Expand'} ${esc(section.name)} sources" title="${expanded?'Collapse':'Expand'} sources">${expanded?'⌃':'⌄'}</button>`:''}
       </div>
     </div>
-    <form class="inline-form add-feed-form" data-id="${section.id}" hidden>
-      <div>
-        <input class="input" name="url" required placeholder="Paste a website or RSS feed" style="margin:0">
-        <div class="tiny muted" style="margin-top:7px">Paste a normal website if you don't know its feed URL. Morning Reader will try to find it. <a href="https://feedsearch.dev/" target="_blank" rel="noopener">powered by Feedsearch ↗</a></div>
-      </div>
-      <button class="btn primary small-btn">Find feed</button>
-    </form>
-    <div class="feed-list" data-id="${section.id}" ${section.feeds.length&&!expanded?'hidden':''}>${section.feeds.length?section.feeds.map(feedRow).join(''):'<div class="empty">No sources yet. Add a website or RSS feed to build this Kindle edition.</div>'}</div>
+    <div class="feed-list" data-id="${section.id}" ${section.feeds.length&&!expanded?'hidden':''}>${section.feeds.length?section.feeds.map(feedRow).join(''):'<div class="empty">No sources yet.</div>'}</div>
   </section>`;
 }
 function runBadge(status){
@@ -395,6 +387,13 @@ function dashboard(){
             <button class="btn" id="add-section">+ New edition</button>
           </div>
         </div>
+        <form class="source-add-form" id="add-source-form">
+          <input class="input" name="url" required placeholder="Paste a website or RSS feed" aria-label="Website or RSS feed">
+          <select class="select" name="section_id" aria-label="Kindle edition">
+            ${state.sections.map(section=>`<option value="${section.id}">${esc(section.name)}</option>`).join('')}
+          </select>
+          <button class="btn primary">Add source</button>
+        </form>
         ${state.sections.map(sectionCard).join('')}
       </div>
 
@@ -451,25 +450,27 @@ function wireDashboard(){
     if(expandedSections.has(id))expandedSections.delete(id);else expandedSections.add(id);
     dashboard();
   });
-  document.querySelectorAll('.show-add-feed').forEach(button=>button.onclick=()=>{
-    const form=document.querySelector(`.add-feed-form[data-id="${button.dataset.id}"]`);
-    form.hidden=!form.hidden;
-    if(!form.hidden)form.querySelector('input').focus();
-  });
-  document.querySelectorAll('.add-feed-form').forEach(form=>form.onsubmit=async e=>{
+  document.querySelector('#add-source-form').onsubmit=async e=>{
     e.preventDefault();
-    const input=String(new FormData(form).get('url')||'').trim();
-    const button=form.querySelector('button'); button.disabled=true; button.textContent='Finding…';
+    const form=e.currentTarget;
+    const data=new FormData(form);
+    const input=String(data.get('url')||'').trim();
+    const sectionId=String(data.get('section_id')||'');
+    const button=form.querySelector('button');
+    button.disabled=true;button.textContent='Finding…';
     try{
       const result=await api('/discover',{method:'POST',body:{url:input}});
       const feeds=result.feeds||[];
       if(!feeds.length)throw new Error("No RSS or Atom feed found.");
       if(feeds.length===1){
-        state=await api('/feeds',{method:'POST',body:{section_id:form.dataset.id,url:feeds[0].url}});
-        dashboard(); toast('Source added'); return;
+        state=await api('/feeds',{method:'POST',body:{section_id:sectionId,url:feeds[0].url}});
+        dashboard();toast('Source added');return;
       }
-      chooseFeedModal(form.dataset.id,feeds);
-    }catch(err){button.disabled=false;button.textContent='Find feed';toast(err.message)}
+      button.disabled=false;button.textContent='Add source';
+      chooseFeedModal(sectionId,feeds);
+    }catch(err){
+      button.disabled=false;button.textContent='Add source';toast(err.message);
+    }
   });
   document.querySelectorAll('.rename-section').forEach(button=>button.onclick=()=>renameSectionModal(button.dataset.id));
   document.querySelectorAll('.move-feed').forEach(button=>button.onclick=()=>moveFeedModal(button.dataset.id,button.dataset.section));
