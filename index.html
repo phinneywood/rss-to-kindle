@@ -543,7 +543,7 @@ const API='https://wuikfmmwvrzpaoevtskn.supabase.co/functions/v1/app-api';
 const SUPABASE_URL='https://wuikfmmwvrzpaoevtskn.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY='sb_publishable_2ud8GZElwdLaKIrZ0AmpBw_Eb7h-p6E';
 const authClient=window.supabase?.createClient
-  ? window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'pkce'}})
+  ? window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}})
   : null;
 const SENDER='reader@antonioskilton.com';
 const AMAZON_SETTINGS='https://www.amazon.com/mycd';
