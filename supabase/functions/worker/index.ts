@@ -72,6 +72,18 @@ function cleanHtml(html: string) {
   }).replace(/<p>\s*<\/p>/g, "").trim();
 }
 function plainLen(html:string){return cleanHtml(html).replace(/<[^>]+>/g," ").replace(/\s+/g," ").trim().length}
+function normText(s:string){return s.replace(/<[^>]+>/g," ").replace(/&amp;/gi,"&").replace(/&#39;/g,"'").replace(/&quot;/gi,'"').replace(/\s+/g," ").trim().toLowerCase()}
+function stripDuplicateTitle(html:string,title:string){
+  const target=normText(title); if(!target)return html;
+  let removed=false;
+  return html.replace(/<(h[1-4]|p)\b[^>]*>([\s\S]*?)<\/\1>/gi,(full,_tag,inner,offset)=>{
+    if(removed||offset>2500)return full;
+    const candidate=normText(inner);
+    const close=candidate===target||(candidate.length>12&&target.length>12&&(candidate.startsWith(target)||target.startsWith(candidate))&&Math.abs(candidate.length-target.length)<12);
+    if(close){removed=true;return ""}
+    return full;
+  }).trim();
+}
 async function pageBody(url:string) {
   const {text} = await safeFetch(url, {headers:{Accept:"text/html,application/xhtml+xml"}}, 2_500_000);
   let html = text.replace(/<script\b[\s\S]*?<\/script>/gi,"").replace(/<style\b[\s\S]*?<\/style>/gi,"").replace(/<(nav|aside|footer|header|form)\b[\s\S]*?<\/\1>/gi,"");
@@ -92,7 +104,8 @@ async function readFeed(feed:any, cutoff:Date) {
       const title=txt(e.title).replace(/<[^>]+>/g,"").replace(/\s+/g," ").trim()||"Untitled";
       let body=cleanHtml(contentOf(e));
       if(plainLen(body)<500){ try{ const full=await pageBody(url); if(plainLen(full)>plainLen(body))body=full; }catch{/* excerpt fallback */} }
-      if(!body) body = `<p>${title}</p>`;
+      body=stripDuplicateTitle(body,title);
+      if(!body) body = "<p>Article text was not available in the feed. Use the original article link below.</p>";
       out.push({feed_id:feed.id,section_id:feed.section_id,source:feed.name,title,url,canonical_url:url,published_at,body,article_hash:await sha256(url)});
     }
     await admin.from("feeds").update({last_fetch_at:new Date().toISOString(),last_error:null}).eq("id",feed.id);
@@ -107,11 +120,57 @@ async function makeEpub(section:any, items:any[], displayDate:string) {
   const zip=new JSZip(); zip.file("mimetype","application/epub+zip",{compression:"STORE"});
   zip.folder("META-INF")!.file("container.xml",`<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`);
   const o=zip.folder("OEBPS")!; const bookId=crypto.randomUUID();
-  const nav=`<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${esc(section.name)}</title><link rel="stylesheet" href="style.css"/></head><body><h1>${esc(section.name)}</h1><p class="date">${esc(displayDate)}</p><ol>${items.map((a,i)=>`<li><a href="article-${i+1}.xhtml">${esc(a.title)}</a><span class="source">${esc(a.source)}</span></li>`).join("")}</ol></body></html>`;
-  o.file("nav.xhtml",nav); o.file("style.css",`body{font-family:serif;line-height:1.55;margin:5%;color:#171717}h1,h2,h3{line-height:1.18}.date,.source,.meta{color:#666;font-size:.9em}.source{display:block;margin:.2em 0 1em}a{color:#111}pre{white-space:pre-wrap}blockquote{margin-left:1em;border-left:2px solid #aaa;padding-left:1em}`);
-  const manifest=[`<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>`,`<item id="css" href="style.css" media-type="text/css"/>`]; const spine=[`<itemref idref="nav"/>`];
-  items.forEach((a,i)=>{const id=`a${i+1}`,file=`article-${i+1}.xhtml`; manifest.push(`<item id="${id}" href="${file}" media-type="application/xhtml+xml"/>`);spine.push(`<itemref idref="${id}"/>`);const date=a.published_at?new Intl.DateTimeFormat("en-US",{dateStyle:"medium"}).format(new Date(a.published_at)):"";o.file(file,`<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${esc(a.title)}</title><link rel="stylesheet" href="style.css"/></head><body><p><a href="nav.xhtml">Contents</a></p><h1>${esc(a.title)}</h1><p class="meta">${esc(a.source)}${date?` · ${esc(date)}`:""}</p>${a.body}<hr/><p><a href="${esc(a.url)}">Original article</a></p></body></html>`)});
-  o.file("content.opf",`<?xml version="1.0" encoding="utf-8"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="bookid">urn:uuid:${bookId}</dc:identifier><dc:title>${esc(section.name)} — ${esc(displayDate)}</dc:title><dc:language>en</dc:language><dc:creator>Morning Reader</dc:creator><meta property="dcterms:modified">${new Date().toISOString().replace(/\.\d{3}Z$/,"Z")}</meta></metadata><manifest>${manifest.join("")}</manifest><spine>${spine.join("")}</spine></package>`);
+  const sourceCount=new Set(items.map((x:any)=>x.source)).size;
+
+  function coverLines(value:string){
+    const words=value.trim().split(/\s+/).filter(Boolean), lines:string[]=[]; let line="";
+    const max=18;
+    for(const word of words){
+      const candidate=line?line+" "+word:word;
+      if(candidate.length>max&&line){lines.push(line);line=word}else line=candidate;
+    }
+    if(line)lines.push(line);
+    if(lines.length>5)return [lines.slice(0,4).join(" "),lines.slice(4).join(" ")].filter(Boolean);
+    return lines;
+  }
+  const lines=coverLines(section.name);
+  const fontSize=lines.length<=2?112:lines.length===3?94:78;
+  const startY=560-(lines.length-1)*(fontSize*.62);
+  const titleTspans=lines.map((line:string,i:number)=>`<tspan x="92" y="${Math.round(startY+i*fontSize*1.06)}">${esc(line)}</tspan>`).join("");
+  const coverSvg=`<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1600" viewBox="0 0 1200 1600">
+  <rect width="1200" height="1600" fill="#f4efe5"/>
+  <circle cx="108" cy="112" r="26" fill="none" stroke="#174f3c" stroke-width="5"/>
+  <text x="154" y="128" font-family="Arial,Helvetica,sans-serif" font-size="38" font-weight="700" fill="#174f3c" letter-spacing="3">MORNING READER</text>
+  <line x1="92" y1="196" x2="1108" y2="196" stroke="#d8cfbf" stroke-width="3"/>
+  <text font-family="Georgia,serif" font-size="${fontSize}" font-weight="700" fill="#1e1b17">${titleTspans}</text>
+  <text x="92" y="1115" font-family="Arial,Helvetica,sans-serif" font-size="34" fill="#71695e">${esc(displayDate)}</text>
+  <text x="92" y="1174" font-family="Arial,Helvetica,sans-serif" font-size="29" fill="#71695e">${items.length} article${items.length===1?"":"s"} · ${sourceCount} source${sourceCount===1?"":"s"}</text>
+  <line x1="92" y1="1382" x2="1108" y2="1382" stroke="#d8cfbf" stroke-width="3"/>
+  <text x="92" y="1450" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="700" fill="#174f3c">Compiled by Morning Reader</text>
+  <text x="92" y="1494" font-family="Arial,Helvetica,sans-serif" font-size="24" fill="#71695e">reader.antonioskilton.com</text>
+</svg>`;
+  o.file("cover.svg",coverSvg);
+  o.file("cover.xhtml",`<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${esc(section.name)}</title><style>html,body{margin:0;padding:0;width:100%;height:100%}body{text-align:center}img{width:100%;height:100%;object-fit:contain}</style></head><body><img src="cover.svg" alt="${esc(section.name)}"/></body></html>`);
+
+  const nav=`<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${esc(section.name)}</title><link rel="stylesheet" href="style.css"/></head><body><h1>${esc(section.name)}</h1><p class="date">${esc(displayDate)}</p><ol>${items.map((a:any,i:number)=>`<li><a href="article-${i+1}.xhtml">${esc(a.title)}</a><span class="source">${esc(a.source)}</span></li>`).join("")}</ol></body></html>`;
+  o.file("nav.xhtml",nav);
+  o.file("style.css",`body{font-family:serif;line-height:1.55;margin:5%;color:#171717}h1,h2,h3{line-height:1.18}.date,.source,.meta{color:#666;font-size:.9em}.source{display:block;margin:.2em 0 1em}a{color:#111}pre{white-space:pre-wrap}blockquote{margin-left:1em;border-left:2px solid #aaa;padding-left:1em}`);
+  const manifest=[
+    `<item id="cover-image" href="cover.svg" media-type="image/svg+xml" properties="cover-image"/>`,
+    `<item id="cover-page" href="cover.xhtml" media-type="application/xhtml+xml"/>`,
+    `<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>`,
+    `<item id="css" href="style.css" media-type="text/css"/>`
+  ];
+  const spine=[`<itemref idref="cover-page"/>`,`<itemref idref="nav"/>`];
+  items.forEach((a:any,i:number)=>{
+    const id=`a${i+1}`,file=`article-${i+1}.xhtml`;
+    manifest.push(`<item id="${id}" href="${file}" media-type="application/xhtml+xml"/>`);
+    spine.push(`<itemref idref="${id}"/>`);
+    const date=a.published_at?new Intl.DateTimeFormat("en-US",{dateStyle:"medium"}).format(new Date(a.published_at)):"";
+    o.file(file,`<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${esc(a.title)}</title><link rel="stylesheet" href="style.css"/></head><body><p><a href="nav.xhtml">Contents</a></p><h1>${esc(a.title)}</h1><p class="meta">${esc(a.source)}${date?` · ${esc(date)}`:""}</p>${a.body}<hr/><p><a href="${esc(a.url)}">Original article</a></p></body></html>`);
+  });
+  o.file("content.opf",`<?xml version="1.0" encoding="utf-8"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="bookid"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="bookid">urn:uuid:${bookId}</dc:identifier><dc:title>${esc(section.name)} — ${esc(displayDate)}</dc:title><dc:language>en</dc:language><dc:creator>Morning Reader</dc:creator><meta name="cover" content="cover-image"/><meta property="dcterms:modified">${new Date().toISOString().replace(/\.\d{3}Z$/,"Z")}</meta></metadata><manifest>${manifest.join("")}</manifest><spine>${spine.join("")}</spine></package>`);
   return await zip.generateAsync({type:"uint8array",mimeType:"application/epub+zip",compression:"DEFLATE",compressionOptions:{level:6}});
 }
 function b64(bytes:Uint8Array){let out="";for(let i=0;i<bytes.length;i+=0x8000)out+=String.fromCharCode(...bytes.subarray(i,i+0x8000));return btoa(out)}
@@ -150,7 +209,8 @@ Deno.serve(async(req)=>{
     if(!workerSecret)return json({error:"Unauthorized"},401);
     const {data:authorized,error:authError}=await admin.rpc("verify_worker_secret",{p_secret:workerSecret});
     if(authError||!authorized)return json({error:"Unauthorized"},401);
-    const {data:claimed,error:claimError}=await admin.rpc("claim_worker_run",{p_name:"digest-worker",p_min_interval_seconds:240});
+    const force=req.headers.get("x-worker-force")==="1";
+    const {data:claimed,error:claimError}=await admin.rpc("claim_worker_run",{p_name:"digest-worker",p_min_interval_seconds:force?0:240});
     if(claimError)throw claimError;
     if(!claimed)return json({ok:true,skipped:"recently-run"});
     await admin.from("digest_jobs").update({status:"queued",run_after:new Date().toISOString(),error:"Recovered after stale worker claim."}).eq("status","running").lt("started_at",new Date(Date.now()-30*60_000).toISOString()).lt("attempts",3);
