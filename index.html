@@ -325,11 +325,17 @@ function sectionCard(section){
   return `<section class="card section-card">
     <div class="section-head row wrap">
       <div class="section-name"><h3>${esc(section.name)}</h3><span class="tiny muted">${section.feeds.length} feed${section.feeds.length===1?'':'s'}</span></div>
-      <button class="btn small-btn show-add-feed" data-id="${section.id}">+ Add feed</button>
+      <div class="row wrap" style="justify-content:flex-end">
+        <button class="btn small-btn rename-section" data-id="${section.id}">Rename</button>
+        <button class="btn small-btn show-add-feed" data-id="${section.id}">+ Add source</button>
+      </div>
     </div>
     <form class="inline-form add-feed-form" data-id="${section.id}" hidden>
-      <input class="input" name="url" type="url" required placeholder="https://example.com/feed.xml" style="margin:0">
-      <button class="btn primary small-btn">Add RSS / Atom</button>
+      <div>
+        <input class="input" name="url" required placeholder="Paste a website or RSS feed" style="margin:0">
+        <div class="tiny muted" style="margin-top:7px">Paste a normal website if you don't know its feed URL. Morning Reader will try to find it. <a href="https://feedsearch.dev/" target="_blank" rel="noopener">powered by Feedsearch ↗</a></div>
+      </div>
+      <button class="btn primary small-btn">Find feed</button>
     </form>
     <div class="feed-list">${section.feeds.length?section.feeds.map(feedRow).join(''):'<div class="empty">No feeds yet. Add an RSS or Atom URL to start this section.</div>'}</div>
   </section>`;
@@ -371,7 +377,7 @@ function dashboard(){
     <div class="grid">
       <div class="stack">
         <div class="row wrap">
-          <div><h2 style="margin:0">Sections & feeds</h2><div class="small muted">Each section becomes its own EPUB.</div></div>
+          <div><h2 style="margin:0">Sections & sources</h2><div class="small muted">Each section becomes its own named Kindle edition and cover.</div></div>
           <button class="btn" id="add-section">+ New section</button>
         </div>
         ${state.sections.map(sectionCard).join('')}
@@ -431,12 +437,20 @@ function wireDashboard(){
   });
   document.querySelectorAll('.add-feed-form').forEach(form=>form.onsubmit=async e=>{
     e.preventDefault();
-    const button=form.querySelector('button'); button.disabled=true; button.textContent='Checking…';
+    const input=String(new FormData(form).get('url')||'').trim();
+    const button=form.querySelector('button'); button.disabled=true; button.textContent='Finding…';
     try{
-      state=await api('/feeds',{method:'POST',body:{section_id:form.dataset.id,url:new FormData(form).get('url')}});
-      dashboard(); toast('Feed added');
-    }catch(err){button.disabled=false;button.textContent='Add RSS / Atom';toast(err.message)}
+      const result=await api('/discover',{method:'POST',body:{url:input}});
+      const feeds=result.feeds||[];
+      if(!feeds.length)throw new Error("No RSS or Atom feed found.");
+      if(feeds.length===1){
+        state=await api('/feeds',{method:'POST',body:{section_id:form.dataset.id,url:feeds[0].url}});
+        dashboard(); toast('Source added'); return;
+      }
+      chooseFeedModal(form.dataset.id,feeds);
+    }catch(err){button.disabled=false;button.textContent='Find feed';toast(err.message)}
   });
+  document.querySelectorAll('.rename-section').forEach(button=>button.onclick=()=>renameSectionModal(button.dataset.id));
   document.querySelectorAll('.toggle-feed').forEach(button=>button.onclick=async()=>{
     try{state=await api('/feeds/'+button.dataset.id,{method:'PATCH',body:{enabled:button.dataset.enabled!=='true'}});dashboard()}
     catch(err){toast(err.message)}
@@ -446,14 +460,41 @@ function wireDashboard(){
 
 function sectionModal(){
   openModal(`<div class="row"><h2>New section</h2><button class="btn small-btn" id="close-modal">Close</button></div>
-    <p class="muted small">A section becomes one EPUB in each delivery.</p>
-    <form id="section-form"><div class="field"><label for="section-name">Name</label><input id="section-name" class="input" name="name" required maxlength="80" placeholder="Technology, Essays, Design…"></div><button class="btn primary">Create section</button></form>`);
+    <p class="muted small">This name becomes the title of the EPUB and its Kindle cover. Short, distinctive names work best.</p>
+    <form id="section-form"><div class="field"><label for="section-name">Edition name</label><input id="section-name" class="input" name="name" required maxlength="80" placeholder="Technology, Essays, Design…"></div><button class="btn primary">Create section</button></form>`);
   document.querySelector('#close-modal').onclick=closeModal;
   document.querySelector('#section-form').onsubmit=async e=>{
     e.preventDefault();
     try{state=await api('/sections',{method:'POST',body:{name:new FormData(e.currentTarget).get('name')}});closeModal();dashboard();toast('Section created')}
     catch(err){toast(err.message)}
   };
+}
+function renameSectionModal(id){
+  const section=state.sections.find(s=>s.id===id);
+  if(!section)return;
+  openModal(`<div class="row"><h2>Rename edition</h2><button class="btn small-btn" id="close-modal">Close</button></div>
+    <p class="muted small">The new name will appear on future EPUB filenames and Kindle covers.</p>
+    <form id="rename-section-form"><div class="field"><label>Edition name</label><input class="input" name="name" required maxlength="80" value="${esc(section.name)}"></div><button class="btn primary">Save name</button></form>`);
+  document.querySelector('#close-modal').onclick=closeModal;
+  document.querySelector('#rename-section-form').onsubmit=async e=>{
+    e.preventDefault();
+    try{
+      state=await api('/sections/'+id,{method:'PATCH',body:{name:new FormData(e.currentTarget).get('name')}});
+      closeModal();dashboard();toast('Edition renamed');
+    }catch(err){toast(err.message)}
+  };
+}
+function chooseFeedModal(sectionId,feeds){
+  openModal(`<div class="row"><h2>Choose a feed</h2><button class="btn small-btn" id="close-modal">Close</button></div>
+    <p class="muted small">This site publishes more than one feed. Pick the one you want in this edition.</p>
+    <div class="stack">${feeds.map((feed,i)=>`<button class="card choose-discovered-feed" data-i="${i}" style="text-align:left;cursor:pointer"><strong>${esc(feed.title||'Untitled feed')}</strong><div class="tiny muted" style="margin-top:4px;word-break:break-all">${esc(feed.url)}</div></button>`).join('')}</div>
+    <p class="tiny muted" style="margin-top:14px"><a href="https://feedsearch.dev/" target="_blank" rel="noopener">powered by Feedsearch ↗</a></p>`);
+  document.querySelector('#close-modal').onclick=closeModal;
+  document.querySelectorAll('.choose-discovered-feed').forEach(button=>button.onclick=async()=>{
+    const feed=feeds[Number(button.dataset.i)];button.disabled=true;
+    try{state=await api('/feeds',{method:'POST',body:{section_id:sectionId,url:feed.url}});closeModal();dashboard();toast('Source added')}
+    catch(err){button.disabled=false;toast(err.message)}
+  });
 }
 function deleteFeedModal(id){
   const feed=state.sections.flatMap(s=>s.feeds).find(f=>f.id===id);
@@ -499,9 +540,35 @@ async function queueSend(path,message){
   const button=path==='/send-test'?document.querySelector('#send-test'):document.querySelector('#send-now');
   button.disabled=true; const old=button.textContent; button.textContent='Queuing…';
   try{
-    await api(path,{method:'POST'}); toast(message);
-    setTimeout(async()=>{try{state=await api('/me');dashboard()}catch{}},4500);
+    const result=await api(path,{method:'POST'});
+    const fallback=result.next_worker_check_at?new Date(result.next_worker_check_at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):null;
+    const startCopy=result.worker_triggered?'Processing is starting now.':(fallback?`Queued — processing will start by ${fallback}.`:'Queued for processing.');
+    openModal(`<div class="row"><h2>${esc(message)}</h2><button class="btn small-btn" id="close-modal">Close</button></div>
+      <div class="notice info" id="job-progress">${esc(startCopy)}</div>
+      <p class="muted small">Morning Reader will update this status automatically. After we mark it sent, Amazon may take a few more minutes to place it on your Kindle.</p>`);
+    document.querySelector('#close-modal').onclick=closeModal;
+    await watchJob(result.job.id);
   }catch(err){button.disabled=false;button.textContent=old;toast(err.message)}
+}
+async function watchJob(jobId){
+  const deadline=Date.now()+120000;
+  while(Date.now()<deadline){
+    await new Promise(r=>setTimeout(r,2200));
+    try{
+      state=await api('/me');
+      const job=(state.jobs||[]).find(j=>j.id===jobId);
+      const box=document.querySelector('#job-progress');
+      if(job&&box){
+        if(job.status==='queued')box.textContent='Queued — waiting for the worker.';
+        if(job.status==='running')box.textContent='Building your Kindle edition now…';
+        if(job.status==='sent')box.textContent=`Sent to Amazon · ${job.result?.articles??0} article${job.result?.articles===1?'':'s'}.`;
+        if(job.status==='empty')box.textContent='Finished — there were no new articles to send.';
+        if(job.status==='failed')box.textContent='The send failed: '+(job.error||'Unknown error');
+      }
+      if(job&&['sent','empty','failed'].includes(job.status)){setTimeout(()=>{if(!modal.classList.contains('open'))dashboard()},100);return}
+    }catch{}
+  }
+  const box=document.querySelector('#job-progress');if(box)box.textContent='Still processing. You can close this window; Recent runs will keep showing the latest status.';
 }
 function render(){state?.settings?.onboarding_complete?dashboard():onboarding()}
 
