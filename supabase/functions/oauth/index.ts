@@ -267,7 +267,7 @@ Deno.serve(async (req: Request) => {
       const f = authFieldsFromForm(form);
       const { scopes, meta } = await validateAuthFields(f);
       const email = normalizeEmail(form.get("email"));
-      const code = String(form.get("code") || "").replace(/\D/g, "");
+      const code = get("code").replace(/\D/g, "");
       if (!validEmail(email) || !/^\d{6}$/.test(code)) return html(verifyHtml(f, email, String(meta.client_name || "ChatGPT"), "Enter the 6-digit code."), 400);
       let verified: any;
       try {
@@ -297,15 +297,24 @@ Deno.serve(async (req: Request) => {
     }
 
     if (route === "/token" && req.method === "POST") {
-      const form = await req.formData();
-      const grant = String(form.get("grant_type") || "");
-      const clientId = String(form.get("client_id") || "");
+      const contentType=req.headers.get("content-type")||"";
+      const bodyValues:Record<string,string>={};
+      if(contentType.includes("application/json")){
+        const b=await req.json().catch(()=>({}));
+        for(const [k,v] of Object.entries(b||{}))bodyValues[k]=String(v??"");
+      }else{
+        const form=await req.formData();
+        for(const [k,v] of form.entries())bodyValues[k]=String(v);
+      }
+      const get=(name:string)=>bodyValues[name]||"";
+      const grant = get("grant_type");
+      const clientId = get("client_id");
       if (!allowedClientId(clientId)) return json({ error: "invalid_client" }, 401);
 
       if (grant === "authorization_code") {
-        const code = String(form.get("code") || "");
-        const redirectUri = String(form.get("redirect_uri") || "");
-        const verifier = String(form.get("code_verifier") || "");
+        const code = get("code");
+        const redirectUri = get("redirect_uri");
+        const verifier = get("code_verifier");
         const resource = String(form.get("resource") || RESOURCE);
         if (!code || !redirectUri || !/^[A-Za-z0-9._~-]{43,128}$/.test(verifier)) return json({ error: "invalid_request" }, 400);
         const { data: row } = await admin.schema("private").from("oauth_authorization_codes").select("*")
@@ -327,13 +336,13 @@ Deno.serve(async (req: Request) => {
       }
 
       if (grant === "refresh_token") {
-        const raw = String(form.get("refresh_token") || "");
+        const raw = get("refresh_token");
         const resource = String(form.get("resource") || RESOURCE);
         if (!raw) return json({ error: "invalid_request" }, 400);
         const { data: row } = await admin.schema("private").from("oauth_refresh_tokens").select("*")
           .eq("token_hash", await sha256(raw)).is("revoked_at", null).gt("expires_at", new Date().toISOString()).maybeSingle();
         if (!row || row.client_id !== clientId || row.resource !== resource) return json({ error: "invalid_grant" }, 400);
-        const requested = String(form.get("scope") || "").trim();
+        const requested = get("scope").trim();
         const scopes = requested ? parseScopes(requested) : (row.scopes || []);
         if (scopes.some((s: string) => !(row.scopes || []).includes(s))) return json({ error: "invalid_scope" }, 400);
         const { data: revoked } = await admin.schema("private").from("oauth_refresh_tokens")
