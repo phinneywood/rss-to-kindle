@@ -140,16 +140,19 @@ async function sha256(v: string) {
 }
 async function authenticate(raw: string): Promise<AuthInfo | null> {
   if (!raw) return null;
-  const { data: access, error } = await admin.schema("private").from("oauth_access_tokens")
-    .select("id,user_id,client_id,scopes,resource,expires_at,revoked_at")
-    .eq("token_hash", await sha256(raw))
-    .is("revoked_at", null)
-    .gt("expires_at", new Date().toISOString())
-    .maybeSingle();
-  if (error || !access || access.resource !== RESOURCE) return null;
-  const { data: user } = await admin.from("app_users").select("id,email").eq("id", access.user_id).maybeSingle();
-  if (!user) return null;
-  return { userId: user.id, email: user.email, clientId: access.client_id, scopes: access.scopes || [], tokenId: access.id };
+  const { data, error } = await admin.rpc("mcp_validate_oauth_access_token", {
+    p_token_hash: await sha256(raw),
+    p_resource: RESOURCE
+  });
+  if (error || !Array.isArray(data) || !data.length) return null;
+  const access:any=data[0];
+  return {
+    userId: access.user_id,
+    email: access.email,
+    clientId: access.client_id,
+    scopes: access.scopes || [],
+    tokenId: access.token_id
+  };
 }
 function hasScopes(auth: AuthInfo, required: string[]) {
   return required.every(s => auth.scopes.includes(s));
