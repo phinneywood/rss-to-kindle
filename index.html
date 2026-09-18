@@ -507,6 +507,28 @@
       .system-metric:nth-child(4){border-top:1px solid var(--line)}
       .system-row{grid-template-columns:1fr}
     }
+
+    /* Social sign-in */
+    .auth-provider-list{max-width:540px;display:flex;flex-direction:column;gap:8px;margin-top:18px}
+    .auth-provider-button{
+      width:100%;min-height:46px;border:1px solid var(--ink);border-radius:2px;background:transparent;
+      color:var(--ink);display:flex;align-items:center;justify-content:space-between;padding:11px 13px;
+      font-weight:750;text-align:left
+    }
+    .auth-provider-button:hover{background:#fff}
+    .auth-provider-button:disabled{opacity:.5;cursor:default}
+    .auth-provider-name{font-family:Georgia,"Times New Roman",serif;font-size:18px;font-weight:600}
+    .auth-provider-arrow{font-family:Georgia,"Times New Roman",serif;font-size:21px;line-height:1}
+    .auth-divider{
+      max-width:540px;display:flex;align-items:center;gap:10px;margin:20px 0 18px;
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;
+      letter-spacing:.12em;text-transform:uppercase;color:var(--muted)
+    }
+    .auth-divider:before,.auth-divider:after{content:"";height:1px;background:var(--line);flex:1}
+    .auth-provider-note{
+      max-width:540px;margin-top:10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+      font-size:9px;line-height:1.5;color:var(--muted)
+    }
   </style>
 </head>
 <body>
@@ -515,8 +537,14 @@
 <div id="toast" class="toast" role="status"></div>
 <script src="/opml.js"></script>
 <script src="/starter-editions.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
 <script>
 const API='https://wuikfmmwvrzpaoevtskn.supabase.co/functions/v1/app-api';
+const SUPABASE_URL='https://wuikfmmwvrzpaoevtskn.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY='sb_publishable_2ud8GZElwdLaKIrZ0AmpBw_Eb7h-p6E';
+const authClient=window.supabase?.createClient
+  ? window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'pkce'}})
+  : null;
 const SENDER='reader@antonioskilton.com';
 const AMAZON_SETTINGS='https://www.amazon.com/mycd';
 const AMAZON_HELP='https://digprjsurvey.amazon.com/csad/help/node/GK4QXXXR76TPPVPM?searchNodes=GDRLC59WEFZTBPU7';
@@ -584,6 +612,34 @@ async function api(path,options={}){
 }
 async function refresh(){state=await api('/me');render()}
 
+async function exchangeSupabaseSession(session){
+  if(!session?.access_token)throw new Error('Social sign-in did not return a valid session.');
+  const response=await fetch(API+'/auth/exchange-supabase',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token}
+  });
+  const body=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(body.error||'Could not complete social sign-in.');
+  token=body.token;localStorage.morningReaderToken=token;state=body;
+  try{history.replaceState({},'',location.pathname)}catch{}
+  return body;
+}
+async function socialSignIn(provider){
+  if(!authClient){toast('Social sign-in is unavailable right now. Use the email code instead.');return}
+  const buttons=[...document.querySelectorAll('.auth-provider-button')];
+  buttons.forEach(button=>button.disabled=true);
+  try{
+    const {error}=await authClient.auth.signInWithOAuth({
+      provider,
+      options:{redirectTo:location.origin+location.pathname}
+    });
+    if(error)throw error;
+  }catch(err){
+    buttons.forEach(button=>button.disabled=false);
+    toast(err.message||'Could not start social sign-in.');
+  }
+}
+
 function landing(error=''){
   app.innerHTML=shell(`
     <section class="auth-page">
@@ -595,16 +651,31 @@ function landing(error=''){
 
       <section class="auth-form-section">
         <div class="editorial-label">Sign in or start</div>
-        <h2>Enter your email.</h2>
-        <div class="auth-form-copy">No password. We'll send you a six-digit sign-in code.</div>
+        <h2>Choose how to continue.</h2>
+        ${error?`<div class="notice error" style="max-width:540px;margin-top:14px">${esc(error)}</div>`:''}
+
+        <div class="auth-provider-list">
+          <button class="auth-provider-button" id="sign-in-google" type="button">
+            <span class="auth-provider-name">Continue with Google</span><span class="auth-provider-arrow">›</span>
+          </button>
+          <button class="auth-provider-button" id="sign-in-apple" type="button">
+            <span class="auth-provider-name">Continue with Apple</span><span class="auth-provider-arrow">›</span>
+          </button>
+        </div>
+        <div class="auth-provider-note">Social sign-in only requests the identity information needed to create or find your Morning Reader account.</div>
+
+        <div class="auth-divider">or use email</div>
+
         <form id="login-form" class="auth-form">
+          <div class="auth-form-copy">We'll send you a six-digit sign-in code. No password.</div>
           <div class="field"><label for="email">Email address</label><input id="email" class="input" name="email" type="email" autocomplete="email" required placeholder="you@example.com"></div>
-          ${error?`<div class="notice error">${esc(error)}</div>`:''}
           <div class="auth-form-actions"><button class="btn primary" id="login-submit">Continue →</button></div>
-          <div class="auth-note">New here? The same sign-in creates your account. No password to remember.</div>
+          <div class="auth-note">New here? Any of these sign-in methods creates your account. Existing accounts are matched by verified email.</div>
         </form>
       </section>
     </section>`);
+  document.querySelector('#sign-in-google').onclick=()=>socialSignIn('google');
+  document.querySelector('#sign-in-apple').onclick=()=>socialSignIn('apple');
   document.querySelector('#login-form').onsubmit=async e=>{
     e.preventDefault();
     const button=document.querySelector('#login-submit'); button.disabled=true; button.textContent='Sending…';
@@ -643,6 +714,7 @@ function verify(email,error=''){
 }
 async function signOut(){
   try{await api('/auth/logout',{method:'POST'})}catch{}
+  try{if(authClient)await authClient.auth.signOut()}catch{}
   token=''; localStorage.removeItem('morningReaderToken'); localStorage.removeItem('morningReaderSkipStarters'); state=null; landing();
 }
 
@@ -1215,8 +1287,24 @@ function render(){
 }
 
 (async()=>{
-  if(!token)return landing();
-  try{state=await api('/me');render()}catch{token='';localStorage.removeItem('morningReaderToken');landing()}
+  let loginError='';
+  const params=new URLSearchParams(location.search);
+  if(params.get('error_description'))loginError=params.get('error_description');
+  if(token){
+    try{state=await api('/me');render();return}
+    catch{token='';localStorage.removeItem('morningReaderToken')}
+  }
+  if(authClient){
+    try{
+      const {data,error}=await authClient.auth.getSession();
+      if(error)throw error;
+      if(data?.session){
+        await exchangeSupabaseSession(data.session);
+        render();return;
+      }
+    }catch(err){loginError=loginError||err.message||'Could not complete social sign-in.'}
+  }
+  landing(loginError);
 })();
 </script>
 </body>
