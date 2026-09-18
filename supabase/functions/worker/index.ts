@@ -2,6 +2,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { XMLParser } from "npm:fast-xml-parser@4.5.0";
 import JSZip from "npm:jszip@3.10.1";
 import sanitizeHtml from "npm:sanitize-html@2.17.0";
+import { ImageResponse } from "npm:@vercel/og@^0.6.8";
+import React from "npm:react@^19";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -116,47 +118,42 @@ async function readFeed(feed:any, cutoff:Date) {
 }
 function esc(s:string){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
 function slug(s:string){return s.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"").slice(0,50)||"reading"}
+async function makeCoverPng(sectionName:string,displayDate:string,itemCount:number,sourceCount:number){
+  const e=React.createElement;
+  const cover=e("div",{style:{
+    width:"100%",height:"100%",display:"flex",flexDirection:"column",justifyContent:"space-between",
+    background:"#f4efe5",color:"#1e1b17",padding:"90px 92px",fontFamily:"serif"
+  }},
+    e("div",{style:{display:"flex",flexDirection:"column"}},
+      e("div",{style:{fontFamily:"sans-serif",fontSize:32,fontWeight:800,letterSpacing:4,color:"#174f3c"}},"MORNING READER"),
+      e("div",{style:{height:3,background:"#d8cfbf",marginTop:46,marginBottom:110}}),
+      e("div",{style:{fontSize:112,fontWeight:700,lineHeight:0.98,letterSpacing:-3,maxWidth:1010}},sectionName)
+    ),
+    e("div",{style:{display:"flex",flexDirection:"column"}},
+      e("div",{style:{fontFamily:"sans-serif",fontSize:32,color:"#71695e",marginBottom:18}},displayDate),
+      e("div",{style:{fontFamily:"sans-serif",fontSize:27,color:"#71695e"}},`${itemCount} article${itemCount===1?"":"s"} · ${sourceCount} source${sourceCount===1?"":"s"}`),
+      e("div",{style:{height:3,background:"#d8cfbf",marginTop:94,marginBottom:42}}),
+      e("div",{style:{fontFamily:"sans-serif",fontSize:27,fontWeight:800,color:"#174f3c",marginBottom:10}},"Compiled by Morning Reader"),
+      e("div",{style:{fontFamily:"sans-serif",fontSize:24,color:"#71695e"}},"reader.antonioskilton.com")
+    )
+  );
+  const response=new ImageResponse(cover,{width:1200,height:1600});
+  if(!response.ok)throw new Error("Could not render cover image.");
+  return new Uint8Array(await response.arrayBuffer());
+}
 async function makeEpub(section:any, items:any[], displayDate:string) {
   const zip=new JSZip(); zip.file("mimetype","application/epub+zip",{compression:"STORE"});
   zip.folder("META-INF")!.file("container.xml",`<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`);
   const o=zip.folder("OEBPS")!; const bookId=crypto.randomUUID();
   const sourceCount=new Set(items.map((x:any)=>x.source)).size;
-
-  function coverLines(value:string){
-    const words=value.trim().split(/\s+/).filter(Boolean), lines:string[]=[]; let line="";
-    const max=18;
-    for(const word of words){
-      const candidate=line?line+" "+word:word;
-      if(candidate.length>max&&line){lines.push(line);line=word}else line=candidate;
-    }
-    if(line)lines.push(line);
-    if(lines.length>5)return [lines.slice(0,4).join(" "),lines.slice(4).join(" ")].filter(Boolean);
-    return lines;
-  }
-  const lines=coverLines(section.name);
-  const fontSize=lines.length<=2?112:lines.length===3?94:78;
-  const startY=560-(lines.length-1)*(fontSize*.62);
-  const titleTspans=lines.map((line:string,i:number)=>`<tspan x="92" y="${Math.round(startY+i*fontSize*1.06)}">${esc(line)}</tspan>`).join("");
-  const coverSvg=`<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1600" viewBox="0 0 1200 1600">
-  <rect width="1200" height="1600" fill="#f4efe5"/>
-  <circle cx="108" cy="112" r="26" fill="none" stroke="#174f3c" stroke-width="5"/>
-  <text x="154" y="128" font-family="Arial,Helvetica,sans-serif" font-size="38" font-weight="700" fill="#174f3c" letter-spacing="3">MORNING READER</text>
-  <line x1="92" y1="196" x2="1108" y2="196" stroke="#d8cfbf" stroke-width="3"/>
-  <text font-family="Georgia,serif" font-size="${fontSize}" font-weight="700" fill="#1e1b17">${titleTspans}</text>
-  <text x="92" y="1115" font-family="Arial,Helvetica,sans-serif" font-size="34" fill="#71695e">${esc(displayDate)}</text>
-  <text x="92" y="1174" font-family="Arial,Helvetica,sans-serif" font-size="29" fill="#71695e">${items.length} article${items.length===1?"":"s"} · ${sourceCount} source${sourceCount===1?"":"s"}</text>
-  <line x1="92" y1="1382" x2="1108" y2="1382" stroke="#d8cfbf" stroke-width="3"/>
-  <text x="92" y="1450" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="700" fill="#174f3c">Compiled by Morning Reader</text>
-  <text x="92" y="1494" font-family="Arial,Helvetica,sans-serif" font-size="24" fill="#71695e">reader.antonioskilton.com</text>
-</svg>`;
-  o.file("cover.svg",coverSvg);
+  const coverPng=await makeCoverPng(section.name,displayDate,items.length,sourceCount);
+  o.file("cover.png",coverPng);
 
   const nav=`<?xml version="1.0" encoding="utf-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${esc(section.name)}</title><link rel="stylesheet" href="style.css"/></head><body><h1>${esc(section.name)}</h1><p class="date">${esc(displayDate)}</p><ol>${items.map((a:any,i:number)=>`<li><a href="article-${i+1}.xhtml">${esc(a.title)}</a><span class="source">${esc(a.source)}</span></li>`).join("")}</ol></body></html>`;
   o.file("nav.xhtml",nav);
   o.file("style.css",`body{font-family:serif;line-height:1.55;margin:5%;color:#171717}h1,h2,h3{line-height:1.18}.date,.source,.meta{color:#666;font-size:.9em}.source{display:block;margin:.2em 0 1em}a{color:#111}pre{white-space:pre-wrap}blockquote{margin-left:1em;border-left:2px solid #aaa;padding-left:1em}`);
   const manifest=[
-    `<item id="cover-image" href="cover.svg" media-type="image/svg+xml" properties="cover-image"/>`,
+    `<item id="cover-image" href="cover.png" media-type="image/png" properties="cover-image"/>`,
     `<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>`,
     `<item id="css" href="style.css" media-type="text/css"/>`
   ];
