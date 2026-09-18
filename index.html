@@ -149,6 +149,9 @@
       .feed-intake{padding:18px}
       .feed-intake-head{flex-direction:column;margin-bottom:14px}
       .feed-intake-form{grid-template-columns:1fr}
+      .source-actions{grid-template-columns:1fr;max-width:none}
+      .source-action{width:100%}
+
       .feed-intake-form .btn{width:100%}
       .section-intro{align-items:flex-start}
       .section-head{padding:16px}
@@ -199,6 +202,11 @@
     .editorial-head h2{font-size:36px;line-height:1}
     .editorial-copy{max-width:630px;color:#494741;font-family:Georgia,"Times New Roman",serif;font-size:17px;line-height:1.45;margin-top:10px}
     .intake-actions{display:flex;gap:8px;align-items:center}
+    .source-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:20px;max-width:560px}
+    .source-action{min-height:54px;text-align:left;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 15px}
+    .source-action strong{font-family:Georgia,"Times New Roman",serif;font-size:17px;font-weight:600}
+    .source-action span{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+
     .feed-intake{padding:0;border:0;background:transparent}
     .feed-intake-head{display:none}
     .feed-intake-form{display:grid;grid-template-columns:minmax(0,1fr) 190px auto;gap:8px;align-items:end}
@@ -621,24 +629,19 @@ function dashboard(){
             <div>
               <div class="editorial-label">Build your morning paper</div>
               <h1>Add sources</h1>
-              <div class="editorial-copy">Add one feed at a time, or import a collection. Choose which Kindle edition should receive it.</div>
+              <div class="editorial-copy">Add one publication, or bring in a collection from another RSS reader.</div>
             </div>
-            <div class="intake-actions"><button class="btn small-btn" id="import-opml">Import OPML</button></div>
           </div>
-          <form class="feed-intake-form" id="add-source-form">
-            <div class="field">
-              <label for="source-url">Website or RSS feed</label>
-              <input id="source-url" class="input" name="url" required placeholder="https://example.com/rss">
-            </div>
-            <div class="field">
-              <label for="source-edition">Add to edition</label>
-              <select id="source-edition" class="select" name="section_id">
-                ${state.sections.map(section=>`<option value="${section.id}">${esc(section.name)}</option>`).join('')}
-              </select>
-            </div>
-            <button class="btn primary">Add feed →</button>
-          </form>
-          <div class="technical-note">Morning Reader will find the feed automatically if you paste a normal website.</div>
+          <div class="source-actions">
+            <button class="btn source-action" id="add-single-feed">
+              <strong>Add a single feed</strong>
+              <span>Website or RSS</span>
+            </button>
+            <button class="btn source-action" id="import-opml">
+              <strong>Bulk upload</strong>
+              <span>OPML</span>
+            </button>
+          </div>
         </section>
 
         <section class="editorial-section">
@@ -690,6 +693,7 @@ function dashboard(){
 function wireDashboard(){
   document.querySelector('#sign-out').onclick=signOut;
   document.querySelector('#add-section').onclick=()=>sectionModal();
+  document.querySelector('#add-single-feed').onclick=singleFeedModal;
   document.querySelector('#import-opml').onclick=opmlImportModal;
   const toggleSchedule=document.querySelector('#toggle-schedule');
   if(toggleSchedule)toggleSchedule.onclick=async()=>{
@@ -708,28 +712,6 @@ function wireDashboard(){
     if(expandedSections.has(id))expandedSections.delete(id);else expandedSections.add(id);
     dashboard();
   });
-  document.querySelector('#add-source-form').onsubmit=async e=>{
-    e.preventDefault();
-    const form=e.currentTarget;
-    const data=new FormData(form);
-    const input=String(data.get('url')||'').trim();
-    const sectionId=String(data.get('section_id')||'');
-    const button=form.querySelector('button');
-    button.disabled=true;button.textContent='Finding…';
-    try{
-      const result=await api('/discover',{method:'POST',body:{url:input}});
-      const feeds=result.feeds||[];
-      if(!feeds.length)throw new Error("No RSS or Atom feed found.");
-      if(feeds.length===1){
-        state=await api('/feeds',{method:'POST',body:{section_id:sectionId,url:feeds[0].url}});
-        dashboard();toast('Source added');return;
-      }
-      button.disabled=false;button.textContent='Add source';
-      chooseFeedModal(sectionId,feeds);
-    }catch(err){
-      button.disabled=false;button.textContent='Add source';toast(err.message);
-    }
-  };
   document.querySelectorAll('.rename-section').forEach(button=>button.onclick=()=>renameSectionModal(button.dataset.id));
   document.querySelectorAll('.manage-feed').forEach(button=>button.onclick=()=>feedActionsModal(button.dataset.id));
 }
@@ -758,6 +740,33 @@ function renameSectionModal(id){
       state=await api('/sections/'+id,{method:'PATCH',body:{name:new FormData(e.currentTarget).get('name')}});
       closeModal();dashboard();toast('Edition renamed');
     }catch(err){toast(err.message)}
+  };
+}
+function singleFeedModal(){
+  openModal(`<div class="row"><div><div class="editorial-label">Add source</div><h2 style="margin-top:6px">Add a single feed</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
+    <p class="muted small">Paste a publication's website or RSS address. Morning Reader will find the feed for you.</p>
+    <form id="single-feed-form">
+      <div class="field"><label for="single-feed-url">Website or RSS feed</label><input id="single-feed-url" class="input" name="url" required placeholder="https://example.com"></div>
+      <div class="field"><label for="single-feed-section">Add to edition</label><select id="single-feed-section" class="select" name="section_id">${state.sections.map(section=>`<option value="${section.id}">${esc(section.name)}</option>`).join('')}</select></div>
+      <button class="btn primary" id="single-feed-submit">Find & add feed →</button>
+    </form>`);
+  document.querySelector('#close-modal').onclick=closeModal;
+  document.querySelector('#single-feed-form').onsubmit=async e=>{
+    e.preventDefault();
+    const form=e.currentTarget,data=new FormData(form),input=String(data.get('url')||'').trim(),sectionId=String(data.get('section_id')||'');
+    const button=document.querySelector('#single-feed-submit');button.disabled=true;button.textContent='Finding…';
+    try{
+      const result=await api('/discover',{method:'POST',body:{url:input}});
+      const feeds=result.feeds||[];
+      if(!feeds.length)throw new Error("No RSS or Atom feed found.");
+      if(feeds.length===1){
+        state=await api('/feeds',{method:'POST',body:{section_id:sectionId,url:feeds[0].url}});
+        closeModal();dashboard();toast('Source added');return;
+      }
+      chooseFeedModal(sectionId,feeds);
+    }catch(err){
+      button.disabled=false;button.textContent='Find & add feed →';toast(err.message);
+    }
   };
 }
 function chooseFeedModal(sectionId,feeds){
