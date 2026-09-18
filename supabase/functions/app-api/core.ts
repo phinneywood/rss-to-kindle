@@ -89,7 +89,7 @@ export async function systemHealth(userId:string){
   const settings=settingsR.data,feeds=feedsR.data||[],jobs=jobsR.data||[];
   const completed=jobs.filter((j:any)=>["sent","empty","partial","failed"].includes(j.status));
   const successful=completed.filter((j:any)=>j.status==="sent"||j.status==="empty").length;
-  const durations=completed.map((j:any)=>j.started_at&&j.finished_at?new Date(j.finished_at).getTime()-new Date(j.started_at).getTime():null).filter((x:any)=>typeof x==="number"&&x>=0).sort((a:number,b:number)=>a-b);
+  const durations=completed.map((j:any)=>j.started_at&&j.finished_at?new Date(j.finished_at).getTime()-new Date(j.started_at).getTime():null).filter((x:number|null):x is number=>typeof x==="number"&&x>=0).sort((a,b)=>a-b);
   const medianMs=durations.length?durations[Math.floor((durations.length-1)/2)]:null;
   const failingFeeds=feeds.filter((f:any)=>f.last_error);
   const repeatedFeeds=feeds.filter((f:any)=>Number(f.consecutive_failures||0)>=3);
