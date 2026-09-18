@@ -438,15 +438,15 @@
     .source-index-list{border-top:1px solid var(--line);margin-top:12px}
     .source-index-action{
       -webkit-appearance:none;appearance:none;color:var(--ink);font:inherit;cursor:pointer;
-      width:100%;display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;
+      width:100%;display:flex;align-items:center;
       gap:12px;min-height:64px;padding:13px 0;border:0;border-bottom:1px solid var(--line);
       background:transparent;text-align:left
     }
     .source-index-number{
-      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--red);
+      width:34px;flex:0 0 34px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--red);
       font-weight:800;font-size:13px
     }
-    .source-index-copy{display:block;min-width:0}
+    .source-index-copy{display:block;min-width:0;flex:1}
     .source-index-title{
       display:block;font-family:Georgia,"Times New Roman",serif;font-size:19px;font-weight:600;
       line-height:1.08;letter-spacing:-.015em
@@ -456,7 +456,7 @@
       font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)
     }
     .source-index-arrow{
-      font-family:Georgia,"Times New Roman",serif;font-size:22px;color:var(--ink)
+      flex:0 0 auto;font-family:Georgia,"Times New Roman",serif;font-size:22px;color:var(--ink)
     }
     .source-index-action:hover .source-index-title,.source-index-action:hover .source-index-arrow{color:var(--red)}
     @media(max-width:760px){
