@@ -395,6 +395,82 @@
       .delivery-actions.compact-delivery-actions .btn{width:auto}
       .kindle-status-row{align-items:center}
     }
+
+    /* Editorial auth + source-action refinement */
+    .auth-page{max-width:760px;padding:44px 0 10px}
+    .auth-page .auth-hero{padding:0 0 34px;border-bottom:1px solid var(--ink)}
+    .auth-page .auth-kicker{
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;
+      letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--red)
+    }
+    .auth-page h1{
+      font-family:Georgia,"Times New Roman",serif;font-size:clamp(48px,8vw,78px);
+      line-height:.94;font-weight:600;letter-spacing:-.045em;margin:12px 0 16px
+    }
+    .auth-page .auth-lede{
+      max-width:610px;font-family:Georgia,"Times New Roman",serif;font-size:18px;
+      line-height:1.45;color:#4f4c46
+    }
+    .auth-form-section{padding:26px 0 12px}
+    .auth-form-section h2{
+      font-family:Georgia,"Times New Roman",serif;font-size:30px;line-height:1;
+      margin:5px 0 8px;font-weight:600;letter-spacing:-.03em
+    }
+    .auth-form-copy{font-size:13px;line-height:1.5;color:var(--muted);margin-bottom:18px}
+    .auth-form{max-width:540px}
+    .auth-form .field{margin:0 0 12px}
+    .auth-form .input{
+      border:0;border-bottom:1px solid var(--ink);border-radius:0;background:transparent;
+      padding:13px 0;font-family:Georgia,"Times New Roman",serif;font-size:21px
+    }
+    .auth-form .input:focus{border-color:var(--red);box-shadow:none}
+    .auth-form .field label{
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;
+      text-transform:uppercase;letter-spacing:.1em;color:var(--muted)
+    }
+    .auth-form-actions{display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap}
+    .auth-form-actions .btn{min-height:40px}
+    .auth-note{
+      margin-top:18px;padding-top:13px;border-top:1px solid var(--line-soft);
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;
+      line-height:1.5;color:var(--muted)
+    }
+    .source-index-list{border-top:1px solid var(--line);margin-top:12px}
+    .source-index-action{
+      -webkit-appearance:none;appearance:none;color:var(--ink);font:inherit;cursor:pointer;
+      width:100%;display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;
+      gap:12px;padding:13px 0;border:0;border-bottom:1px solid var(--line);
+      background:transparent;text-align:left
+    }
+    .source-index-number{
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--red);
+      font-weight:800;font-size:13px
+    }
+    .source-index-title{
+      font-family:Georgia,"Times New Roman",serif;font-size:19px;font-weight:600;
+      letter-spacing:-.015em
+    }
+    .source-index-meta{
+      display:block;margin-top:3px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+      font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)
+    }
+    .source-index-arrow{
+      font-family:Georgia,"Times New Roman",serif;font-size:22px;color:var(--ink)
+    }
+    .source-index-action:hover .source-index-title,.source-index-action:hover .source-index-arrow{color:var(--red)}
+    @media(max-width:760px){
+      .auth-page{padding-top:30px}
+      .auth-page .auth-hero{padding-bottom:26px}
+      .auth-page h1{font-size:51px}
+      .auth-page .auth-lede{font-size:16px}
+      .auth-form-section{padding-top:22px}
+      .auth-form-section h2{font-size:27px}
+      .auth-form-actions .btn{width:auto}
+      .dashboard-main .add-sources-head{margin-bottom:0}
+      .dashboard-main .add-sources-head .editorial-copy{display:none}
+      .source-index-action{padding:12px 0}
+      .source-index-title{font-size:18px}
+    }
   </style>
 </head>
 <body>
@@ -473,19 +549,24 @@ async function refresh(){state=await api('/me');render()}
 
 function landing(error=''){
   app.innerHTML=shell(`
-    <section class="hero">
-      <div class="eyebrow">Your personal morning paper</div>
-      <h1>Good things to read.<br>On your Kindle.<br>Every morning.</h1>
-      <p class="lede">Start with a curated edition in one tap, or bring the sites you already follow. Morning Reader turns them into a clean EPUB made for reading.</p>
-    </section>
-    <section class="card auth-card">
-      <h2>Sign in</h2>
-      <p class="muted small">No password. We'll email you a six-digit code.</p>
-      <form id="login-form">
-        <div class="field"><label for="email">Email</label><input id="email" class="input" name="email" type="email" autocomplete="email" required placeholder="you@example.com"></div>
-        ${error?`<div class="notice error">${esc(error)}</div>`:''}
-        <div style="margin-top:16px"><button class="btn primary" id="login-submit">Email me a code</button></div>
-      </form>
+    <section class="auth-page">
+      <div class="auth-hero">
+        <div class="auth-kicker">Your personal morning paper</div>
+        <h1>Good things to read.<br>Every morning.</h1>
+        <div class="auth-lede">Choose a thoughtful starter edition or bring the sites you already follow. Morning Reader turns them into a clean Kindle edition made for reading.</div>
+      </div>
+
+      <section class="auth-form-section">
+        <div class="editorial-label">Sign in or start</div>
+        <h2>Enter your email.</h2>
+        <div class="auth-form-copy">No password. We'll send you a six-digit sign-in code.</div>
+        <form id="login-form" class="auth-form">
+          <div class="field"><label for="email">Email address</label><input id="email" class="input" name="email" type="email" autocomplete="email" required placeholder="you@example.com"></div>
+          ${error?`<div class="notice error">${esc(error)}</div>`:''}
+          <div class="auth-form-actions"><button class="btn primary" id="login-submit">Continue →</button></div>
+          <div class="auth-note">New here? The same sign-in creates your account. No password to remember.</div>
+        </form>
+      </section>
     </section>`);
   document.querySelector('#login-form').onsubmit=async e=>{
     e.preventDefault();
@@ -497,17 +578,22 @@ function landing(error=''){
 }
 function verify(email,error=''){
   app.innerHTML=shell(`
-    <section class="hero" style="padding-bottom:18px">
-      <div class="eyebrow">Check your inbox</div>
-      <h1 style="font-size:clamp(44px,7vw,68px)">Enter your code.</h1>
-      <p class="lede">We sent a six-digit code to <strong>${esc(email)}</strong>. It expires in 10 minutes.</p>
-    </section>
-    <section class="card auth-card">
-      <form id="verify-form">
-        <div class="field"><label for="code">Verification code</label><input id="code" class="input" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required placeholder="123456"></div>
-        ${error?`<div class="notice error">${esc(error)}</div>`:''}
-        <div class="row wrap" style="margin-top:16px"><button class="btn primary">Continue</button><button type="button" class="btn ghost" id="back-login">Use another email</button></div>
-      </form>
+    <section class="auth-page">
+      <div class="auth-hero">
+        <div class="auth-kicker">Check your inbox</div>
+        <h1>Enter your code.</h1>
+        <div class="auth-lede">We sent a six-digit code to <strong>${esc(email)}</strong>. It expires in 10 minutes.</div>
+      </div>
+
+      <section class="auth-form-section">
+        <div class="editorial-label">Verification</div>
+        <h2>Six digits.</h2>
+        <form id="verify-form" class="auth-form">
+          <div class="field"><label for="code">Verification code</label><input id="code" class="input" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required placeholder="123456"></div>
+          ${error?`<div class="notice error">${esc(error)}</div>`:''}
+          <div class="auth-form-actions"><button class="btn primary">Continue →</button><button type="button" class="btn ghost" id="back-login">Use another email</button></div>
+        </form>
+      </section>
     </section>`);
   document.querySelector('#back-login').onclick=()=>landing();
   document.querySelector('#verify-form').onsubmit=async e=>{
@@ -740,17 +826,18 @@ function dashboard(){
             <div>
               <div class="editorial-label">Build your morning paper</div>
               <h2>Add sources</h2>
-              <div class="editorial-copy">Add one publication or bring in a collection.</div>
             </div>
           </div>
-          <div class="source-actions compact-actions">
-            <button class="source-action" id="add-single-feed">
-              <strong>Add a single feed</strong>
-              <span class="source-action-arrow">›</span>
+          <div class="source-index-list">
+            <button class="source-index-action" id="add-single-feed">
+              <span class="source-index-number">01</span>
+              <span><span class="source-index-title">Add a single feed</span><span class="source-index-meta">Website or RSS address</span></span>
+              <span class="source-index-arrow">›</span>
             </button>
-            <button class="source-action" id="import-opml">
-              <strong>Bulk upload (OPML)</strong>
-              <span class="source-action-arrow">›</span>
+            <button class="source-index-action" id="import-opml">
+              <span class="source-index-number">02</span>
+              <span><span class="source-index-title">Bulk upload</span><span class="source-index-meta">Import an OPML file</span></span>
+              <span class="source-index-arrow">›</span>
             </button>
           </div>
         </section>
