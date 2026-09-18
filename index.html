@@ -157,6 +157,113 @@
       .inline-form{grid-template-columns:1fr}
       .topbar{align-items:flex-start}
     }
+
+    /* Editorial UI: Economist-inspired, technical, mobile-first */
+    :root{
+      --bg:#f7f5ef;
+      --paper:#fff;
+      --ink:#11110f;
+      --muted:#67645e;
+      --line:#bdb9b0;
+      --line-soft:#dfdcd5;
+      --green:#0d5f4c;
+      --green-2:#09483a;
+      --green-soft:#eaf2ef;
+      --red:#b3131b;
+      --red-soft:#f8eaea;
+      --shadow:none;
+      --radius:2px;
+    }
+    html,body{background:var(--bg)}
+    body{background:var(--bg)}
+    .shell{max-width:1040px;padding:22px 20px 64px}
+    .topbar{padding-bottom:18px;border-bottom:1px solid var(--ink)}
+    .brand-wrap{min-width:0}
+    .brand{font-family:Georgia,"Times New Roman",serif;font-size:30px;font-weight:700;letter-spacing:-.035em;line-height:1}
+    .brand-kicker{margin-top:7px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+    .sun{display:none}
+    .card{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);box-shadow:none}
+    .btn{border-radius:2px;padding:9px 13px;background:transparent;border:1px solid var(--line);font-weight:700}
+    .btn:hover{transform:none;border-color:var(--ink);background:#fff}
+    .btn.primary{background:var(--red);border-color:var(--red);color:#fff}
+    .btn.primary:hover{background:#920d14;border-color:#920d14}
+    .btn.small-btn{padding:7px 10px;font-size:12px}
+    .input,.select{border-radius:2px;border-color:var(--line);padding:11px 12px;background:#fff}
+    .input:focus,.select:focus{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+    .eyebrow,.side-title,.editorial-label{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--ink)}
+    .editorial-section{padding:26px 0;border-bottom:1px solid var(--ink)}
+    .editorial-section:first-child{padding-top:6px}
+    .editorial-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:16px}
+    .editorial-head h1,.editorial-head h2{margin:4px 0 0;font-family:Georgia,"Times New Roman",serif;font-weight:600;letter-spacing:-.035em}
+    .editorial-head h1{font-size:46px;line-height:1}
+    .editorial-head h2{font-size:36px;line-height:1}
+    .editorial-copy{max-width:630px;color:#494741;font-family:Georgia,"Times New Roman",serif;font-size:17px;line-height:1.45;margin-top:10px}
+    .intake-actions{display:flex;gap:8px;align-items:center}
+    .feed-intake{padding:0;border:0;background:transparent}
+    .feed-intake-head{display:none}
+    .feed-intake-form{display:grid;grid-template-columns:minmax(0,1fr) 190px auto;gap:8px;align-items:end}
+    .feed-intake-form .field{margin:0}
+    .field label{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+    .technical-note{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--muted);margin-top:9px}
+    .editions-list{border-top:1px solid var(--line)}
+    .section-card{border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent}
+    .section-head{padding:15px 0}
+    .edition-index{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--red);font-size:13px;font-weight:800;width:34px;flex:0 0 34px}
+    .section-name{display:flex;align-items:baseline;gap:10px;min-width:0;flex:1}
+    .section-name h3{font-family:Georgia,"Times New Roman",serif;font-size:26px;font-weight:600;letter-spacing:-.025em}
+    .section-meta{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--muted)}
+    .disclosure-btn{border:0;background:transparent;width:34px;height:34px;padding:0!important;font-size:18px}
+    .disclosure-btn:hover{background:transparent}
+    .edition-details{border-top:1px solid var(--line-soft);padding:0 0 10px 34px}
+    .edition-manage{display:flex;justify-content:flex-end;padding:9px 0;background:transparent;border:0}
+    .feed-list{border-top:0}
+    .feed{padding:12px 0;border-top:1px solid var(--line-soft);display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}
+    .feed:first-child{border-top:1px solid var(--line-soft)}
+    .feed-title{font-family:Georgia,"Times New Roman",serif;font-size:16px;font-weight:600}
+    .feed-url{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;margin-top:3px}
+    .feed-actions{display:flex;align-items:center}
+    .feed-manage{border:0;padding:5px 7px;font-size:18px;letter-spacing:.08em;background:transparent}
+    .status{border-radius:2px;padding:4px 7px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px}
+    .empty{padding:16px 0}
+    .new-edition-row{display:flex;justify-content:flex-start;padding-top:14px}
+    .delivery-block{padding:0}
+    .delivery-main{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:end}
+    .delivery-time{font-family:Georgia,"Times New Roman",serif;font-size:42px;line-height:1}
+    .delivery-meta{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--muted);margin-top:6px}
+    .delivery-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+    .latest-run{margin-top:15px;padding-top:12px;border-top:1px solid var(--line-soft);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;color:var(--muted)}
+    .problem-banner{border-left:3px solid var(--red);padding:10px 12px;margin:0 0 18px;background:#fff;font-size:12px}
+    .grid.editorial-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(260px,.75fr);gap:28px;margin-top:28px}
+    .side-card{border:0;border-top:1px solid var(--ink);padding:18px 0;margin:0;background:transparent}
+    .side-card + .side-card{margin-top:18px}
+    footer{border-top:1px solid var(--ink);padding-top:15px}
+    @media(max-width:760px){
+      .shell{padding:16px 16px 48px}
+      .topbar{padding-bottom:14px}
+      .brand{font-size:27px}
+      .brand-kicker{font-size:9px}
+      .grid.editorial-grid{grid-template-columns:1fr;gap:0;margin-top:18px}
+      .editorial-section{padding:22px 0}
+      .editorial-head{display:block;margin-bottom:14px}
+      .editorial-head h1{font-size:39px}
+      .editorial-head h2{font-size:32px}
+      .editorial-copy{font-size:16px;margin-top:8px}
+      .intake-actions{margin-top:14px}
+      .feed-intake-form{grid-template-columns:1fr}
+      .feed-intake-form .btn{width:100%}
+      .section-head{padding:14px 0}
+      .section-name{display:block}
+      .section-name h3{font-size:24px}
+      .section-meta{display:block;margin-top:3px}
+      .edition-details{padding-left:0}
+      .feed{padding:12px 0}
+      .feed-title{font-size:17px}
+      .feed-url{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:72vw}
+      .delivery-main{grid-template-columns:1fr}
+      .delivery-actions{justify-content:flex-start}
+      .side-card{padding:20px 0}
+      .top-actions .btn{padding:7px 9px;font-size:11px}
+    }
   </style>
 </head>
 <body>
@@ -181,7 +288,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&
 const fmtDate=value=>{try{return new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(value))}catch{return ''}};
 const shell=(body,actions='')=>`<div class="shell">
   <div class="topbar">
-    <div class="brand"><span class="sun">☼</span> Morning Reader</div>
+    <div class="brand-wrap"><div class="brand">Morning Reader</div><div class="brand-kicker">Your personal morning paper</div></div>
     <div class="top-actions">${actions}</div>
   </div>
   ${body}
@@ -341,25 +448,23 @@ function feedRow(feed){
     <div>
       <div class="feed-title">${esc(feed.name)}</div>
       <div class="feed-url">${esc(feed.url)}</div>
-      ${feed.last_error?`<div class="tiny" style="color:var(--red);margin-top:6px">${esc(feed.last_error)}</div>`:''}
+      ${feed.last_error?`<div class="technical-note" style="color:var(--red)">${esc(feed.last_error)}</div>`:''}
     </div>
     <div class="feed-actions">
-      ${feedStatus(feed)}
-      <button class="btn small-btn move-feed" data-id="${feed.id}" data-section="${feed.section_id}">Move</button>
-      <button class="btn small-btn toggle-feed" data-id="${feed.id}" data-enabled="${feed.enabled}">${feed.enabled?'Pause':'Resume'}</button>
-      <button class="btn small-btn danger delete-feed" data-id="${feed.id}">Delete</button>
+      <button class="feed-manage manage-feed" data-id="${feed.id}" aria-label="Manage ${esc(feed.name)}">•••</button>
     </div>
   </div>`;
 }
-function sectionCard(section){
+function sectionCard(section,index){
   const expanded=expandedSections.has(section.id);
-  return `<section class="card section-card">
+  return `<section class="section-card">
     <div class="section-head row">
+      <div class="edition-index">${String(index+1).padStart(2,'0')}</div>
       <div class="section-name">
         <h3>${esc(section.name)}</h3>
         <span class="section-meta">${section.feeds.length} source${section.feeds.length===1?'':'s'}</span>
       </div>
-      <button class="btn small-btn disclosure-btn toggle-sources" data-id="${section.id}" aria-expanded="${expanded}" aria-label="${expanded?'Collapse':'Expand'} ${esc(section.name)} edition" title="${expanded?'Collapse':'Expand'} edition">${expanded?'⌃':'⌄'}</button>
+      <button class="disclosure-btn toggle-sources" data-id="${section.id}" aria-expanded="${expanded}" aria-label="${expanded?'Collapse':'Expand'} ${esc(section.name)} edition">${expanded?'↑':'↓'}</button>
     </div>
     <div class="edition-details" ${!expanded?'hidden':''}>
       <div class="edition-manage"><button class="btn small-btn rename-section" data-id="${section.id}">Rename edition</button></div>
@@ -375,107 +480,80 @@ function runBadge(status){
 function dashboard(){
   const settings=state.settings;
   const allFeeds=state.sections.flatMap(s=>s.feeds);
-  const activeFeeds=allFeeds.filter(f=>f.enabled).length;
   const problemFeeds=allFeeds.filter(f=>f.last_error).length;
   const latestJob=(state.jobs||[])[0];
 
   app.innerHTML=shell(`
-    <div class="toolbar">
-      <div>
-        <div class="eyebrow">Morning Reader</div>
-        <h2>Good morning.</h2>
-        <div class="small muted">${esc(state.user.email)}</div>
-      </div>
-      <div class="toolbar-actions">
-        <button class="btn" id="preview">Preview</button>
-        <button class="btn" id="send-test">Send test</button>
-        <button class="btn primary" id="send-now">Send now</button>
-      </div>
-    </div>
+    <div class="grid editorial-grid">
+      <main>
+        ${problemFeeds?`<div class="problem-banner"><strong>${problemFeeds} source${problemFeeds===1?' needs':'s need'} attention.</strong> Expand an edition to review the affected feed.</div>`:''}
 
-    <div class="stat-grid">
-      <div class="stat"><div class="tiny muted">Active sources</div><div class="value">${activeFeeds}</div></div>
-      <div class="stat"><div class="tiny muted">Kindle editions</div><div class="value">${state.sections.filter(s=>s.feeds.some(f=>f.enabled)).length}</div></div>
-      <div class="stat"><div class="tiny muted">Latest run</div><div style="margin-top:6px">${latestJob?runBadge(latestJob.status):'<span class="muted small">None yet</span>'}</div></div>
-    </div>
-
-    <div class="notice info" style="margin-bottom:20px">
-      <strong>How grouping works:</strong> each edition below becomes a separate EPUB on your Kindle when it has new articles. Add multiple sources to one edition to combine them, or create another edition to keep topics separate.
-    </div>
-
-    ${problemFeeds?`<div class="notice error" style="margin-bottom:16px">${problemFeeds} feed${problemFeeds===1?' has':'s have'} a fetch error. Open the affected feed below for details.</div>`:''}
-
-    <div class="grid">
-      <div>
-        <section class="content-section">
-          <div class="card feed-intake">
-            <div class="feed-intake-head">
-              <div>
-                <h2>Add feeds</h2>
-                <div class="section-copy">Add one website or RSS feed, or import many at once from another RSS reader.</div>
-              </div>
-              <button class="btn small-btn" id="import-opml">Import OPML</button>
-            </div>
-            <form class="feed-intake-form" id="add-source-form">
-              <div class="field">
-                <label for="source-url">Website or RSS feed</label>
-                <input id="source-url" class="input" name="url" required placeholder="https://example.com">
-              </div>
-              <div class="field">
-                <label for="source-edition">Add to edition</label>
-                <select id="source-edition" class="select" name="section_id">
-                  ${state.sections.map(section=>`<option value="${section.id}">${esc(section.name)}</option>`).join('')}
-                </select>
-              </div>
-              <button class="btn primary">Add feed</button>
-            </form>
-          </div>
-        </section>
-
-        <section class="content-section">
-          <div class="section-intro">
+        <section class="editorial-section">
+          <div class="editorial-head">
             <div>
-              <h2>Kindle editions</h2>
-              <div class="section-copy">Each edition becomes its own EPUB on your Kindle. Group feeds into editions when you want separate reading bundles, such as AI, TPM, or News.</div>
+              <div class="editorial-label">Build your morning paper</div>
+              <h1>Add sources</h1>
+              <div class="editorial-copy">Add one feed at a time, or import a collection. Choose which Kindle edition should receive it.</div>
             </div>
-            <button class="btn" id="add-section">+ New edition</button>
+            <div class="intake-actions"><button class="btn small-btn" id="import-opml">Import OPML</button></div>
           </div>
-          ${state.sections.map(sectionCard).join('')}
+          <form class="feed-intake-form" id="add-source-form">
+            <div class="field">
+              <label for="source-url">Website or RSS feed</label>
+              <input id="source-url" class="input" name="url" required placeholder="https://example.com/rss">
+            </div>
+            <div class="field">
+              <label for="source-edition">Add to edition</label>
+              <select id="source-edition" class="select" name="section_id">
+                ${state.sections.map(section=>`<option value="${section.id}">${esc(section.name)}</option>`).join('')}
+              </select>
+            </div>
+            <button class="btn primary">Add feed →</button>
+          </form>
+          <div class="technical-note">Morning Reader will find the feed automatically if you paste a normal website.</div>
         </section>
-      </div>
+
+        <section class="editorial-section">
+          <div class="editorial-head">
+            <div>
+              <div class="editorial-label">Kindle editions</div>
+              <h2>Your editions</h2>
+              <div class="editorial-copy">Each edition becomes a separate EPUB delivered to your Kindle. Use editions to keep reading topics apart.</div>
+            </div>
+          </div>
+          <div class="editions-list">${state.sections.map((section,index)=>sectionCard(section,index)).join('')}</div>
+          <div class="new-edition-row"><button class="btn" id="add-section">+ Create a new edition</button></div>
+        </section>
+      </main>
 
       <aside>
-        <section class="card side-card">
-          <div class="side-title">Delivery</div>
-          <div class="row">
+        <section class="side-card">
+          <div class="editorial-label">Delivery</div>
+          <div class="delivery-main" style="margin-top:12px">
             <div>
               <div class="delivery-time">${esc((settings.delivery_time||'06:00').slice(0,5))}</div>
-              <div class="tiny muted">${esc(settings.timezone)}</div>
+              <div class="delivery-meta">${esc(settings.timezone)} · ${settings.paused?'PAUSED':'SCHEDULED'}</div>
             </div>
-            <span class="status ${settings.paused?'off':''}"><span class="dot"></span>${settings.paused?'Paused':'Scheduled'}</span>
+            <div class="delivery-actions">
+              <button class="btn small-btn" id="preview">Preview</button>
+              <button class="btn small-btn" id="send-test">Send test</button>
+              <button class="btn primary small-btn" id="send-now">Send now</button>
+              <button class="btn small-btn" id="edit-settings">Edit</button>
+              <button class="btn small-btn" id="toggle-schedule">${settings.paused?'Resume':'Pause'}</button>
+            </div>
           </div>
-          <div class="row wrap" style="margin-top:16px;justify-content:flex-start">
-            <button class="btn small-btn" id="toggle-schedule">${settings.paused?'Resume':'Pause'}</button>
-            <button class="btn small-btn" id="edit-settings">Edit</button>
-          </div>
+          ${latestJob?`<div class="latest-run">LATEST · ${esc(latestJob.status.toUpperCase())} · ${fmtDate(latestJob.created_at)}${latestJob.result?.articles!=null?' · '+latestJob.result.articles+' ARTICLES':''}</div>`:''}
         </section>
 
-        <section class="card side-card">
-          <div class="side-title">Kindle</div>
-          <div style="font-weight:760;word-break:break-word">${esc(settings.kindle_email||'Not configured')}</div>
-          <div class="tiny muted" style="margin-top:6px">Approved sender: ${SENDER}</div>
-          <div style="margin-top:14px"><a class="btn small-btn" href="${AMAZON_SETTINGS}" target="_blank" rel="noopener">Amazon settings ↗</a></div>
-        </section>
-
-        <section class="card side-card">
-          <div class="side-title">Recent runs</div>
-          <div class="timeline">
-            ${(state.jobs||[]).slice(0,7).map(job=>`<div class="run"><div class="row"><div class="run-title">${esc(job.reason)}</div>${runBadge(job.status)}</div><div class="run-meta">${fmtDate(job.created_at)}${job.result?.articles!=null?' · '+job.result.articles+' articles':''}</div>${job.error?`<div class="tiny" style="color:var(--red);margin-top:5px">${esc(job.error)}</div>`:''}</div>`).join('')||'<div class="small muted">No deliveries yet.</div>'}
-          </div>
+        <section class="side-card">
+          <div class="editorial-label">Kindle</div>
+          <div style="margin-top:12px;font-family:Georgia,'Times New Roman',serif;font-size:16px;word-break:break-word">${esc(settings.kindle_email||'Not configured')}</div>
+          <div class="technical-note">Approved sender: ${SENDER}</div>
+          <div style="margin-top:12px"><a class="btn small-btn" href="${AMAZON_SETTINGS}" target="_blank" rel="noopener">Amazon settings ↗</a></div>
         </section>
       </aside>
     </div>`,
-    '<button class="btn" id="sign-out">Sign out</button>');
+    '<button class="btn small-btn" id="sign-out">Sign out</button>');
   wireDashboard();
 }
 
@@ -520,12 +598,7 @@ function wireDashboard(){
     }
   };
   document.querySelectorAll('.rename-section').forEach(button=>button.onclick=()=>renameSectionModal(button.dataset.id));
-  document.querySelectorAll('.move-feed').forEach(button=>button.onclick=()=>moveFeedModal(button.dataset.id,button.dataset.section));
-  document.querySelectorAll('.toggle-feed').forEach(button=>button.onclick=async()=>{
-    try{state=await api('/feeds/'+button.dataset.id,{method:'PATCH',body:{enabled:button.dataset.enabled!=='true'}});dashboard()}
-    catch(err){toast(err.message)}
-  });
-  document.querySelectorAll('.delete-feed').forEach(button=>button.onclick=()=>deleteFeedModal(button.dataset.id));
+  document.querySelectorAll('.manage-feed').forEach(button=>button.onclick=()=>feedActionsModal(button.dataset.id));
 }
 
 function sectionModal(){
@@ -565,6 +638,25 @@ function chooseFeedModal(sectionId,feeds){
     try{state=await api('/feeds',{method:'POST',body:{section_id:sectionId,url:feed.url}});closeModal();dashboard();toast('Source added')}
     catch(err){button.disabled=false;toast(err.message)}
   });
+}
+function feedActionsModal(id){
+  const feed=state.sections.flatMap(s=>s.feeds).find(f=>f.id===id);
+  if(!feed)return;
+  openModal(`<div class="row"><div><div class="editorial-label">Source</div><h2 style="margin-top:6px">${esc(feed.name)}</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
+    <div class="technical-note" style="word-break:break-all;margin:8px 0 18px">${esc(feed.url)}</div>
+    ${feed.last_error?`<div class="notice error" style="margin-bottom:14px">${esc(feed.last_error)}</div>`:''}
+    <div class="row wrap" style="justify-content:flex-start">
+      <button class="btn" id="manage-move">Move</button>
+      <button class="btn" id="manage-toggle">${feed.enabled?'Pause':'Resume'}</button>
+      <button class="btn danger" id="manage-delete">Delete</button>
+    </div>`);
+  document.querySelector('#close-modal').onclick=closeModal;
+  document.querySelector('#manage-move').onclick=()=>moveFeedModal(id,feed.section_id);
+  document.querySelector('#manage-delete').onclick=()=>deleteFeedModal(id);
+  document.querySelector('#manage-toggle').onclick=async()=>{
+    try{state=await api('/feeds/'+id,{method:'PATCH',body:{enabled:!feed.enabled}});closeModal();dashboard();toast(feed.enabled?'Source paused':'Source resumed')}
+    catch(err){toast(err.message)}
+  };
 }
 function moveFeedModal(id,currentSectionId){
   const feed=state.sections.flatMap(s=>s.feeds).find(f=>f.id===id);
