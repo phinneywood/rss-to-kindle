@@ -12,12 +12,15 @@
     "@vercel/og": "0.6.8",
     "fast-xml-parser": "5.11.1",
     "ipaddr.js": "2.2.0",
+    "jpeg-js": "0.4.4",
     "jszip": "3.10.1",
     "linkedom": "0.18.13",
+    "pngjs": "7.0.0",
     "react": "19.1.1",
     "sanitize-html": "2.17.7"
   },
   "devDependencies": {
+    "@types/pngjs": "6.0.5",
     "happy-dom": "20.8.4"
   }
 }
