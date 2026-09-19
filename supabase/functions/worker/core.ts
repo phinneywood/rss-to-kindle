@@ -237,15 +237,15 @@ async function buildOneTime(job: any, settings: any, now: Date, displayDate: str
 }
 
 async function buildRecurring(job: any, settings: any, now: Date, displayDate: string, filenameDate: string, deadline: number) {
-  const [sectionResult, feedResult] = await Promise.all([
+  const [sectionResult, feedResult, pendingResult] = await Promise.all([
     admin.from("sections").select("*").eq("user_id", job.user_id).eq("enabled", true).is("archived_at", null).order("position"),
     admin.from("feeds").select("*").eq("user_id", job.user_id).eq("enabled", true).is("archived_at", null),
+    admin.from("pending_issue_articles").select("*").eq("user_id", job.user_id).order("created_at").limit(20),
   ]);
   if (sectionResult.error) throw sectionResult.error;
   if (feedResult.error) throw feedResult.error;
+  if (pendingResult.error) throw pendingResult.error;
   const timezone = settings.timezone || "UTC";
-  const weekday = Number(new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" }).formatToParts(now)
-    .find((part) => part.type === "weekday") ? new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" }).format(now) : "");
   const weekdayName = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" }).format(now);
   const weekdayNumber = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].indexOf(weekdayName);
   const sections = (sectionResult.data || []).filter((section: any) =>
@@ -275,6 +275,17 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
   const seen = new Set<string>();
   all = all.filter((article) => { const key = `${article.section_id}:${article.article_hash}`; if (delivered.has(article.article_hash) || seen.has(key)) return false; seen.add(key); return true; });
   all.sort((a, b) => (b.published_at ? +new Date(b.published_at) : 0) - (a.published_at ? +new Date(a.published_at) : 0));
+  const pendingItems: EpubArticle[] = [];
+  for (const pending of pendingResult.data || []) {
+    if (Date.now() >= budget.deadline) { issues.push("Preparation limit reached; some saved articles were deferred."); break; }
+    try {
+      const article = await extractArticle({ url: pending.url, includeImages: true, budget });
+      pendingItems.push({ ...article, section_name: pending.section_name || "Saved articles", pending_id: pending.id });
+    } catch (error) {
+      issues.push(`Saved article could not be prepared: ${pending.url}`);
+      logEvent("pending_article.extract_failed", { job_id: job.id, pending_id: pending.id, error: error instanceof Error ? error.message : String(error) }, "warn");
+    }
+  }
   const attachments: any[] = [];
   const groups: { section: any; items: EpubArticle[] }[] = [];
   const issueItems: EpubArticle[] = [];
@@ -285,6 +296,8 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
     groups.push({ section, items });
     issueItems.push(...items);
   }
+  issueItems.push(...pendingItems);
+  if (pendingItems.length) groups.push({ section: { id: null, name: "Saved articles" }, items: pendingItems });
   if (issueItems.length) {
     const bytes = await makeEpub({ name: "Morning Reader", displayDate, date: now, timezone: settings.timezone || "UTC", label: "Daily issue" }, issueItems);
     attachments.push({ filename: `morning-reader-${filenameDate}.epub`, content: base64(bytes), content_type: "application/epub+zip" });
@@ -337,9 +350,17 @@ export async function processJob(queuedJob: any, deadline = Date.now() + 90_000)
       return { job: job.id, status: "empty" };
     }
     let total = 0;
+    const pendingIds: string[] = [];
     for (const group of build.groups) {
       await digestForGroup(job, group, providerId);
       total += group.items.length;
+      pendingIds.push(...group.items.map((item: any) => item.pending_id).filter(Boolean));
+    }
+    const frozenPending = (build as any).pendingItems || [];
+    pendingIds.push(...frozenPending.map((item: any) => item.pending_id).filter(Boolean));
+    if (pendingIds.length) {
+      const deletion = await admin.from("pending_issue_articles").delete().eq("user_id", job.user_id).in("id", [...new Set(pendingIds)]);
+      if (deletion.error) throw deletion.error;
     }
     const warningMessages = [...new Set<string>(build.groups.flatMap(group => group.items.flatMap((article: any) => article.warnings || [])))];
     const status = build.issues.length || warningMessages.length ? "partial" : "sent";
