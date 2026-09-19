@@ -117,4 +117,4 @@ CI type-checks the API and worker, parses the browser scripts, and tests extract
 - Article HTML is sanitized before EPUB generation.
 - Recurring deliveries suppress previously delivered articles; one-time editions intentionally allow explicit resends. Every email remains idempotent by job at the provider boundary.
 - Worker calls require a Vault-backed secret.
-- Login codes expire after ten minutes; browser sessions expire after thirty days; stale OAuth artifacts are cleaned automatically.
+- Login codes expire after ten minutes. Browser sessions expire after 90 days of inactivity; authenticated use renews that window. Explicit sign-out revokes the session. Network and server errors preserve the saved login and offer a retry. Internal MCP sessions retain their fixed two-minute expiry; stale OAuth artifacts are cleaned automatically.
