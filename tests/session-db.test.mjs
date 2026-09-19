@@ -15,7 +15,7 @@ const ready=(async()=>{
     ('${user}','expired',now()-interval '31 days',now()-interval '1 day',now()-interval '1 day',null),
     ('${user}','revoked',now(),now(),now()+interval '30 days',now()),
     ('${user}','delegated',now(),now(),now()+interval '2 minutes',null);`);
-  await db.exec(migration('20260919194123_rolling_browser_sessions.sql'));
+  await db.exec(migration('20260919194641_rolling_browser_sessions.sql'));
 })();
 async function query(sql,params=[]){await ready;return(await db.query(sql,params)).rows;}
 async function isolated(work){await ready;await db.exec('begin');try{await work()}finally{await db.exec('rollback')}}
