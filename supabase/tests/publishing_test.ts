@@ -1,4 +1,5 @@
 import JSZip from "npm:jszip@3.10.1";
+import jpeg from "npm:jpeg-js@0.4.4";
 import { extractArticleDocument, plainText, sanitizeArticleHtml, textValue, type Article } from "../functions/_shared/article.ts";
 import { makeEpub, repairArticleAnchors } from "../functions/_shared/epub.ts";
 
@@ -70,7 +71,7 @@ Deno.test("builds an EPUB with navigation, images, and reflowable articles", asy
     author: "A. Writer",
     published_at: "2026-09-19T12:00:00Z",
     excerpt: "Example excerpt",
-    body: '<p>Opening text.</p><figure><img src="images/example.png" alt="Example"><figcaption>Caption</figcaption></figure>',
+    body: '<p>Opening text.</p><figure id="Example diagram"><img src="images/example.png" alt="Example"><figcaption>Caption</figcaption></figure><a href="#Example%20diagram">See diagram</a>',
     assets: [{ href: "images/example.png", mediaType: "image/png", bytes: new Uint8Array([137, 80, 78, 71]), sourceUrl: "https://example.com/example.png" }],
     warnings: [],
     article_hash: "example",
@@ -87,6 +88,12 @@ Deno.test("builds an EPUB with navigation, images, and reflowable articles", asy
   const page = await zip.file("OEBPS/article-1.xhtml")!.async("string");
   assert(nav.includes('epub:type="toc"'), "EPUB 3 navigation must identify its table of contents");
   assert(opf.includes('properties="cover-image"'), "cover image should be identified in the package");
+  assert(opf.includes('<meta name="cover" content="cover-image"/>'), "legacy cover metadata must reference the same image");
+  assert(opf.includes('href="cover.jpg" media-type="image/jpeg"'), "the cover must use the tested JPEG packaging");
+  assert(!zip.file("OEBPS/cover.xhtml") && !opf.includes('idref="cover"'), "do not add a second HTML cover page");
+  const cover = jpeg.decode(await zip.file("OEBPS/cover.jpg")!.async("uint8array"), { useTArray: true, maxResolutionInMP: 2 });
+  assert(cover.width === 1200 && cover.height === 1600, "cover must decode at the approved resolution");
+  assert(page.includes('id="reader-anchor-1"') && page.includes('href="#reader-anchor-1"'), "packaging must repair invalid cached publisher anchors and links");
   assert(opf.includes('href="images/example.png" media-type="image/png"'), "embedded images should be listed in the manifest");
   assert(page.includes('<img src="images/example.png" alt="Example" />'), "article images should be valid XHTML");
   assert(Boolean(zip.file("OEBPS/toc.ncx")), "legacy Kindle navigation should be included");

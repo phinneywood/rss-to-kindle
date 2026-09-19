@@ -2,6 +2,10 @@ import JSZip from "npm:jszip@3.10.1";
 import { ImageResponse } from "npm:@vercel/og@0.6.8";
 import React from "npm:react@19.1.1";
 import { parseHTML } from "npm:linkedom@0.18.13";
+import { Buffer } from "node:buffer";
+// @deno-types="npm:@types/pngjs@6.0.5"
+import { PNG } from "npm:pngjs@7.0.0";
+import jpeg from "npm:jpeg-js@0.4.4";
 import type { Article, ArticleAsset } from "./article.ts";
 
 export type EpubArticle = Article & {
@@ -168,6 +172,14 @@ export async function makeCoverPng(options: EpubOptions, articleCount: number) {
   return new Uint8Array(await response.arrayBuffer());
 }
 
+export async function makeCoverJpeg(options: EpubOptions, articleCount: number) {
+  // Decode only our fixed-size, opaque cover render, never publisher images.
+  // This packaging was confirmed to produce a thumbnail in Kindle iOS.
+  const png = await makeCoverPng(options, articleCount);
+  const pixels = PNG.sync.read(Buffer.from(png));
+  return new Uint8Array(jpeg.encode({ width: pixels.width, height: pixels.height, data: pixels.data }, 95).data);
+}
+
 function replaceOmittedImage(body: string, href: string) {
   const escaped = href.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return body.replace(new RegExp(`<img\\b[^>]*src=["']${escaped}["'][^>]*\\/?>(?:</img>)?`, "gi"), "<p>[Image omitted to keep this edition compact.]</p>");
@@ -179,8 +191,8 @@ export async function makeEpub(options: EpubOptions, articles: EpubArticle[]) {
   zip.folder("META-INF")!.file("container.xml", `<?xml version="1.0" encoding="UTF-8"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`);
   const output = zip.folder("OEBPS")!;
-  const cover = await makeCoverPng(options, articles.length);
-  output.file("cover.png", cover);
+  const cover = await makeCoverJpeg(options, articles.length);
+  output.file("cover.jpg", cover);
 
   const maxAssetBytes = options.maxAssetBytes || 18_000_000;
   const includedAssets = new Map<string, ArticleAsset>();
@@ -201,19 +213,19 @@ export async function makeEpub(options: EpubOptions, articles: EpubArticle[]) {
 
   const css = `body{font-family:serif;line-height:1.55;margin:5%;color:#171717}h1{font-size:1.7em;line-height:1.12;margin-bottom:.25em}h2,h3,h4,h5,h6{line-height:1.2;margin:1.4em 0 .45em}.date,.source,.meta,.caption,figcaption{color:#595959;font-size:.88em}.source{display:block;margin:.2em 0 1em}.article-nav{font-size:.82em;margin-bottom:1.8em}a{color:#111}pre{white-space:pre-wrap;font-family:monospace;font-size:.86em;background:#f2f2f2;padding:.8em}code{font-family:monospace}blockquote{margin-left:.6em;border-left:2px solid #888;padding-left:1em}figure{margin:1.4em 0}img{display:block;max-width:100%;height:auto;margin:1em auto}figcaption{line-height:1.35;margin-top:.4em}table{border-collapse:collapse;width:100%;font-size:.82em;margin:1.2em 0}th,td{border:1px solid #888;padding:.38em;vertical-align:top}th{font-weight:bold}dl{margin:1em 0}dt{font-weight:bold;margin-top:.7em}dd{margin-left:1em}.toc li{margin-bottom:.9em}.original{margin-top:2em;padding-top:1em;border-top:1px solid #999;font-size:.85em}`;
   output.file("style.css", css);
-  output.file("cover.xhtml", `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Cover</title><style>html,body{margin:0;padding:0}img{display:block;width:100%;height:auto}</style></head><body><img src="cover.png" alt="${esc(options.name)} — ${esc(options.displayDate)}"/></body></html>`);
+  // Use the manifest image without an extra HTML cover page, matching the
+  // successful Send-to-Kindle diagnostic and Amazon's cover guidance.
 
   const navItems = prepared.map((article, index) => `<li><a href="article-${index + 1}.xhtml">${esc(article.title)} — ${esc(article.source)}</a></li>`).join("");
   output.file("nav.xhtml", `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>${esc(options.name)}</title><link rel="stylesheet" type="text/css" href="style.css"/></head><body><p class="date">${esc(options.displayDate)}</p><nav epub:type="toc" id="toc"><h1>${esc(options.name)}</h1><ol class="toc">${navItems}</ol></nav></body></html>`);
 
   const manifest = [
-    `<item id="cover-image" href="cover.png" media-type="image/png" properties="cover-image"/>`,
-    `<item id="cover" href="cover.xhtml" media-type="application/xhtml+xml"/>`,
+    `<item id="cover-image" href="cover.jpg" media-type="image/jpeg" properties="cover-image"/>`,
     `<item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>`,
     `<item id="css" href="style.css" media-type="text/css"/>`,
     `<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>`,
   ];
-  const spine = [`<itemref idref="cover"/>`, `<itemref idref="nav"/>`];
+  const spine = [`<itemref idref="nav"/>`];
   prepared.forEach((article, index) => {
     const id = `article-${index + 1}`;
     manifest.push(`<item id="${id}" href="${id}.xhtml" media-type="application/xhtml+xml"/>`);

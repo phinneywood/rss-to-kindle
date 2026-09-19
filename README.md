@@ -4,6 +4,8 @@ Morning Reader turns websites, RSS, and Atom feeds into grouped Kindle editions 
 
 Article pages are reduced to their readable body while preserving headings, lists, links, tables, code, quotations, captions, and supported images. Every EPUB includes reflowable styling, EPUB 3 and legacy Kindle navigation, publisher metadata, and a dated cover designed to remain recognizable as a Kindle home-screen thumbnail.
 
+Covers use a 1200×1600 JPEG with both EPUB 3 and legacy cover metadata, without an additional HTML cover page. This packaging was confirmed in Kindle iOS on September 19, 2026. Article anchors that EPUB rejects are repaired with their local links preserved. Existing delivered documents are not updated; the change applies when a new EPUB is built.
+
 ## Production architecture
 
 ```
