@@ -202,24 +202,22 @@ Deno.serve(async(req)=>{
     if(route==="/one-time/send"&&req.method==="POST"){
       const body=await req.json().catch(()=>({}));
       const{name,urls}=oneTimePayload(body);
-      const requestId=String(body.request_id||crypto.randomUUID());
-      if(!/^[0-9a-f-]{36}$/i.test(requestId))return json({error:"Invalid request identifier."},400);
-      const{data:s}=await admin.from("user_settings").select("kindle_email").eq("user_id",user.id).single();
-      if(!s?.kindle_email)return json({error:"Add your Send-to-Kindle email first."},400);
-      const{data:job,error}=await admin.from("digest_jobs").upsert({user_id:user.id,reason:"one_time",packet_name:name,article_urls:urls,lookback_hours:168,idempotency_key:`one_time:${user.id}:${requestId}`,run_after:new Date().toISOString()},{onConflict:"idempotency_key",ignoreDuplicates:true}).select("id,status,reason,packet_name,article_urls,created_at").maybeSingle();
+      const{data:settings}=await admin.from("user_settings").select("kindle_email").eq("user_id",user.id).single();
+      if(!settings?.kindle_email)return json({error:"Add your Send-to-Kindle email first."},400);
+      const rows=urls.map(url=>({user_id:user.id,section_name:name,url}));
+      const{error}=await admin.from("pending_issue_articles").upsert(rows,{onConflict:"user_id,url",ignoreDuplicates:false});
       if(error)throw error;
-      if(!job){const existing=await admin.from("digest_jobs").select("id,status,reason,packet_name,article_urls,created_at").eq("user_id",user.id).eq("idempotency_key",`one_time:${user.id}:${requestId}`).single();if(existing.error)throw existing.error;if(existing.data.packet_name!==name||JSON.stringify(existing.data.article_urls)!==JSON.stringify(urls))return json({error:"This request was already used for another edition."},409);return json({ok:true,job:existing.data},202)}
-      const now=Date.now(),nextBoundary=new Date(Math.ceil((now+1000)/300000)*300000).toISOString();
-      const{data:kick,error:kickError}=await admin.rpc("kick_digest_worker");
-      logEvent("one_time.queued",{request_id:requestId,user_id:user.id,job_id:job.id,name,articles:urls.length,worker_triggered:!kickError&&Boolean(kick)});
-      return json({ok:true,job,worker_triggered:!kickError&&Boolean(kick),next_worker_check_at:nextBoundary},202);
+      logEvent("next_issue.articles_added",{request_id:requestId,user_id:user.id,name,articles:urls.length});
+      return json({ok:true,queued_for_next_issue:true,articles:urls.length,name},202);
     }
     if((route==="/send-now"||route==="/send-test")&&req.method==="POST"){
       const body=await req.json().catch(()=>({})),requestId=String(body.request_id||crypto.randomUUID());
       if(!/^[0-9a-f-]{36}$/i.test(requestId))return json({error:"Invalid request identifier."},400);
-      const{data:s}=await admin.from("user_settings").select("kindle_email").eq("user_id",user.id).single();if(!s?.kindle_email)return json({error:"Add your Send-to-Kindle email first."},400);const reason=route==="/send-test"?"test":"manual";
-      const{data:job,error}=await admin.from("digest_jobs").upsert({user_id:user.id,reason,lookback_hours:168,idempotency_key:`${reason}:${user.id}:${requestId}`,run_after:new Date().toISOString()},{onConflict:"idempotency_key",ignoreDuplicates:true}).select("id,status,reason,created_at").maybeSingle();if(error)throw error;
-      if(!job){const existing=await admin.from("digest_jobs").select("id,status,reason,created_at").eq("user_id",user.id).eq("idempotency_key",`${reason}:${user.id}:${requestId}`).single();if(existing.error)throw existing.error;return json({ok:true,job:existing.data},202)}
+      const{data:s}=await admin.from("user_settings").select("kindle_email,timezone").eq("user_id",user.id).single();if(!s?.kindle_email)return json({error:"Add your Send-to-Kindle email first."},400);const reason=route==="/send-test"?"test":"manual";
+      const localDate=new Intl.DateTimeFormat("en-CA",{timeZone:s.timezone||"UTC",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+      const key=reason==="manual"?`daily-issue:${user.id}:${localDate}`:`test:${user.id}:${requestId}`;
+      const{data:job,error}=await admin.from("digest_jobs").upsert({user_id:user.id,reason,lookback_hours:168,idempotency_key:key,run_after:new Date().toISOString()},{onConflict:"idempotency_key",ignoreDuplicates:true}).select("id,status,reason,created_at").maybeSingle();if(error)throw error;
+      if(!job){const existing=await admin.from("digest_jobs").select("id,status,reason,created_at").eq("user_id",user.id).eq("idempotency_key",key).single();if(existing.error)throw existing.error;return json({ok:true,job:existing.data,already_sent_or_queued:reason==="manual"},202)}
       const now=Date.now(),nextBoundary=new Date(Math.ceil((now+1000)/300000)*300000).toISOString();
       const{data:kick,error:kickError}=await admin.rpc("kick_digest_worker");
       logEvent("delivery.queued",{request_id:requestId,user_id:user.id,job_id:job.id,reason,worker_triggered:!kickError&&Boolean(kick)});
