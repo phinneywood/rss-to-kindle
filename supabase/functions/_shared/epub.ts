@@ -12,6 +12,7 @@ export type EpubArticle = Article & {
   feed_id?: string | null;
   section_id?: string | null;
   section_name?: string | null;
+  pending_id?: string | null;
 };
 
 export type EpubOptions = {
