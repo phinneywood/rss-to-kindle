@@ -1,5 +1,6 @@
-import {admin,auth,cors,dashboard,discoverFeeds,emailConfigured,exchangeSupabaseAuth,json,nextRun,normEmail,normalizeUrl,preview,probe,requestCode,routePath,systemHealth,validEmail,validTimezone,validUrl,verifyCode} from "./core.ts";
+import {admin,auth,cors,dashboard,discoverFeeds,emailConfigured,exchangeSupabaseAuth,json,normEmail,normalizeUrl,preview,probe,requestCode,routePath,systemHealth,validEmail,validTimezone,validUrl,verifyCode} from "./core.ts";
 import {extractArticle,extractionBudget} from "../_shared/article.ts";
+import {editionSchedulePatch} from "../_shared/schedule.ts";
 
 function logEvent(event:string,fields:Record<string,unknown>={},level:"info"|"warn"|"error"="info"){
   const line=JSON.stringify({ts:new Date().toISOString(),service:"app-api",event,...fields});
@@ -59,19 +60,21 @@ Deno.serve(async(req)=>{
       if("timezone"in b){const tz=String(b.timezone||"");if(!validTimezone(tz))return json({error:"Invalid timezone."},400);p.timezone=tz}
       if("delivery_time"in b){const t=String(b.delivery_time||"");if(!/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(t))return json({error:"Invalid delivery time."},400);p.delivery_time=t.length===5?`${t}:00`:t}
       if("paused"in b)p.paused=Boolean(b.paused);if("onboarding_complete"in b)p.onboarding_complete=Boolean(b.onboarding_complete);
-      if("timezone"in p||"delivery_time"in p||"paused"in p||"onboarding_complete"in p||!cur.next_run_at)p.next_run_at=await nextRun(p.timezone||cur.timezone,p.delivery_time||cur.delivery_time);p.updated_at=new Date().toISOString();
+      // Account time is retained only as a default for legacy clients/new editions.
+      // Database triggers recalculate edition schedules on timezone/pause changes.
+      p.updated_at=new Date().toISOString();
       const{error}=await admin.from("user_settings").update(p).eq("user_id",user.id);if(error)throw error;return json(await dashboard(user.id,user.email));
     }
 
     if(route==="/sections"&&req.method==="POST"){
       const b=await req.json().catch(()=>({})),name=String(b.name||"").trim();if(!name||name.length>80)return json({error:"Section name must be 1–80 characters."},400);
       const{count}=await admin.from("sections").select("id",{count:"exact",head:true}).eq("user_id",user.id).is("archived_at",null);if((count||0)>=12)return json({error:"You can have up to 12 sections."},400);
-      const{error}=await admin.from("sections").insert({user_id:user.id,name,position:count||0});if(error)throw error;return json(await dashboard(user.id,user.email),201);
+      const{error}=await admin.from("sections").insert({user_id:user.id,name,position:count||0,...editionSchedulePatch(b)});if(error)throw error;return json(await dashboard(user.id,user.email),201);
     }
     const sm=route.match(/^\/sections\/([0-9a-f-]+)$/i);
     if(sm&&req.method==="PATCH"){
-      const b=await req.json().catch(()=>({})),p:any={updated_at:new Date().toISOString()};if("name"in b){const n=String(b.name||"").trim();if(!n||n.length>80)return json({error:"Section name must be 1–80 characters."},400);p.name=n}if("enabled"in b)p.enabled=Boolean(b.enabled);
-      const{error}=await admin.from("sections").update(p).eq("id",sm[1]).eq("user_id",user.id);if(error)throw error;return json(await dashboard(user.id,user.email));
+      const b=await req.json().catch(()=>({})),p:any={updated_at:new Date().toISOString(),...editionSchedulePatch(b)};if("name"in b){const n=String(b.name||"").trim();if(!n||n.length>80)return json({error:"Section name must be 1–80 characters."},400);p.name=n}
+      const{data:section,error}=await admin.from("sections").update(p).eq("id",sm[1]).eq("user_id",user.id).is("archived_at",null).select("id").maybeSingle();if(error)throw error;if(!section)return json({error:"Edition not found."},404);return json(await dashboard(user.id,user.email));
     }
     if(sm&&req.method==="DELETE"){
       const{count}=await admin.from("sections").select("id",{count:"exact",head:true}).eq("user_id",user.id).is("archived_at",null);if((count||0)<=1)return json({error:"Keep at least one section."},400);const now=new Date().toISOString();
