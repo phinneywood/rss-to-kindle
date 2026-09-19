@@ -47,7 +47,7 @@ function datePart(date: Date, timezone: string, type: Intl.DateTimeFormatPartTyp
 
 export async function makeCoverPng(options: EpubOptions, articleCount: number) {
   const element = React.createElement;
-  const month = datePart(options.date, options.timezone, "month").toUpperCase();
+  const monthLong = new Intl.DateTimeFormat("en-US", { timeZone: options.timezone, month: "long" }).format(options.date).toUpperCase();
   const day = datePart(options.date, options.timezone, "day");
   const year = datePart(options.date, options.timezone, "year");
   const titleSize = options.name.length <= 14 ? 132 : options.name.length <= 28 ? 108 : options.name.length <= 46 ? 84 : 68;
@@ -61,67 +61,65 @@ export async function makeCoverPng(options: EpubOptions, articleCount: number) {
   element("div", {
     style: {
       display: "flex", alignItems: "center", justifyContent: "space-between",
-      background: ink, color: paper, padding: "40px 68px",
+      borderTop: `16px solid ${ink}`, borderBottom: `3px solid ${ink}`, padding: "35px 68px 31px",
+      fontFamily: "monospace", textTransform: "uppercase",
     },
   },
-    element("div", {
-      style: {
-        display: "flex", alignItems: "center", flexShrink: 0, fontFamily: "monospace",
-      },
+  element("div", { style: { fontSize: 23, fontWeight: 900, letterSpacing: 4 } }, "MORNING READER"),
+  element("div", {
+    style: {
+      background: ink, color: paper, padding: "10px 17px 9px",
+      fontSize: 15, fontWeight: 800, letterSpacing: 2,
     },
-    element("div", {
-      style: {
-        width: 72, height: 72, display: "flex", alignItems: "center", justifyContent: "center",
-        background: paper, color: ink, fontSize: 29, fontWeight: 900, letterSpacing: -2,
-      },
-    }, "MR"),
-    element("div", {
-      style: { marginLeft: 24, fontSize: 23, fontWeight: 800, letterSpacing: 3.5, textTransform: "uppercase" },
-    }, "MORNING READER")),
-    element("div", {
-      style: {
-        flexShrink: 0, border: `2px solid ${paper}`, padding: "10px 16px 9px", fontFamily: "monospace",
-        fontSize: 16, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase",
-      },
-    }, (options.label || "KINDLE EDITION").toUpperCase())),
-  element("div", { style: { display: "flex", flexDirection: "column", padding: "54px 68px 48px", flex: 1 } },
-    element("div", { style: { display: "flex", flexDirection: "column" } },
-      element("div", {
-        style: {
-          fontSize: titleSize, fontWeight: 700, lineHeight: 0.94, letterSpacing: -3,
-          maxWidth: 1064, minHeight: 300, display: "flex", alignItems: "flex-start",
-        },
-      }, options.name),
-      element("div", {
-        style: {
-          display: "flex", height: 480, border: `6px solid ${ink}`, marginTop: 42,
-        },
-      },
-      element("div", {
-        style: {
-          width: 338, display: "flex", flexDirection: "column", justifyContent: "space-between",
-          background: ink, color: paper, padding: "44px 40px 40px", fontFamily: "monospace",
-        },
-      },
-      element("div", { style: { fontSize: 70, fontWeight: 900, lineHeight: 1, letterSpacing: 1 } }, month),
-      element("div", {
-        style: { display: "flex", flexDirection: "column", fontSize: 21, fontWeight: 800, letterSpacing: 2.3, textTransform: "uppercase" },
-      }, element("div", null, "EDITION"), element("div", null, "DATE")),
-      element("div", { style: { fontSize: 47, fontWeight: 900, letterSpacing: 3 } }, year)),
-      element("div", {
-        style: {
-          display: "flex", flex: 1, alignItems: "center", justifyContent: "center",
-          fontFamily: "monospace", fontSize: 310, fontWeight: 900, lineHeight: 0.8, letterSpacing: -28,
-          paddingRight: 26,
-        },
-      }, day)),
-      element("div", {
-        style: { display: "flex", alignItems: "center", marginTop: 32, fontFamily: "monospace", textTransform: "uppercase" },
-      },
-      element("div", { style: { height: 18, width: 170, background: ink } }),
-      element("div", { style: { height: 18, width: 18, background: ink, marginLeft: 12 } }),
-      element("div", { style: { height: 18, width: 56, background: ink, marginLeft: 12 } }),
-      element("div", { style: { marginLeft: 22, fontSize: 18, fontWeight: 800, letterSpacing: 2 } }, `${articleCount} ${articleCount === 1 ? "article" : "articles"}`)))),
+  }, (options.label || "KINDLE EDITION").toUpperCase())),
+  element("div", {
+    style: { display: "flex", flexDirection: "column", padding: "54px 68px 48px", flex: 1 },
+  },
+  element("div", {
+    style: {
+      fontSize: titleSize, fontWeight: 700, lineHeight: 0.94, letterSpacing: -3,
+      maxWidth: 1064, minHeight: 330, display: "flex", alignItems: "flex-start",
+    },
+  }, options.name),
+  element("div", {
+    style: {
+      display: "flex", flexDirection: "column", background: ink,
+      paddingRight: 16, paddingBottom: 16, marginTop: 24,
+    },
+  },
+  element("div", {
+    style: {
+      display: "flex", flexDirection: "column", height: 540,
+      background: paper, border: `5px solid ${ink}`,
+    },
+  },
+  element("div", {
+    style: {
+      display: "flex", flex: 1, fontFamily: "monospace",
+    },
+  },
+  element("div", {
+    style: {
+      display: "flex", flex: 1, alignItems: "center", justifyContent: "center",
+      background: ink, color: paper, fontSize: 94, fontWeight: 900, letterSpacing: 4,
+    },
+  }, monthLong),
+  element("div", {
+    style: {
+      width: 285, display: "flex", alignItems: "center", justifyContent: "center",
+      borderLeft: `5px solid ${ink}`, fontSize: 122, fontWeight: 900, letterSpacing: -8,
+      paddingRight: 12,
+    },
+  }, day)),
+  element("div", {
+    style: {
+      height: 112, display: "flex", alignItems: "center", justifyContent: "space-between",
+      borderTop: `4px solid ${ink}`, padding: "0 42px", fontFamily: "monospace",
+      fontSize: 32, fontWeight: 900, letterSpacing: 4, textTransform: "uppercase",
+    },
+  },
+  element("div", null, year),
+  element("div", { style: { fontSize: 17, letterSpacing: 2 } }, `${articleCount} ${articleCount === 1 ? "article" : "articles"}`))))),
   element("div", {
     style: {
       display: "flex", justifyContent: "space-between", alignItems: "center",
