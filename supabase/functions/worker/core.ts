@@ -157,7 +157,7 @@ async function sendResend(email: any, jobId: string) {
 }
 
 async function queueScheduled() {
-  const { error } = await admin.rpc("queue_due_editions");
+  const { error } = await admin.rpc("queue_due_daily_issues");
   if (error) throw error;
 }
 
@@ -243,8 +243,13 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
   ]);
   if (sectionResult.error) throw sectionResult.error;
   if (feedResult.error) throw feedResult.error;
-  // Filter by owner and edition even if a malformed job references another account.
-  const sections = (sectionResult.data || []).filter((section: any) => !job.section_id || section.id === job.section_id);
+  const timezone = settings.timezone || "UTC";
+  const weekday = Number(new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" }).formatToParts(now)
+    .find((part) => part.type === "weekday") ? new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" }).format(now) : "");
+  const weekdayName = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" }).format(now);
+  const weekdayNumber = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].indexOf(weekdayName);
+  const sections = (sectionResult.data || []).filter((section: any) =>
+    job.reason !== "scheduled" || !Array.isArray(section.delivery_days) || section.delivery_days.includes(weekdayNumber));
   const feeds = (feedResult.data || []).filter((feed: any) => sections.some((section: any) => section.id === feed.section_id));
   const cutoff = new Date(now.getTime() - job.lookback_hours * 3_600_000);
   let all: EpubArticle[] = [];
@@ -272,16 +277,20 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
   all.sort((a, b) => (b.published_at ? +new Date(b.published_at) : 0) - (a.published_at ? +new Date(a.published_at) : 0));
   const attachments: any[] = [];
   const groups: { section: any; items: EpubArticle[] }[] = [];
+  const issueItems: EpubArticle[] = [];
   for (const section of sections) {
     let items = all.filter((article) => article.section_id === section.id);
-    items = items.slice(0, job.reason === "test" ? 3 : 80);
+    items = items.slice(0, job.reason === "test" ? 3 : 80).map((article) => ({ ...article, section_name: section.name }));
     if (!items.length) continue;
-    const bytes = await makeEpub({ name: section.name, displayDate, date: now, timezone: settings.timezone || "UTC" }, items);
-    attachments.push({ filename: `${slug(section.name)}-${filenameDate}.epub`, content: base64(bytes), content_type: "application/epub+zip" });
     groups.push({ section, items });
+    issueItems.push(...items);
+  }
+  if (issueItems.length) {
+    const bytes = await makeEpub({ name: "Morning Reader", displayDate, date: now, timezone: settings.timezone || "UTC", label: "Daily issue" }, issueItems);
+    attachments.push({ filename: `morning-reader-${filenameDate}.epub`, content: base64(bytes), content_type: "application/epub+zip" });
     checkAttachmentBudget(attachments);
   }
-  return { attachments, groups, issues, feedCount: feeds.length, subject: `${job.section_id && sections[0] ? sections[0].name : "Morning Reader"} — ${displayDate}` };
+  return { attachments, groups, issues, feedCount: feeds.length, subject: `Morning Reader — ${displayDate}` };
 }
 
 export async function processJob(queuedJob: any, deadline = Date.now() + 90_000) {
@@ -297,16 +306,9 @@ export async function processJob(queuedJob: any, deadline = Date.now() + 90_000)
         const settingsResult = await admin.from("user_settings").select("*").eq("user_id", job.user_id).single();
         if (settingsResult.error) throw settingsResult.error;
         const settings = settingsResult.data;
-        if (job.reason === "scheduled") {
-          const { data: section, error } = job.section_id
-            ? await admin.from("sections").select("id,enabled,archived_at,schedule_version").eq("id", job.section_id).eq("user_id", job.user_id).maybeSingle()
-            : { data: null, error: null };
-          if (error) throw error;
-          if (!section || !section.enabled || section.archived_at || section.schedule_version !== job.schedule_version ||
-            settings.paused || !settings.onboarding_complete || !settings.kindle_email) {
-            return { email: { from: "Morning Reader <reader@antonioskilton.com>", to: [], subject: "", text: "", attachments: [] },
-              groups: [], feedCount: 0, issues: [], skipReason: "Skipped because this edition or its delivery schedule changed." };
-          }
+        if (job.reason === "scheduled" && (settings.paused || !settings.onboarding_complete || !settings.kindle_email)) {
+          return { email: { from: "Morning Reader <reader@antonioskilton.com>", to: [], subject: "", text: "", attachments: [] },
+            groups: [], feedCount: 0, issues: [], skipReason: "Skipped because daily delivery settings changed." };
         }
         if (!settings?.kindle_email) throw new Error("No Send-to-Kindle email is configured.");
         const now = new Date(job.created_at);
