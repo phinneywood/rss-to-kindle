@@ -558,6 +558,7 @@
 const API='https://wuikfmmwvrzpaoevtskn.supabase.co/functions/v1/app-api';
 const SUPABASE_URL='https://wuikfmmwvrzpaoevtskn.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY='sb_publishable_2ud8GZElwdLaKIrZ0AmpBw_Eb7h-p6E';
+const SOCIAL_AUTH_ENABLED=false;
 const authClient=window.supabase?.createClient
   ? window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}})
   : null;
@@ -642,7 +643,7 @@ async function exchangeSupabaseSession(session){
   return body;
 }
 async function socialSignIn(provider){
-  if(!authClient){toast('Social sign-in is unavailable right now. Use the email code instead.');return}
+  if(!SOCIAL_AUTH_ENABLED||!authClient){toast('Social sign-in is unavailable right now. Use the email code instead.');return}
   const buttons=[...document.querySelectorAll('.auth-provider-button')];
   buttons.forEach(button=>button.disabled=true);
   try{
@@ -671,7 +672,7 @@ function landing(error=''){
         <h2>Choose how to continue.</h2>
         ${error?`<div class="notice error" style="max-width:540px;margin-top:14px">${esc(error)}</div>`:''}
 
-        <div class="auth-provider-list">
+        ${SOCIAL_AUTH_ENABLED?`<div class="auth-provider-list">
           <button class="auth-provider-button" id="sign-in-google" type="button">
             <span class="auth-provider-name">Continue with Google</span><span class="auth-provider-arrow">›</span>
           </button>
@@ -681,18 +682,20 @@ function landing(error=''){
         </div>
         <div class="auth-provider-note">Social sign-in only requests the identity information needed to create or find your Morning Reader account.</div>
 
-        <div class="auth-divider">or use email</div>
+        <div class="auth-divider">or use email</div>`:''}
 
         <form id="login-form" class="auth-form">
           <div class="auth-form-copy">We'll send you a six-digit sign-in code. No password.</div>
           <div class="field"><label for="email">Email address</label><input id="email" class="input" name="email" type="email" autocomplete="email" required placeholder="you@example.com"></div>
           <div class="auth-form-actions"><button class="btn primary" id="login-submit">Continue →</button></div>
-          <div class="auth-note">New here? Any of these sign-in methods creates your account. Existing accounts are matched by verified email.</div>
+          <div class="auth-note">New here? Your verified email creates your account.</div>
         </form>
       </section>
     </section>`);
-  document.querySelector('#sign-in-google').onclick=()=>socialSignIn('google');
-  document.querySelector('#sign-in-apple').onclick=()=>socialSignIn('apple');
+  if(SOCIAL_AUTH_ENABLED){
+    document.querySelector('#sign-in-google').onclick=()=>socialSignIn('google');
+    document.querySelector('#sign-in-apple').onclick=()=>socialSignIn('apple');
+  }
   document.querySelector('#login-form').onsubmit=async e=>{
     e.preventDefault();
     const button=document.querySelector('#login-submit'); button.disabled=true; button.textContent='Sending…';
@@ -1366,7 +1369,7 @@ function render(){
     try{state=await api('/me');render();return}
     catch{token='';localStorage.removeItem('morningReaderToken')}
   }
-  if(authClient){
+  if(SOCIAL_AUTH_ENABLED&&authClient){
     try{
       const {data,error}=await authClient.auth.getSession();
       if(error)throw error;
