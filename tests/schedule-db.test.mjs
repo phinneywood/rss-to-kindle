@@ -18,7 +18,7 @@ const ready=(async()=>{
     insert into user_settings(user_id,kindle_email,timezone,delivery_time,onboarding_complete,next_run_at)
       values('${user}','fixture@kindle.test','America/Los_Angeles','04:00',true,'2026-09-20T11:00:00Z');
     insert into sections(id,user_id,name) values('${daily}','${user}','Daily'),('${weekly}','${user}','Weekly');`);
-  await db.exec(migration('20260919170409_edition_delivery_schedules.sql'));
+  await db.exec(migration('20260919172328_edition_delivery_schedules.sql'));
 })();
 async function query(sql,params=[]){await ready;return (await db.query(sql,params)).rows;}
 async function isolated(work){await ready;await db.exec('begin');try{await work()}finally{await db.exec('rollback')}}
