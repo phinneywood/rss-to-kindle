@@ -83,7 +83,16 @@ The Vercel `morning-reader` project is connected to this GitHub repository. Push
 
 ## Verification
 
-CI type-checks every Edge Function, parses the browser scripts, and exercises extraction, metadata, sanitization, image packaging, navigation, and EPUB output. Release candidates are also checked with the W3C EPUBCheck validator before Kindle acceptance testing.
+CI type-checks the API and worker, parses the browser scripts, and tests extraction, metadata, sanitization, EPUB output, network limits, private-address rejection, delivery fault recovery, and interface regressions. Run `deno test --allow-env --allow-read supabase/tests` and `node --test tests/*.test.mjs` after `npm ci`. HTTP in worker tests is mocked; no emails or production records are created by the suite.
+
+## Delivery reliability and limits
+
+- `delivery_outbox` freezes the complete email and attachment bytes before the first provider request. Retries reuse that payload and idempotency key. A saved provider ID skips sending and only reconciles history. Ambiguous sends stop before the provider's 24-hour idempotency window expires.
+- Prepared payloads are backend-only and removed by daily cleanup seven days after terminal jobs finish. Metadata remains for history. Account deletion cascades through jobs to the outbox.
+- `sent` means accepted by the email provider, **not** confirmed by Amazon. `partial` means submitted with source or image omissions; `empty` is reserved for successful checks with no new articles. Source failures cannot silently become an empty success.
+- Downloads have streaming byte caps and a deadline covering DNS, redirects, headers, and body. Extraction uses a shared 6 MB image budget, 80-second job / 90-second invocation preparation deadline, and a combined 16 MB base64 attachment cap. Very large articles are rejected rather than silently truncated.
+- JPEG, PNG and GIF are embedded. Lazy image attributes and JPEG/PNG `picture` fallbacks are supported. Unsupported WebP, AVIF and SVG are deliberately omitted with a warning and original-article link; there is no image transcoder in the edge worker.
+- The preview is a headline browser, not an EPUB rendering. One-time review shows text excerpts and extraction warnings; images are checked during sending, and publisher content can change between review and preparation.
 
 ## Security
 
@@ -92,7 +101,7 @@ CI type-checks every Edge Function, parses the browser scripts, and exercises ex
 - MCP tenant identity comes from validated OAuth state, never model-supplied identifiers.
 - OAuth authorization uses PKCE S256 and registered redirect-URI validation.
 - Private OAuth tables are accessed only through service-role-restricted security-definer functions.
-- Feed fetching blocks localhost/private/reserved IPs and validates redirects.
+- Feed fetching blocks localhost/private/reserved IPs (including IPv4-mapped IPv6) and validates every redirect. DNS preflight is defense-in-depth, not connection-level DNS pinning; preventing malicious DNS rebinding completely still requires an egress proxy or runtime-enforced network policy.
 - Article HTML is sanitized before EPUB generation.
 - Recurring deliveries suppress previously delivered articles; one-time editions intentionally allow explicit resends. Every email remains idempotent by job at the provider boundary.
 - Worker calls require a Vault-backed secret.

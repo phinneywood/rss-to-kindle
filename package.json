@@ -11,9 +11,13 @@
     "@supabase/supabase-js": "2.116.0",
     "@vercel/og": "0.6.8",
     "fast-xml-parser": "5.11.1",
+    "ipaddr.js": "2.2.0",
     "jszip": "3.10.1",
     "linkedom": "0.18.13",
     "react": "19.1.1",
     "sanitize-html": "2.17.7"
+  },
+  "devDependencies": {
+    "happy-dom": "20.8.4"
   }
 }
