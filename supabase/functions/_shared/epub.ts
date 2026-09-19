@@ -1,6 +1,7 @@
 import JSZip from "npm:jszip@3.10.1";
 import { ImageResponse } from "npm:@vercel/og@0.6.8";
 import React from "npm:react@19.1.1";
+import { parseHTML } from "npm:linkedom@0.18.13";
 import type { Article, ArticleAsset } from "./article.ts";
 
 export type EpubArticle = Article & {
@@ -21,8 +22,43 @@ function esc(value: string) {
   return String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+export function repairArticleAnchors(html: string): string {
+  const document = (parseHTML(`<!doctype html><html><body>${html}</body></html>`) as any).document;
+  const nodes = Array.from(document.querySelectorAll("[id]")) as any[];
+  const reserved = new Set(nodes.map((node) => node.getAttribute("id")!));
+  const replacements = new Map<string, string>();
+  let counter = 0;
+  let changed = false;
+  for (const node of nodes) {
+    const id = node.getAttribute("id")!;
+    if (id && !/\s/.test(id)) continue;
+    changed = true;
+    if (!id) {
+      node.removeAttribute("id");
+      continue;
+    }
+    let replacement: string;
+    do { replacement = `reader-anchor-${++counter}`; } while (reserved.has(replacement));
+    reserved.add(replacement);
+    node.setAttribute("id", replacement);
+    if (!replacements.has(id)) replacements.set(id, replacement);
+  }
+  if (!changed) return html;
+  for (const anchor of document.querySelectorAll('a[href^="#"]')) {
+    const raw = anchor.getAttribute("href")!.slice(1);
+    let target = raw;
+    // A literal percent-encoded ID can be a real target; preserve it when present.
+    if (!reserved.has(raw)) {
+      try { target = decodeURIComponent(raw); } catch { /* Preserve malformed fragments. */ }
+    }
+    const replacement = replacements.get(target);
+    if (replacement) anchor.setAttribute("href", `#${replacement}`);
+  }
+  return document.body.innerHTML;
+}
+
 function xmlBody(html: string) {
-  return html
+  return repairArticleAnchors(html)
     .replace(/<(br|hr)(\s*[^>]*)>/gi, (_match, tag, attrs) => `<${tag}${String(attrs).replace(/\/$/, "")} />`)
     .replace(/<img(\s[^>]*?)(?:\s*\/?)>/gi, (_match, attrs) => `<img${String(attrs).replace(/\/$/, "")} />`)
     .replace(/&nbsp;/gi, "&#160;")

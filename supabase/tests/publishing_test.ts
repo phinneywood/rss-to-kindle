@@ -1,10 +1,21 @@
 import JSZip from "npm:jszip@3.10.1";
 import { extractArticleDocument, plainText, sanitizeArticleHtml, textValue, type Article } from "../functions/_shared/article.ts";
-import { makeEpub } from "../functions/_shared/epub.ts";
+import { makeEpub, repairArticleAnchors } from "../functions/_shared/epub.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
+
+Deno.test("repairs publisher anchors that EPUB rejects without breaking fragment links", () => {
+  const html = '<p id="reader-anchor-1">Reserved</p><figure id="Non-linear presentation.png">Diagram</figure><a href="#Non-linear%20presentation.png">Encoded link</a><a href="#Non-linear presentation.png">Raw link</a><p id="">Empty</p><p id="literal%20id">Literal</p><p id="literal id">Spaced</p><a href="#literal%20id">Literal link</a><a href="#bad%ZZ">Malformed link</a>';
+  const repaired = repairArticleAnchors(html);
+  assert(repaired.includes('id="reader-anchor-2"'), "generated anchors must avoid existing IDs");
+  assert((repaired.match(/href="#reader-anchor-2"/g) || []).length === 2, "raw and encoded fragment links must follow their repaired target");
+  assert(!repaired.includes('id=""'), "empty IDs must be removed");
+  assert(repaired.includes('href="#literal%20id"'), "literal percent-encoded targets must remain usable");
+  assert(repaired.includes('href="#bad%ZZ"'), "malformed fragments must not fail the build");
+  assert(repairArticleAnchors(repaired) === repaired, "anchor repair must be idempotent");
+});
 
 Deno.test("joins array-valued RSS and Atom content", () => {
   const value = { __cdata: ["<p>First</p>", "<p>Second</p>"] };
