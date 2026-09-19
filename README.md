@@ -1,6 +1,8 @@
 # Morning Reader
 
-Morning Reader turns websites, RSS, and Atom feeds into grouped Kindle editions (EPUB files) and delivers them on a schedule.
+Morning Reader turns websites, RSS, and Atom feeds into grouped Kindle editions (EPUB files). Editions can be delivered on a schedule or assembled once from 1–20 article URLs under a user-supplied name.
+
+Article pages are reduced to their readable body while preserving headings, lists, links, tables, code, quotations, captions, and supported images. Every EPUB includes reflowable styling, EPUB 3 and legacy Kindle navigation, publisher metadata, and a dated cover designed to remain recognizable as a Kindle home-screen thumbnail.
 
 ## Production architecture
 
@@ -29,6 +31,7 @@ Production:
 - `vercel.json` — Vercel static configuration and custom-domain rewrites
 - `supabase/functions/app-api` — browser application API and magic-code authentication
 - `supabase/functions/worker` — scheduling, feed fetching, EPUB generation, and delivery
+- `supabase/functions/_shared` — safe article extraction, image embedding, cover rendering, and EPUB packaging
 - `supabase/functions/mcp` — Morning Reader MCP server
 - `supabase/functions/oauth` — OAuth authorization server for MCP account linking
 - `supabase/migrations` — migration history matching production
@@ -78,6 +81,10 @@ The worker uses custom `x-worker-secret` authentication. The MCP and OAuth funct
 
 The Vercel `morning-reader` project is connected to this GitHub repository. Pushes to `main` are the production deployment path.
 
+## Verification
+
+CI type-checks every Edge Function, parses the browser scripts, and exercises extraction, metadata, sanitization, image packaging, navigation, and EPUB output. Release candidates are also checked with the W3C EPUBCheck validator before Kindle acceptance testing.
+
 ## Security
 
 - User-facing tables use RLS with no direct client policies; access goes through server-side functions.
@@ -87,6 +94,6 @@ The Vercel `morning-reader` project is connected to this GitHub repository. Push
 - Private OAuth tables are accessed only through service-role-restricted security-definer functions.
 - Feed fetching blocks localhost/private/reserved IPs and validates redirects.
 - Article HTML is sanitized before EPUB generation.
-- Delivery is idempotent by user/article hash and by Resend job key.
+- Recurring deliveries suppress previously delivered articles; one-time editions intentionally allow explicit resends. Every email remains idempotent by job at the provider boundary.
 - Worker calls require a Vault-backed secret.
 - Login codes expire after ten minutes; browser sessions expire after thirty days; stale OAuth artifacts are cleaned automatically.

@@ -1,1 +1,7 @@
-.env\n.env.*\n!.env.example\n.DS_Store\n.vercel\nsupabase/.temp\n
+.env
+.env.*
+!.env.example
+.DS_Store
+.vercel
+node_modules
+supabase/.temp

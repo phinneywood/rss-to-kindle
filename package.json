@@ -1,0 +1,19 @@
+{
+  "name": "morning-reader",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "deno check supabase/functions/app-api/index.ts supabase/functions/worker/index.ts",
+    "test": "deno test supabase/tests"
+  },
+  "dependencies": {
+    "@mozilla/readability": "0.6.0",
+    "@supabase/supabase-js": "2.116.0",
+    "@vercel/og": "0.6.8",
+    "fast-xml-parser": "5.11.1",
+    "jszip": "3.10.1",
+    "linkedom": "0.18.13",
+    "react": "19.1.1",
+    "sanitize-html": "2.17.7"
+  }
+}

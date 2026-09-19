@@ -18,6 +18,8 @@ jobs:
         run: deno check supabase/functions/app-api/index.ts
       - name: Check worker
         run: deno check supabase/functions/worker/index.ts
+      - name: Test publishing pipeline
+        run: deno test --allow-env --allow-read supabase/tests/publishing_test.ts
       - name: Check browser script syntax
         run: |
           node <<'NODE'

@@ -1,5 +1,5 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
-import { XMLParser } from "npm:fast-xml-parser@4.5.0";
+import { createClient } from "npm:@supabase/supabase-js@2.116.0";
+import { XMLParser } from "npm:fast-xml-parser@5.11.1";
 
 export const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -76,13 +76,13 @@ export async function exchangeSupabaseAuth(accessToken:string){
   return{...session,provider:provider||"oauth",auth_user_id:authUser.id};
 }
 export async function auth(req:Request){const h=req.headers.get("authorization")||"",raw=h.startsWith("Bearer ")?h.slice(7).trim():"";if(!raw)return null;const{data,error}=await admin.from("sessions").select("id,user_id,app_users(id,email)").eq("token_hash",await sha256(raw)).is("revoked_at",null).gt("expires_at",new Date().toISOString()).maybeSingle();if(error||!data)return null;await admin.from("sessions").update({last_seen_at:new Date().toISOString()}).eq("id",data.id);const u:any=Array.isArray((data as any).app_users)?(data as any).app_users[0]:(data as any).app_users;return{sessionId:data.id,user:{id:data.user_id,email:u?.email||""}}}
-export async function dashboard(userId:string,email:string){const[s,se,fe,di,jo]=await Promise.all([admin.from("user_settings").select("*").eq("user_id",userId).single(),admin.from("sections").select("*").eq("user_id",userId).is("archived_at",null).order("position").order("created_at"),admin.from("feeds").select("*").eq("user_id",userId).is("archived_at",null).order("created_at"),admin.from("digests").select("id,section_id,status,article_count,error,created_at,sent_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(25),admin.from("digest_jobs").select("id,reason,status,result,error,created_at,started_at,finished_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(15)]);if(s.error)throw s.error;const sections=(se.data||[]).map((x:any)=>({...x,feeds:(fe.data||[]).filter((f:any)=>f.section_id===x.id)}));return{user:{id:userId,email},settings:s.data,sections,digests:di.data||[],jobs:jo.data||[],sender_email:"reader@antonioskilton.com"}}
+export async function dashboard(userId:string,email:string){const[s,se,fe,di,jo]=await Promise.all([admin.from("user_settings").select("*").eq("user_id",userId).single(),admin.from("sections").select("*").eq("user_id",userId).is("archived_at",null).order("position").order("created_at"),admin.from("feeds").select("*").eq("user_id",userId).is("archived_at",null).order("created_at"),admin.from("digests").select("id,section_id,edition_name,status,article_count,error,created_at,sent_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(25),admin.from("digest_jobs").select("id,reason,packet_name,article_urls,status,result,error,created_at,started_at,finished_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(15)]);if(s.error)throw s.error;const sections=(se.data||[]).map((x:any)=>({...x,feeds:(fe.data||[]).filter((f:any)=>f.section_id===x.id)}));return{user:{id:userId,email},settings:s.data,sections,digests:di.data||[],jobs:jo.data||[],sender_email:"reader@antonioskilton.com"}}
 export async function systemHealth(userId:string){
   const since=new Date(Date.now()-24*3600_000).toISOString();
   const [settingsR,feedsR,jobsR,articlesR]=await Promise.all([
     admin.from("user_settings").select("paused,onboarding_complete,next_run_at,kindle_email").eq("user_id",userId).single(),
     admin.from("feeds").select("id,name,last_fetch_at,last_success_at,last_error,consecutive_failures,enabled").eq("user_id",userId).eq("enabled",true).is("archived_at",null).order("consecutive_failures",{ascending:false}),
-    admin.from("digest_jobs").select("id,reason,status,result,error,created_at,started_at,finished_at").eq("user_id",userId).gte("created_at",since).order("created_at",{ascending:false}).limit(100),
+    admin.from("digest_jobs").select("id,reason,packet_name,status,result,error,created_at,started_at,finished_at").eq("user_id",userId).gte("created_at",since).order("created_at",{ascending:false}).limit(100),
     admin.from("article_deliveries").select("id",{count:"exact",head:true}).eq("user_id",userId).gte("delivered_at",since)
   ]);
   if(settingsR.error)throw settingsR.error;if(feedsR.error)throw feedsR.error;if(jobsR.error)throw jobsR.error;if(articlesR.error)throw articlesR.error;

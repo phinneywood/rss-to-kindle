@@ -1,8 +1,25 @@
 import {admin,auth,cors,dashboard,discoverFeeds,emailConfigured,exchangeSupabaseAuth,json,nextRun,normEmail,normalizeUrl,preview,probe,requestCode,routePath,systemHealth,validEmail,validTimezone,validUrl,verifyCode} from "./core.ts";
+import {extractArticle} from "../_shared/article.ts";
 
 function logEvent(event:string,fields:Record<string,unknown>={},level:"info"|"warn"|"error"="info"){
   const line=JSON.stringify({ts:new Date().toISOString(),service:"app-api",event,...fields});
   if(level==="error")console.error(line);else if(level==="warn")console.warn(line);else console.log(line);
+}
+
+function oneTimePayload(body:any){
+  const name=String(body?.name||"").trim();
+  if(!name||name.length>80)throw Object.assign(new Error("Edition name must be 1–80 characters."),{status:400});
+  const raw=Array.isArray(body?.urls)?body.urls:[];
+  if(!raw.length||raw.length>20)throw Object.assign(new Error("Add between 1 and 20 article URLs."),{status:400});
+  const urls:string[]=[];const seen=new Set<string>();
+  for(const value of raw){
+    const input=String(value||"").trim();
+    if(!validUrl(input))throw Object.assign(new Error("Every article needs a valid http or https URL."),{status:400});
+    const normalized=normalizeUrl(input),key=normalized.replace(/#.*$/,"");
+    if(seen.has(key))throw Object.assign(new Error("Remove duplicate article URLs before continuing."),{status:400});
+    seen.add(key);urls.push(key);
+  }
+  return{name,urls};
 }
 
 Deno.serve(async(req)=>{
@@ -160,6 +177,34 @@ Deno.serve(async(req)=>{
     if(route==="/preview"&&req.method==="POST"){
       const{data:feeds,error}=await admin.from("feeds").select("*").eq("user_id",user.id).eq("enabled",true).is("archived_at",null).limit(40);if(error)throw error;const rs=[];for(const f of feeds||[])rs.push(await preview(f));
       const items=rs.flatMap((r:any)=>r.items).sort((a:any,b:any)=>(b.published_at?+new Date(b.published_at):0)-(a.published_at?+new Date(a.published_at):0)).slice(0,60);logEvent("preview.generated",{request_id:requestId,user_id:user.id,feeds:(feeds||[]).length,items:items.length,feed_errors:rs.filter((r:any)=>r.error).length});return json({items,feeds:rs});
+    }
+    if(route==="/one-time/preview"&&req.method==="POST"){
+      const{name,urls}=oneTimePayload(await req.json().catch(()=>({})));
+      const items:any[]=new Array(urls.length);let cursor=0;
+      async function previewWorker(){
+        while(true){
+          const index=cursor++;if(index>=urls.length)return;
+          try{
+            const article=await extractArticle({url:urls[index],includeImages:false});
+            items[index]={index,status:"ready",title:article.title,url:urls[index],canonical_url:article.url,source:article.source,author:article.author,published_at:article.published_at,excerpt:article.excerpt,warnings:article.warnings};
+          }catch(error){items[index]={index,status:"failed",url:urls[index],error:error instanceof Error?error.message:String(error)}}
+        }
+      }
+      await Promise.all(Array.from({length:Math.min(3,urls.length)},()=>previewWorker()));
+      const failed=items.filter(item=>item.status==="failed").length;
+      logEvent("one_time.previewed",{request_id:requestId,user_id:user.id,name,articles:urls.length,failed});
+      return json({name,items,ready:failed===0});
+    }
+    if(route==="/one-time/send"&&req.method==="POST"){
+      const{name,urls}=oneTimePayload(await req.json().catch(()=>({})));
+      const{data:s}=await admin.from("user_settings").select("kindle_email").eq("user_id",user.id).single();
+      if(!s?.kindle_email)return json({error:"Add your Send-to-Kindle email first."},400);
+      const{data:job,error}=await admin.from("digest_jobs").insert({user_id:user.id,reason:"one_time",packet_name:name,article_urls:urls,lookback_hours:168,idempotency_key:`one_time:${user.id}:${crypto.randomUUID()}`,run_after:new Date().toISOString()}).select("id,status,reason,packet_name,article_urls,created_at").single();
+      if(error)throw error;
+      const now=Date.now(),nextBoundary=new Date(Math.ceil((now+1000)/300000)*300000).toISOString();
+      const{data:kick,error:kickError}=await admin.rpc("kick_digest_worker");
+      logEvent("one_time.queued",{request_id:requestId,user_id:user.id,job_id:job.id,name,articles:urls.length,worker_triggered:!kickError&&Boolean(kick)});
+      return json({ok:true,job,worker_triggered:!kickError&&Boolean(kick),next_worker_check_at:nextBoundary},202);
     }
     if((route==="/send-now"||route==="/send-test")&&req.method==="POST"){
       const{data:s}=await admin.from("user_settings").select("kindle_email").eq("user_id",user.id).single();if(!s?.kindle_email)return json({error:"Add your Send-to-Kindle email first."},400);const reason=route==="/send-test"?"test":"manual";
