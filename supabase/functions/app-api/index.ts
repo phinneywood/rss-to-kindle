@@ -1,5 +1,5 @@
 import {admin,auth,cors,dashboard,discoverFeeds,emailConfigured,exchangeSupabaseAuth,json,nextRun,normEmail,normalizeUrl,preview,probe,requestCode,routePath,systemHealth,validEmail,validTimezone,validUrl,verifyCode} from "./core.ts";
-import {extractArticle} from "../_shared/article.ts";
+import {extractArticle,extractionBudget} from "../_shared/article.ts";
 
 function logEvent(event:string,fields:Record<string,unknown>={},level:"info"|"warn"|"error"="info"){
   const line=JSON.stringify({ts:new Date().toISOString(),service:"app-api",event,...fields});
@@ -59,7 +59,7 @@ Deno.serve(async(req)=>{
       if("timezone"in b){const tz=String(b.timezone||"");if(!validTimezone(tz))return json({error:"Invalid timezone."},400);p.timezone=tz}
       if("delivery_time"in b){const t=String(b.delivery_time||"");if(!/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(t))return json({error:"Invalid delivery time."},400);p.delivery_time=t.length===5?`${t}:00`:t}
       if("paused"in b)p.paused=Boolean(b.paused);if("onboarding_complete"in b)p.onboarding_complete=Boolean(b.onboarding_complete);
-      p.next_run_at=await nextRun(p.timezone||cur.timezone,p.delivery_time||cur.delivery_time);p.updated_at=new Date().toISOString();
+      if("timezone"in p||"delivery_time"in p||"paused"in p||"onboarding_complete"in p||!cur.next_run_at)p.next_run_at=await nextRun(p.timezone||cur.timezone,p.delivery_time||cur.delivery_time);p.updated_at=new Date().toISOString();
       const{error}=await admin.from("user_settings").update(p).eq("user_id",user.id);if(error)throw error;return json(await dashboard(user.id,user.email));
     }
 
@@ -175,18 +175,19 @@ Deno.serve(async(req)=>{
     if(fm&&req.method==="DELETE"){const now=new Date().toISOString();const{error}=await admin.from("feeds").update({archived_at:now,enabled:false}).eq("id",fm[1]).eq("user_id",user.id);if(error)throw error;return json(await dashboard(user.id,user.email))}
 
     if(route==="/preview"&&req.method==="POST"){
-      const{data:feeds,error}=await admin.from("feeds").select("*").eq("user_id",user.id).eq("enabled",true).is("archived_at",null).limit(40);if(error)throw error;const rs=[];for(const f of feeds||[])rs.push(await preview(f));
+      const{data:feeds,error}=await admin.from("feeds").select("*").eq("user_id",user.id).eq("enabled",true).is("archived_at",null).limit(40);if(error)throw error;const rs:any[]=new Array((feeds||[]).length);let cursor=0;const deadline=Date.now()+60000;await Promise.all(Array.from({length:Math.min(4,(feeds||[]).length)},async()=>{while(cursor<(feeds||[]).length){const i=cursor++;rs[i]=Date.now()>=deadline?{feed_id:feeds![i].id,items:[],error:"Source browsing time limit reached."}:await preview(feeds![i])}}));
       const items=rs.flatMap((r:any)=>r.items).sort((a:any,b:any)=>(b.published_at?+new Date(b.published_at):0)-(a.published_at?+new Date(a.published_at):0)).slice(0,60);logEvent("preview.generated",{request_id:requestId,user_id:user.id,feeds:(feeds||[]).length,items:items.length,feed_errors:rs.filter((r:any)=>r.error).length});return json({items,feeds:rs});
     }
     if(route==="/one-time/preview"&&req.method==="POST"){
       const{name,urls}=oneTimePayload(await req.json().catch(()=>({})));
+      const budget=extractionBudget();
       const items:any[]=new Array(urls.length);let cursor=0;
       async function previewWorker(){
         while(true){
           const index=cursor++;if(index>=urls.length)return;
           try{
-            const article=await extractArticle({url:urls[index],includeImages:false});
-            items[index]={index,status:"ready",title:article.title,url:urls[index],canonical_url:article.url,source:article.source,author:article.author,published_at:article.published_at,excerpt:article.excerpt,warnings:article.warnings};
+            const article=await extractArticle({url:urls[index],includeImages:false,budget});
+            items[index]={index,status:"ready",title:article.title,url:urls[index],canonical_url:article.canonical_url,source:article.source,author:article.author,published_at:article.published_at,excerpt:article.excerpt,warnings:article.warnings};
           }catch(error){items[index]={index,status:"failed",url:urls[index],error:error instanceof Error?error.message:String(error)}}
         }
       }
@@ -196,19 +197,26 @@ Deno.serve(async(req)=>{
       return json({name,items,ready:failed===0});
     }
     if(route==="/one-time/send"&&req.method==="POST"){
-      const{name,urls}=oneTimePayload(await req.json().catch(()=>({})));
+      const body=await req.json().catch(()=>({}));
+      const{name,urls}=oneTimePayload(body);
+      const requestId=String(body.request_id||crypto.randomUUID());
+      if(!/^[0-9a-f-]{36}$/i.test(requestId))return json({error:"Invalid request identifier."},400);
       const{data:s}=await admin.from("user_settings").select("kindle_email").eq("user_id",user.id).single();
       if(!s?.kindle_email)return json({error:"Add your Send-to-Kindle email first."},400);
-      const{data:job,error}=await admin.from("digest_jobs").insert({user_id:user.id,reason:"one_time",packet_name:name,article_urls:urls,lookback_hours:168,idempotency_key:`one_time:${user.id}:${crypto.randomUUID()}`,run_after:new Date().toISOString()}).select("id,status,reason,packet_name,article_urls,created_at").single();
+      const{data:job,error}=await admin.from("digest_jobs").upsert({user_id:user.id,reason:"one_time",packet_name:name,article_urls:urls,lookback_hours:168,idempotency_key:`one_time:${user.id}:${requestId}`,run_after:new Date().toISOString()},{onConflict:"idempotency_key",ignoreDuplicates:true}).select("id,status,reason,packet_name,article_urls,created_at").maybeSingle();
       if(error)throw error;
+      if(!job){const existing=await admin.from("digest_jobs").select("id,status,reason,packet_name,article_urls,created_at").eq("user_id",user.id).eq("idempotency_key",`one_time:${user.id}:${requestId}`).single();if(existing.error)throw existing.error;if(existing.data.packet_name!==name||JSON.stringify(existing.data.article_urls)!==JSON.stringify(urls))return json({error:"This request was already used for another edition."},409);return json({ok:true,job:existing.data},202)}
       const now=Date.now(),nextBoundary=new Date(Math.ceil((now+1000)/300000)*300000).toISOString();
       const{data:kick,error:kickError}=await admin.rpc("kick_digest_worker");
       logEvent("one_time.queued",{request_id:requestId,user_id:user.id,job_id:job.id,name,articles:urls.length,worker_triggered:!kickError&&Boolean(kick)});
       return json({ok:true,job,worker_triggered:!kickError&&Boolean(kick),next_worker_check_at:nextBoundary},202);
     }
     if((route==="/send-now"||route==="/send-test")&&req.method==="POST"){
+      const body=await req.json().catch(()=>({})),requestId=String(body.request_id||crypto.randomUUID());
+      if(!/^[0-9a-f-]{36}$/i.test(requestId))return json({error:"Invalid request identifier."},400);
       const{data:s}=await admin.from("user_settings").select("kindle_email").eq("user_id",user.id).single();if(!s?.kindle_email)return json({error:"Add your Send-to-Kindle email first."},400);const reason=route==="/send-test"?"test":"manual";
-      const{data:job,error}=await admin.from("digest_jobs").insert({user_id:user.id,reason,lookback_hours:168,idempotency_key:`${reason}:${user.id}:${crypto.randomUUID()}`,run_after:new Date().toISOString()}).select("id,status,reason,created_at").single();if(error)throw error;
+      const{data:job,error}=await admin.from("digest_jobs").upsert({user_id:user.id,reason,lookback_hours:168,idempotency_key:`${reason}:${user.id}:${requestId}`,run_after:new Date().toISOString()},{onConflict:"idempotency_key",ignoreDuplicates:true}).select("id,status,reason,created_at").maybeSingle();if(error)throw error;
+      if(!job){const existing=await admin.from("digest_jobs").select("id,status,reason,created_at").eq("user_id",user.id).eq("idempotency_key",`${reason}:${user.id}:${requestId}`).single();if(existing.error)throw existing.error;return json({ok:true,job:existing.data},202)}
       const now=Date.now(),nextBoundary=new Date(Math.ceil((now+1000)/300000)*300000).toISOString();
       const{data:kick,error:kickError}=await admin.rpc("kick_digest_worker");
       logEvent("delivery.queued",{request_id:requestId,user_id:user.id,job_id:job.id,reason,worker_triggered:!kickError&&Boolean(kick)});

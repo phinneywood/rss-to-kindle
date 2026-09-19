@@ -572,6 +572,11 @@ let token=localStorage.morningReaderToken||'';
 let state=null;
 const expandedSections=new Set();
 let toastTimer=null;
+let modalVersion=0,modalReturnFocus=null,modalDirty=false;
+let oneTimeDraft=null;
+const pendingSends=new Map();
+const activeWatchers=new Set();
+const safeHref=value=>{try{const u=new URL(value);return ["http:","https:"].includes(u.protocol)?u.href:"#"}catch{return "#"}};
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const fmtDate=value=>{try{return new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(value))}catch{return ''}};
@@ -589,7 +594,7 @@ function latestRunText(job){
   const when=fmtTime(job.finished_at||job.updated_at||job.created_at);
   const articles=job.result?.articles;
   const label=job.reason==='one_time'&&job.packet_name?`“${job.packet_name}”`:'edition';
-  if(job.status==='sent')return `Last sent ${label} ${when}${articles!=null?' · '+articles+' article'+(articles===1?'':'s'):''}`;
+  if(job.status==='sent'||job.status==='partial')return `${job.status==='partial'?'Submitted with omissions':'Submitted for delivery'} ${label} ${when}${articles!=null?' · '+articles+' article'+(articles===1?'':'s'):''}`;
   if(job.status==='empty')return `Last checked ${when} · No new articles`;
   if(job.status==='failed')return `Last send failed ${when}`;
   if(job.status==='running')return 'Building your edition…';
@@ -615,15 +620,36 @@ function toast(message){
   toastTimer=setTimeout(()=>toastEl.classList.remove('show'),3200);
 }
 function openModal(content){
-  modal.innerHTML=`<div class="modal-card">${content}</div>`;
-  modal.classList.add('open'); modal.setAttribute('aria-hidden','false');
+  if(!modal.classList.contains('open'))modalReturnFocus=document.activeElement;
+  modalVersion++;modalDirty=false;
+  modal.innerHTML=`<div class="modal-card" role="dialog" aria-modal="true" aria-label="Morning Reader dialog" tabindex="-1">${content}</div>`;
+  modal.classList.add('open');modal.setAttribute('aria-hidden','false');app.inert=true;
+  const card=modal.querySelector('.modal-card'),heading=card.querySelector('h2');
+  if(heading){heading.id='dialog-heading';card.setAttribute('aria-labelledby',heading.id)}
+  card.addEventListener('input',()=>{modalDirty=!card.querySelector('#one-time-form')});
   modal.onclick=e=>{if(e.target===modal)closeModal()};
+  modal.onkeydown=e=>{
+    if(e.key==='Escape'){e.preventDefault();closeModal();return}
+    if(e.key!=='Tab')return;
+    const controls=[...card.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled])')].filter(el=>!el.closest('[hidden]'));
+    const first=controls[0],last=controls.at(-1);
+    if(!first){e.preventDefault();card.focus();return}
+    if(e.shiftKey&&(document.activeElement===first||document.activeElement===card)){e.preventDefault();last.focus()}
+    else if(!e.shiftKey&&(document.activeElement===last||document.activeElement===card)){e.preventDefault();first.focus()}
+  };
+  card.focus();
+  return modalVersion;
 }
-function closeModal(){modal.classList.remove('open');modal.setAttribute('aria-hidden','true');modal.innerHTML=''}
+function closeModal(force=false){
+  if(force!==true&&modalDirty&&!confirm('Discard unsaved changes?'))return;
+  modalVersion++;modalDirty=false;modal.classList.remove('open');modal.setAttribute('aria-hidden','true');modal.innerHTML='';app.inert=false;
+  const target=modalReturnFocus?.isConnected?modalReturnFocus:document.getElementById(modalReturnFocus?.id||'');
+  target?.focus();
+}
 async function api(path,options={}){
   const headers={'Content-Type':'application/json'};
   if(options.auth!==false&&token)headers.Authorization='Bearer '+token;
-  const response=await fetch(API+path,{method:options.method||'GET',headers,body:options.body?JSON.stringify(options.body):null});
+  const response=await fetch(API+path,{method:options.method||'GET',headers,signal:AbortSignal.timeout(options.timeout||100000),body:options.body?JSON.stringify(options.body):null});
   const body=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(body.error||'Request failed');
   return body;
@@ -669,7 +695,7 @@ function landing(error=''){
 
       <section class="auth-form-section">
         <div class="editorial-label">Sign in or start</div>
-        <h2>Choose how to continue.</h2>
+        <h2>Sign in with email.</h2>
         ${error?`<div class="notice error" style="max-width:540px;margin-top:14px">${esc(error)}</div>`:''}
 
         ${SOCIAL_AUTH_ENABLED?`<div class="auth-provider-list">
@@ -687,7 +713,7 @@ function landing(error=''){
         <form id="login-form" class="auth-form">
           <div class="auth-form-copy">We'll send you a six-digit sign-in code. No password.</div>
           <div class="field"><label for="email">Email address</label><input id="email" class="input" name="email" type="email" autocomplete="email" required placeholder="you@example.com"></div>
-          <div class="auth-form-actions"><button class="btn primary" id="login-submit">Continue →</button></div>
+          <div class="auth-form-actions"><button class="btn primary" id="login-submit">Send code</button></div>
           <div class="auth-note">New here? Your verified email creates your account.</div>
         </form>
       </section>
@@ -733,6 +759,7 @@ function verify(email,error=''){
   };
 }
 async function signOut(){
+  oneTimeDraft=null;pendingSends.clear();
   try{await api('/auth/logout',{method:'POST'})}catch{}
   try{if(authClient)await authClient.auth.signOut()}catch{}
   token=''; localStorage.removeItem('morningReaderToken'); localStorage.removeItem('morningReaderSkipStarters'); state=null; landing();
@@ -749,7 +776,7 @@ function starterPicker(){
       <h1>Build your first morning paper.</h1>
       <div class="editorial-copy">You don't need to know anything about RSS. Pick a starter edition and Morning Reader will assemble it for you. Every source can be changed later.</div>
 
-      <div class="starter-deck">
+      <button class="btn primary" id="starter-one-time" style="margin-top:20px">Just send articles once →</button><div class="starter-deck">
         ${STARTER_EDITIONS.map(pack=>`<div class="starter-option">
           <div>
             <h3>${esc(pack.name)}</h3>
@@ -768,6 +795,7 @@ function starterPicker(){
     '<button class="btn small-btn" id="sign-out">Sign out</button>');
 
   document.querySelector('#sign-out').onclick=signOut;
+  document.querySelector('#starter-one-time').onclick=()=>oneTimeEditionModal();
   document.querySelector('#bring-own-feeds').onclick=()=>{
     localStorage.morningReaderSkipStarters='1';
     dashboard();
@@ -808,7 +836,7 @@ function starterReady(pack,summary={}){
     <section class="starter-ready">
       <div class="editorial-label">Your first edition</div>
       <h1>Your morning paper has something in it.</h1>
-      <div class="editorial-copy">Before setting up your Kindle, take a look at the reading experience. This is the part that matters.</div>
+      <div class="editorial-copy">Browse recent headlines from your sources before setting up your Kindle. This list is not a preview of the final Kindle document.</div>
 
       <div class="ready-edition">
         <div class="ready-edition-name">${esc(pack.name)}</div>
@@ -816,7 +844,7 @@ function starterReady(pack,summary={}){
       </div>
 
       <div class="ready-actions">
-        <button class="btn primary" id="starter-preview">Preview the edition →</button>
+        <button class="btn primary" id="starter-preview">Browse latest articles →</button>
         <button class="btn" id="starter-kindle">Send it to my Kindle</button>
         <button class="btn" id="starter-another">+ Add another starter</button>
       </div>
@@ -900,14 +928,14 @@ function onboarding(){
 }
 
 function feedStatus(feed){
-  if(feed.last_error)return '<span class="status fail"><span class="dot"></span>Needs attention</span>';
   if(!feed.enabled)return '<span class="status off"><span class="dot"></span>Paused</span>';
+  if(feed.last_error)return '<span class="status fail"><span class="dot"></span>Needs attention</span>';
   return '<span class="status"><span class="dot"></span>Active</span>';
 }
 function feedRow(feed){
   return `<div class="feed">
     <div>
-      <div class="feed-title">${esc(feed.name)}</div>
+      <div class="feed-title">${esc(feed.name)} ${!feed.enabled?feedStatus(feed):''}</div>
       <div class="feed-url">${esc(feed.url)}</div>
       ${feed.last_error?`<div class="technical-note" style="color:var(--red)">${esc(feed.last_error)}</div>`:''}
     </div>
@@ -928,14 +956,14 @@ function sectionCard(section,index){
       <button class="disclosure-btn toggle-sources" data-id="${section.id}" aria-expanded="${expanded}" aria-label="${expanded?'Collapse':'Expand'} ${esc(section.name)} edition">${expanded?'⌄':'›'}</button>
     </div>
     <div class="edition-details" ${!expanded?'hidden':''}>
-      <div class="edition-manage"><button class="btn small-btn rename-section" data-id="${section.id}">Rename edition</button></div>
+      <div class="edition-manage"><button class="btn small-btn rename-section" data-id="${section.id}">Rename edition</button>${state.sections.length>1?`<button class="btn small-btn remove-section" data-id="${section.id}">Remove edition</button>`:""}</div>
       <div class="feed-list">${section.feeds.length?section.feeds.map(feedRow).join(''):'<div class="empty">No sources in this edition yet.</div>'}</div>
     </div>
   </section>`;
 }
 function runBadge(status){
-  const cls=status==='failed'?'fail':status==='queued'||status==='running'?'warn':'';
-  return `<span class="status ${cls}"><span class="dot"></span>${esc(status)}</span>`;
+  const cls=status==='failed'?'fail':['queued','running','partial'].includes(status)?'warn':'';
+  return `<span class="status ${cls}"><span class="dot"></span>${esc(({sent:'Submitted',partial:'Submitted with omissions',empty:'No new articles',queued:'Queued',running:'Preparing',failed:'Failed'})[status]||status)}</span>`;
 }
 
 function dashboard(){
@@ -957,7 +985,7 @@ function dashboard(){
               <h2>Add sources</h2>
             </div>
           </div>
-          <div class="source-index-list">
+          <div class="source-index-list"><button class="source-index-action" id="one-time-send"><span class="source-index-number" aria-hidden="true">1×</span><span class="source-index-copy"><span class="source-index-title">Send articles once</span><span class="source-index-meta">One named packet · no subscription</span></span><span class="source-index-arrow">›</span></button>
             <a href="#" class="source-index-action" id="add-single-feed">
               <span class="source-index-number" aria-hidden="true">+</span>
               <span class="source-index-copy"><span class="source-index-title">Add a single feed</span><span class="source-index-meta">Website or RSS address</span></span>
@@ -991,22 +1019,22 @@ function dashboard(){
             <div class="delivery-time">${esc((settings.delivery_time||'06:00').slice(0,5))}</div>
             <div class="delivery-meta">${settings.paused?'PAUSED':'SCHEDULED'} · ${esc(settings.timezone)}</div>
             <div class="delivery-actions compact-delivery-actions">
-              <button class="btn small-btn" id="preview">Preview</button>
+              <button class="btn small-btn" id="preview">Browse latest articles</button>
               ${settings.onboarding_complete?`
-                <button class="btn primary small-btn" id="send-now">Send now</button>
+                <button class="btn primary small-btn" id="send-now" ${(state.jobs||[]).some(j=>j.reason!=='one_time'&&['queued','running'].includes(j.status))?'disabled':''}>Send now</button>
                 <button class="btn small-btn overflow-btn" id="delivery-menu" aria-label="More delivery options">•••</button>
               `:`<button class="btn primary small-btn" id="connect-kindle">Connect Kindle →</button>`}
             </div>
           </div>
           ${latestJob?`<div class="latest-run human-run">${esc(latestRunText(latestJob))}</div>`:''}
-          <button class="one-time-action" id="one-time-send">Send selected articles once →</button>
+          <button class="one-time-action" id="delivery-history">Delivery history →</button>
         </section>
 
         <section class="side-card compact-panel">
           <div class="editorial-label">Kindle</div>
           <div class="kindle-status-row">
             <div>
-              <div class="kindle-state">Kindle · ${settings.onboarding_complete?'Connected':'Not connected'}</div>
+              <div class="kindle-state">Kindle · ${settings.kindle_email?'Address saved':'No address saved'}</div>
               <div class="kindle-address">${esc(maskEmail(settings.kindle_email))}</div>
             </div>
             ${settings.onboarding_complete
@@ -1027,7 +1055,9 @@ function wireDashboard(){
   document.querySelector('#import-opml').onclick=e=>{e.preventDefault();opmlImportModal()};
 
   const sendNow=document.querySelector('#send-now');if(sendNow)sendNow.onclick=()=>queueSend('/send-now','Edition queued');
-  document.querySelector('#one-time-send').onclick=oneTimeEditionModal;
+  document.querySelector('#one-time-send').onclick=()=>oneTimeEditionModal();
+  document.querySelector('#delivery-history').onclick=historyModal;
+  document.querySelectorAll('.remove-section').forEach(button=>button.onclick=()=>removeSectionModal(button.dataset.id));
   const preview=document.querySelector('#preview');if(preview)preview.onclick=previewModal;
   const deliveryMenu=document.querySelector('#delivery-menu');if(deliveryMenu)deliveryMenu.onclick=deliveryMenuModal;
   const manageKindle=document.querySelector('#manage-kindle');if(manageKindle)manageKindle.onclick=kindleManageModal;
@@ -1056,16 +1086,16 @@ function deliveryMenuModal(){
   document.querySelector('#menu-toggle-schedule').onclick=async()=>{
     try{
       state=await api('/settings',{method:'PATCH',body:{paused:!state.settings.paused}});
-      closeModal();dashboard();toast(state.settings.paused?'Delivery paused':'Delivery resumed');
+      closeModal(true);dashboard();toast(state.settings.paused?'Delivery paused':'Delivery resumed');
     }catch(err){toast(err.message)}
   };
 }
 
 function kindleManageModal(){
   const s=state.settings;
-  openModal(`<div class="row"><div><div class="editorial-label">Kindle</div><h2 style="margin-top:6px">Connected</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
+  openModal(`<div class="row"><div><div class="editorial-label">Kindle</div><h2 style="margin-top:6px">Address saved</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
     <div style="margin-top:14px;font-family:Georgia,'Times New Roman',serif;font-size:18px;word-break:break-word">${esc(s.kindle_email||'Not configured')}</div>
-    <div class="technical-note" style="margin-top:7px">Approved sender: ${SENDER}</div>
+    <div class="technical-note" style="margin-top:7px">Add ${SENDER} to Amazon’s approved sender list. Morning Reader cannot verify Amazon approval or Kindle receipt.</div>
     <div class="menu-list">
       <button class="menu-action" id="kindle-edit-settings">Edit Kindle & delivery settings</button>
       <a class="menu-action" href="${AMAZON_SETTINGS}" target="_blank" rel="noopener" style="text-decoration:none">Open Amazon settings ↗</a>
@@ -1134,7 +1164,7 @@ function sectionModal(){
   document.querySelector('#close-modal').onclick=closeModal;
   document.querySelector('#section-form').onsubmit=async e=>{
     e.preventDefault();
-    try{state=await api('/sections',{method:'POST',body:{name:new FormData(e.currentTarget).get('name')}});closeModal();dashboard();toast('Edition created')}
+    try{state=await api('/sections',{method:'POST',body:{name:new FormData(e.currentTarget).get('name')}});closeModal(true);dashboard();toast('Edition created')}
     catch(err){toast(err.message)}
   };
 }
@@ -1149,7 +1179,7 @@ function renameSectionModal(id){
     e.preventDefault();
     try{
       state=await api('/sections/'+id,{method:'PATCH',body:{name:new FormData(e.currentTarget).get('name')}});
-      closeModal();dashboard();toast('Edition renamed');
+      closeModal(true);dashboard();toast('Edition renamed');
     }catch(err){toast(err.message)}
   };
 }
@@ -1172,7 +1202,7 @@ function singleFeedModal(){
       if(!feeds.length)throw new Error("No RSS or Atom feed found.");
       if(feeds.length===1){
         state=await api('/feeds',{method:'POST',body:{section_id:sectionId,url:feeds[0].url}});
-        closeModal();dashboard();toast('Source added');return;
+        closeModal(true);dashboard();toast('Source added');return;
       }
       chooseFeedModal(sectionId,feeds);
     }catch(err){
@@ -1188,7 +1218,7 @@ function chooseFeedModal(sectionId,feeds){
   document.querySelector('#close-modal').onclick=closeModal;
   document.querySelectorAll('.choose-discovered-feed').forEach(button=>button.onclick=async()=>{
     const feed=feeds[Number(button.dataset.i)];button.disabled=true;
-    try{state=await api('/feeds',{method:'POST',body:{section_id:sectionId,url:feed.url}});closeModal();dashboard();toast('Source added')}
+    try{state=await api('/feeds',{method:'POST',body:{section_id:sectionId,url:feed.url}});closeModal(true);dashboard();toast('Source added')}
     catch(err){button.disabled=false;toast(err.message)}
   });
 }
@@ -1207,7 +1237,7 @@ function feedActionsModal(id){
   document.querySelector('#manage-move').onclick=()=>moveFeedModal(id,feed.section_id);
   document.querySelector('#manage-delete').onclick=()=>deleteFeedModal(id);
   document.querySelector('#manage-toggle').onclick=async()=>{
-    try{state=await api('/feeds/'+id,{method:'PATCH',body:{enabled:!feed.enabled}});closeModal();dashboard();toast(feed.enabled?'Source paused':'Source resumed')}
+    try{state=await api('/feeds/'+id,{method:'PATCH',body:{enabled:!feed.enabled}});closeModal(true);dashboard();toast(feed.enabled?'Source paused':'Source resumed')}
     catch(err){toast(err.message)}
   };
 }
@@ -1223,7 +1253,7 @@ function moveFeedModal(id,currentSectionId){
     button.disabled=true;
     try{
       state=await api('/feeds/'+id,{method:'PATCH',body:{section_id:button.dataset.id}});
-      closeModal();dashboard();toast('Source moved to another edition');
+      closeModal(true);dashboard();toast('Source moved to another edition');
     }catch(err){button.disabled=false;toast(err.message)}
   });
 }
@@ -1232,7 +1262,7 @@ function deleteFeedModal(id){
   openModal(`<h2>Delete feed?</h2><p>This removes <strong>${esc(feed?.name||'this feed')}</strong> from future editions. Past delivery history remains.</p><div class="row wrap" style="justify-content:flex-start"><button class="btn danger" id="confirm-delete">Delete feed</button><button class="btn" id="cancel-delete">Cancel</button></div>`);
   document.querySelector('#cancel-delete').onclick=closeModal;
   document.querySelector('#confirm-delete').onclick=async()=>{
-    try{state=await api('/feeds/'+id,{method:'DELETE'});closeModal();dashboard();toast('Feed deleted')}
+    try{state=await api('/feeds/'+id,{method:'DELETE'});closeModal(true);dashboard();toast('Feed deleted')}
     catch(err){toast(err.message)}
   };
 }
@@ -1251,33 +1281,39 @@ function settingsModal(){
   document.querySelector('#close-modal').onclick=closeModal;
   document.querySelector('#settings-form').onsubmit=async e=>{
     e.preventDefault();const form=new FormData(e.currentTarget);
-    try{state=await api('/settings',{method:'PATCH',body:{kindle_email:form.get('kindle_email'),delivery_time:form.get('delivery_time'),timezone:form.get('timezone')}});closeModal();dashboard();toast('Settings saved')}
+    try{state=await api('/settings',{method:'PATCH',body:{kindle_email:form.get('kindle_email'),delivery_time:form.get('delivery_time'),timezone:form.get('timezone')}});closeModal(true);dashboard();toast('Settings saved')}
     catch(err){toast(err.message)}
   };
 }
 async function previewModal(){
-  openModal('<div class="row"><h2>Latest articles</h2><button class="btn small-btn" id="close-modal">Close</button></div><p class="muted">Checking your active feeds…</p>');
+  const version=openModal('<div class="row"><h2>Latest articles</h2><button class="btn small-btn" id="close-modal">Close</button></div><p class="muted">Checking your active feeds…</p>');
   document.querySelector('#close-modal').onclick=closeModal;
   try{
     const result=await api('/preview',{method:'POST'});
+    if(version!==modalVersion)return;
     const items=result.items||[];
-    modal.querySelector('.modal-card').innerHTML=`<div class="row"><h2>Latest articles</h2><button class="btn small-btn" id="close-modal">Close</button></div>
-      <p class="muted small">${items.length} recent item${items.length===1?'':'s'} across active feeds. This is a preview only; nothing was sent.</p>
-      <div class="preview-list">${items.slice(0,40).map(item=>`<div class="preview-item"><a href="${esc(item.url)}" target="_blank" rel="noopener">${esc(item.title)}</a><div class="preview-source">${esc(item.source)}${item.published_at?' · '+fmtDate(item.published_at):''}</div></div>`).join('')||'<p class="muted">No recent articles found.</p>'}</div>`;
+    openModal(`<div class="row"><h2>Latest articles</h2><button class="btn small-btn" id="close-modal">Close</button></div>
+      <p class="muted small">${items.length} recent item${items.length===1?'':'s'} across active feeds. Headline browser only: it does not show Kindle formatting or filter already-delivered articles. Nothing was sent.</p>
+      ${(result.feeds||[]).filter(f=>f.error).map(f=>`<p class="notice error">${esc(f.error)}</p>`).join('')}<div class="preview-list">${items.slice(0,40).map(item=>`<div class="preview-item"><a href="${esc(safeHref(item.url))}" target="_blank" rel="noopener">${esc(item.title)}</a><div class="preview-source">${esc(item.source)}${item.published_at?' · '+fmtDate(item.published_at):''}</div></div>`).join('')||'<p class="muted">No recent articles found.</p>'}</div>`);
     document.querySelector('#close-modal').onclick=closeModal;
-  }catch(err){modal.querySelector('.modal-card').innerHTML=`<h2>Preview unavailable</h2><div class="notice error">${esc(err.message)}</div><div style="margin-top:16px"><button class="btn" id="close-modal">Close</button></div>`;document.querySelector('#close-modal').onclick=closeModal}
+  }catch(err){if(version!==modalVersion)return;modal.querySelector('.modal-card').innerHTML=`<h2>Preview unavailable</h2><div class="notice error">${esc(err.message)}</div><div style="margin-top:16px"><button class="btn" id="close-modal">Close</button></div>`;document.querySelector('#close-modal').onclick=closeModal}
 }
-function oneTimeEditionModal(seed={}){
+function oneTimeEditionModal(seed){
+  seed=seed||oneTimeDraft||{};
   const name=seed.name||'',urls=seed.urls||'';
+  oneTimeDraft={name,urls,request_id:seed.request_id||crypto.randomUUID()};
+  if(!state.settings.kindle_email){oneTimeKindleSetup();return}
   openModal(`<div class="row"><div><div class="editorial-label">One-time edition</div><h2 style="margin-top:6px">Send selected articles</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
     <p class="muted small">Paste one article URL or several. They will be combined, in this order, into one named Kindle edition. This will not add a recurring feed.</p>
     <form id="one-time-form">
       <div class="field"><label for="one-time-name">Edition name</label><input class="input" id="one-time-name" name="name" maxlength="80" required placeholder="Weekend reading" value="${esc(name)}"></div>
       <div class="field"><label for="one-time-urls">Article URLs <span class="muted">(1–20)</span></label><textarea class="input article-urls" id="one-time-urls" name="urls" required placeholder="https://example.com/article-one&#10;https://example.com/article-two">${esc(urls)}</textarea></div>
-      <div class="notice info">We’ll fetch and check each article before anything is sent.</div>
+      <div class="notice info">Review the extracted text before sending. Images are checked during preparation; JPEG, PNG and GIF are supported. Article drafts stay available until you sign out or reload.</div>
       <div style="margin-top:16px"><button class="btn primary" id="review-one-time">Review articles</button></div>
     </form>`);
   document.querySelector('#close-modal').onclick=closeModal;
+  const version=modalVersion;
+  document.querySelector('#one-time-form').oninput=()=>{oneTimeDraft={name:document.querySelector('#one-time-name').value,urls:document.querySelector('#one-time-urls').value,request_id:crypto.randomUUID()}};
   document.querySelector('#one-time-form').onsubmit=async event=>{
     event.preventDefault();
     const form=new FormData(event.currentTarget),editionName=String(form.get('name')||'').trim(),raw=String(form.get('urls')||'').trim();
@@ -1286,76 +1322,117 @@ function oneTimeEditionModal(seed={}){
     const button=document.querySelector('#review-one-time');button.disabled=true;button.textContent='Checking articles…';
     try{
       const result=await api('/one-time/preview',{method:'POST',body:{name:editionName,urls:articleUrls}});
-      oneTimeReview(result.name,result.items||[]);
+      if(version===modalVersion)oneTimeReview(result.name,result.items||[]);
     }catch(err){button.disabled=false;button.textContent='Review articles';toast(err.message)}
   };
 }
 function oneTimeReview(name,items){
+  oneTimeDraft={name,urls:items.map(item=>item.url).join('\n'),request_id:oneTimeDraft?.request_id||crypto.randomUUID()};
   const failed=items.filter(item=>item.status!=='ready').length;
-  modal.querySelector('.modal-card').innerHTML=`<div class="row"><div><div class="editorial-label">One-time edition</div><h2 style="margin-top:6px">${esc(name)}</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
-    <p class="muted small">Confirm the order. Remove anything you do not want included, or go back to change the URLs.</p>
+  openModal(`<div class="row"><div><div class="editorial-label">One-time edition</div><h2 style="margin-top:6px">${esc(name)}</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
+    <p class="muted small">Review the excerpts and order. This checks article text, not the final EPUB. Articles are fetched again when preparing the send; images or publisher content may change.</p>
     <div class="one-time-list">${items.map((item,index)=>`<div class="one-time-item">
-      <div><div class="one-time-item-title">${esc(item.title||`Article ${index+1}`)}</div><div class="one-time-item-url">${esc(item.canonical_url||item.url)}</div>${item.source?`<div class="preview-source">${esc(item.source)}${item.author?' · '+esc(item.author):''}</div>`:''}${item.error?`<div class="one-time-item-error">Could not prepare: ${esc(item.error)}</div>`:''}</div>
+      <div><div class="one-time-item-title">${esc(item.title||`Article ${index+1}`)}</div><div class="one-time-item-url">${esc(item.canonical_url||item.url)}</div>${item.source?`<div class="preview-source">${esc(item.source)}${item.author?' · '+esc(item.author):''}</div>`:''}${item.excerpt?`<p class="small">${esc(item.excerpt)}</p>`:''}${(item.warnings||[]).map(w=>`<p class="notice info">${esc(w)}</p>`).join('')}${item.error?`<div class="one-time-item-error">Could not prepare: ${esc(item.error)}</div>`:''}</div>
       <div class="one-time-item-actions"><button class="btn small-btn one-time-up" data-index="${index}" ${index===0?'disabled':''} aria-label="Move article up">↑</button><button class="btn small-btn one-time-down" data-index="${index}" ${index===items.length-1?'disabled':''} aria-label="Move article down">↓</button><button class="btn small-btn one-time-remove" data-index="${index}" aria-label="Remove article">Remove</button></div>
     </div>`).join('')}</div>
     ${failed?`<div class="notice error" style="margin-top:14px">${failed} article${failed===1?' could':'s could'} not be prepared. Remove ${failed===1?'it':'them'} or go back and correct the URL${failed===1?'':'s'}.</div>`:''}
-    <div class="one-time-summary"><p class="muted small">${items.length} article${items.length===1?'':'s'} · sent once</p><div class="row wrap"><button class="btn" id="edit-one-time">Edit URLs</button><button class="btn primary" id="confirm-one-time" ${failed||!items.length?'disabled':''}>Send to Kindle</button></div></div>`;
+    <div class="one-time-summary"><p class="muted small">${items.length} article${items.length===1?'':'s'} · sent once</p><div class="row wrap"><button class="btn" id="edit-one-time">Edit URLs</button><button class="btn primary" id="confirm-one-time" ${failed||!items.length?'disabled':''}>Send to Kindle</button></div></div>`);
   document.querySelector('#close-modal').onclick=closeModal;
-  document.querySelector('#edit-one-time').onclick=()=>oneTimeEditionModal({name,urls:items.map(item=>item.url).join('\n')});
-  document.querySelectorAll('.one-time-up').forEach(button=>button.onclick=()=>{const index=Number(button.dataset.index);[items[index-1],items[index]]=[items[index],items[index-1]];oneTimeReview(name,items)});
-  document.querySelectorAll('.one-time-down').forEach(button=>button.onclick=()=>{const index=Number(button.dataset.index);[items[index+1],items[index]]=[items[index],items[index+1]];oneTimeReview(name,items)});
-  document.querySelectorAll('.one-time-remove').forEach(button=>button.onclick=()=>{items.splice(Number(button.dataset.index),1);oneTimeReview(name,items)});
+  document.querySelector('#edit-one-time').onclick=()=>oneTimeEditionModal(oneTimeDraft);
+  document.querySelectorAll('.one-time-up').forEach(button=>button.onclick=()=>{const index=Number(button.dataset.index);[items[index-1],items[index]]=[items[index],items[index-1]];oneTimeDraft.request_id=crypto.randomUUID();oneTimeReview(name,items)});
+  document.querySelectorAll('.one-time-down').forEach(button=>button.onclick=()=>{const index=Number(button.dataset.index);[items[index+1],items[index]]=[items[index],items[index+1]];oneTimeDraft.request_id=crypto.randomUUID();oneTimeReview(name,items)});
+  document.querySelectorAll('.one-time-remove').forEach(button=>button.onclick=()=>{items.splice(Number(button.dataset.index),1);oneTimeDraft.request_id=crypto.randomUUID();oneTimeReview(name,items)});
   const confirm=document.querySelector('#confirm-one-time');if(confirm)confirm.onclick=()=>queueOneTime(name,items.map(item=>item.url),confirm);
 }
 async function queueOneTime(name,urls,button){
+  const version=modalVersion,request_id=oneTimeDraft?.request_id||crypto.randomUUID();
   button.disabled=true;button.textContent='Queuing…';
   try{
-    const result=await api('/one-time/send',{method:'POST',body:{name,urls}});
-    if(!modal.classList.contains('open')){toast(`${name} queued`);return}
-    const fallback=result.next_worker_check_at?new Date(result.next_worker_check_at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):null;
-    const startCopy=result.worker_triggered?'Processing is starting now.':(fallback?`Queued — processing will start by ${fallback}.`:'Queued for processing.');
-    modal.querySelector('.modal-card').innerHTML=`<div class="row"><div><div class="editorial-label">One-time edition</div><h2 style="margin-top:6px">${esc(name)} queued</h2></div><button class="btn small-btn" id="close-modal">Close</button></div><div class="notice info" id="job-progress">${esc(startCopy)}</div><p class="muted small">We’re building one EPUB with ${urls.length} article${urls.length===1?'':'s'}. After it is sent, Amazon may take a few more minutes to place it on your Kindle.</p>`;
-    document.querySelector('#close-modal').onclick=closeModal;
-    await watchJob(result.job.id);
+    const result=await api('/one-time/send',{method:'POST',body:{name,urls,request_id}});
+    if(oneTimeDraft?.request_id===request_id)oneTimeDraft=null;
+    if(version===modalVersion)showJobProgress(result,name);
+    else toast(name+' queued');
+    void watchJob(result.job.id);
   }catch(err){button.disabled=false;button.textContent='Send to Kindle';toast(err.message)}
 }
+function showJobProgress(result,title){
+  openModal(`<div class="row"><h2>${esc(title)}</h2><button class="btn small-btn" id="close-modal">Close</button></div><div class="notice info" id="job-progress" data-job-id="${result.job.id}" role="status">Queued for preparation.</div><p class="muted small">You can close this window. Delivery history keeps the latest status. “Submitted” means the email provider accepted the edition, not that Amazon has confirmed arrival on your Kindle.</p>`);
+  document.querySelector('#close-modal').onclick=closeModal;
+}
 async function queueSend(path,message){
+  const version=modalVersion;
   const button=path==='/send-test'?document.querySelector('#send-test'):document.querySelector('#send-now');
   const old=button?.textContent||'';if(button){button.disabled=true;button.textContent='Queuing…'}
+  if(!pendingSends.has(path))pendingSends.set(path,crypto.randomUUID());
   try{
-    const result=await api(path,{method:'POST'});
-    const fallback=result.next_worker_check_at?new Date(result.next_worker_check_at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):null;
-    const startCopy=result.worker_triggered?'Processing is starting now.':(fallback?`Queued — processing will start by ${fallback}.`:'Queued for processing.');
-    openModal(`<div class="row"><h2>${esc(message)}</h2><button class="btn small-btn" id="close-modal">Close</button></div>
-      <div class="notice info" id="job-progress">${esc(startCopy)}</div>
-      <p class="muted small">Morning Reader will update this status automatically. After we mark it sent, Amazon may take a few more minutes to place it on your Kindle.</p>`);
-    document.querySelector('#close-modal').onclick=closeModal;
-    await watchJob(result.job.id);
-  }catch(err){if(button){button.disabled=false;button.textContent=old}toast(err.message)}
+    const result=await api(path,{method:'POST',body:{request_id:pendingSends.get(path)}});
+    pendingSends.delete(path);
+    state.jobs=[result.job,...(state.jobs||[]).filter(j=>j.id!==result.job.id)];
+    if(app.querySelector('.dashboard-main'))dashboard();
+    if(version===modalVersion)showJobProgress(result,message);else toast(message);
+    void watchJob(result.job.id);
+  }catch(err){toast(err.message)}
+  finally{if(button){button.disabled=false;button.textContent=old}}
+}
+function jobProgressText(job){
+  if(job.status==='queued')return job.error?'Retry scheduled for '+fmtDate(job.run_after)+'. '+job.error:'Queued — waiting for preparation.';
+  if(job.status==='running')return 'Building your Kindle edition…';
+  if(job.status==='sent'||job.status==='partial')return `Submitted for delivery · ${job.result?.articles??0} articles.${job.status==='partial'?' Some content was omitted; see delivery history.':''}`;
+  if(job.status==='empty')return 'No new articles to send.';
+  return 'Send failed: '+(job.error||'Unknown error');
 }
 async function watchJob(jobId){
-  const deadline=Date.now()+120000;
-  while(Date.now()<deadline){
-    if(!modal.classList.contains('open')){try{state=await api('/me')}catch{}return}
-    await new Promise(r=>setTimeout(r,2200));
+  if(activeWatchers.has(jobId))return;
+  activeWatchers.add(jobId);
+  const watchToken=token;
+  const deadline=Date.now()+180000;
+  try{
+    while(Date.now()<deadline&&token===watchToken&&token){
+      try{
+        const fresh=await api('/me',{timeout:15000});
+        if(!token||token!==watchToken)return;
+        state=fresh;
+        const job=(state.jobs||[]).find(j=>j.id===jobId);
+        const box=modal.querySelector('#job-progress');
+        if(box?.dataset.jobId===jobId&&job)box.textContent=jobProgressText(job);
+        if(app.querySelector('.dashboard-main'))dashboard();
+        if(job&&['sent','partial','empty','failed'].includes(job.status))return;
+      }catch{}
+      await new Promise(r=>setTimeout(r,2500));
+    }
+    const box=modal.querySelector('#job-progress');
+    if(box?.dataset.jobId===jobId)box.textContent='Still processing. Delivery history shows the latest status; close this window whenever you like.';
+  }finally{activeWatchers.delete(jobId)}
+}
+function oneTimeKindleSetup(){
+  openModal(`<div class="row"><h2>Where should this packet go?</h2><button class="btn small-btn" id="close-modal">Close</button></div><p>Add <strong>${SENDER}</strong> to Amazon’s approved personal-document senders, then enter your Kindle address. No schedule or test edition will be created.</p><p><a href="${AMAZON_SETTINGS}" target="_blank" rel="noopener">Open Amazon settings ↗</a></p><form id="one-time-kindle"><div class="field"><label for="packet-kindle-email">Send-to-Kindle address</label><input class="input" id="packet-kindle-email" type="email" required></div><button class="btn primary">Save & choose articles</button></form>`);
+  document.querySelector('#close-modal').onclick=closeModal;
+  document.querySelector('#one-time-kindle').onsubmit=async event=>{
+    event.preventDefault();const button=event.currentTarget.querySelector('button');button.disabled=true;
+    const version=modalVersion;
     try{
-      state=await api('/me');
-      const job=(state.jobs||[]).find(j=>j.id===jobId);
-      const box=document.querySelector('#job-progress');
-      if(job&&box){
-        if(job.status==='queued')box.textContent='Queued — waiting for the worker.';
-        if(job.status==='running')box.textContent='Building your Kindle edition now…';
-        if(job.status==='sent')box.textContent=`Sent to Amazon · ${job.result?.articles??0} article${job.result?.articles===1?'':'s'}.`;
-        if(job.status==='empty')box.textContent='Finished — there were no new articles to send.';
-        if(job.status==='failed')box.textContent='The send failed: '+(job.error||'Unknown error');
-      }
-      if(job&&['sent','empty','failed'].includes(job.status)){setTimeout(()=>{if(!modal.classList.contains('open'))dashboard()},100);return}
-    }catch{}
-  }
-  const box=document.querySelector('#job-progress');if(box)box.textContent='Still processing. You can close this window; Recent runs will keep showing the latest status.';
+      state=await api('/settings',{method:'PATCH',body:{kindle_email:document.querySelector('#packet-kindle-email').value.trim(),...(!state.settings.onboarding_complete?{onboarding_complete:true,paused:true}:{})}});
+      modalDirty=false;dashboard();if(version===modalVersion)oneTimeEditionModal();
+    }catch(err){toast(err.message);button.disabled=false}
+  };
+}
+async function historyModal(){
+  const version=openModal('<div class="row"><h2>Delivery history</h2><button class="btn small-btn" id="close-modal">Close</button></div><p>Loading recent sends…</p>');
+  document.querySelector('#close-modal').onclick=closeModal;
+  try{state=await api('/me')}catch(err){if(version===modalVersion)toast(err.message)}
+  if(version!==modalVersion)return;
+  openModal(`<div class="row"><h2>Delivery history</h2><button class="btn small-btn" id="close-modal">Close</button></div><p class="muted small">Most recent 15 sends. Submitted means accepted by the email provider; Kindle arrival is not verified.</p><div class="preview-list">${(state.jobs||[]).map(job=>`<div class="preview-item"><strong>${esc(job.packet_name||({scheduled:'Scheduled edition',manual:'Manual edition',test:'Test edition'})[job.reason]||'Edition')}</strong> ${runBadge(job.status)}<p class="small">${esc(fmtDate(job.created_at))} · ${esc(jobProgressText(job))}</p>${(job.result?.issues||[]).map(issue=>`<p class="notice info">${esc(issue)}</p>`).join('')}${job.reason==='one_time'&&job.article_urls?.length?`<button class="btn small-btn resend-packet" data-id="${job.id}">Review & send again</button>`:''}</div>`).join('')||'<p>No sends yet.</p>'}</div><button class="btn small-btn" id="refresh-history">Refresh status</button>`);
+  document.querySelector('#close-modal').onclick=closeModal;document.querySelector('#refresh-history').onclick=historyModal;
+  modal.querySelectorAll('.resend-packet').forEach(button=>button.onclick=()=>{const job=state.jobs.find(j=>j.id===button.dataset.id);oneTimeEditionModal({name:job.packet_name,urls:job.article_urls.join('\n'),request_id:crypto.randomUUID()})});
+}
+function removeSectionModal(id){
+  const section=state.sections.find(s=>s.id===id);if(!section)return;
+  openModal(`<div class="row"><h2>Remove ${esc(section.name)}?</h2><button class="btn small-btn" id="close-modal">Cancel</button></div><p>This removes the edition and its ${section.feeds.length} sources from future sends. Past deliveries remain in history.</p><button class="btn danger" id="confirm-remove-edition">Remove edition</button>`);
+  document.querySelector('#close-modal').onclick=closeModal;
+  document.querySelector('#confirm-remove-edition').onclick=async event=>{event.target.disabled=true;try{state=await api('/sections/'+id,{method:'DELETE'});closeModal(true);dashboard();toast('Edition removed')}catch(err){event.target.disabled=false;toast(err.message)}};
 }
 function render(){
-  if(state?.settings?.onboarding_complete)return dashboard();
+  if(state?.settings?.onboarding_complete){dashboard();const active=(state.jobs||[]).find(j=>['queued','running'].includes(j.status));if(active)void watchJob(active.id);return}
   if(feedCount()===0&&localStorage.morningReaderSkipStarters!=='1')return starterPicker();
   if(feedCount()===0)return dashboard();
   return onboarding();
