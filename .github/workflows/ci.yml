@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Install pinned dependencies
+        run: npm ci
+      - name: Check app API
+        run: deno check supabase/functions/app-api/index.ts
+      - name: Check worker
+        run: deno check supabase/functions/worker/index.ts
+      - name: Test publishing pipeline
+        run: deno test --allow-env --allow-read supabase/tests/publishing_test.ts
+      - name: Check browser script syntax
+        run: |
+          node <<'NODE'
+          const fs = require('fs')
+          const html = fs.readFileSync('index.html', 'utf8')
+          const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
+            .map(m => m[1])
+            .filter(Boolean)
+          for (const script of scripts) new Function(script)
+          console.log('Browser scripts parsed:', scripts.length)
+          NODE

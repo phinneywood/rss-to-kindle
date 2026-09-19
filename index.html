@@ -114,6 +114,18 @@
     .preview-item:first-child{border-top:none}
     .preview-item a{text-decoration:none;font-weight:760}
     .preview-source{font-size:12px;color:var(--muted);margin-top:4px}
+    .one-time-action{width:100%;margin-top:12px;padding:10px 0 2px;border:0;border-top:1px solid var(--line-soft);background:transparent;text-align:left;font:700 13px/1.4 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);cursor:pointer}
+    .one-time-action:hover{color:var(--red)}
+    .one-time-list{margin-top:14px;border-top:1px solid var(--line)}
+    .one-time-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:14px 0;border-bottom:1px solid var(--line-soft)}
+    .one-time-item-title{font-family:Georgia,"Times New Roman",serif;font-size:18px;line-height:1.25;font-weight:600}
+    .one-time-item-url{margin-top:5px;font:10px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);overflow-wrap:anywhere}
+    .one-time-item-error{margin-top:6px;font-size:12px;line-height:1.4;color:var(--red)}
+    .one-time-item-actions{display:flex;gap:5px;align-items:flex-start}
+    .one-time-item-actions .btn{min-width:34px;padding:6px 8px}
+    .one-time-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px}
+    .one-time-summary .muted{margin:0}
+    textarea.article-urls{min-height:154px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.5}
     .toast{position:fixed;right:18px;bottom:18px;max-width:360px;background:#1f1b17;color:white;border-radius:14px;padding:13px 15px;box-shadow:0 15px 60px rgba(0,0,0,.25);z-index:50;display:none}
     .toast.show{display:block}
     footer{margin-top:38px;padding-top:18px;border-top:1px solid rgba(126,111,92,.25);color:var(--muted);font-size:12px}
@@ -159,6 +171,10 @@
       .section-name h3{font-size:21px}
       .inline-form{grid-template-columns:1fr}
       .topbar{align-items:flex-start}
+      .one-time-item{grid-template-columns:1fr}
+      .one-time-item-actions{justify-content:flex-start}
+      .one-time-summary{align-items:stretch;flex-direction:column}
+      .one-time-summary .btn{width:100%}
     }
 
     /* Editorial UI: Economist-inspired, technical, mobile-first */
@@ -507,6 +523,28 @@
       .system-metric:nth-child(4){border-top:1px solid var(--line)}
       .system-row{grid-template-columns:1fr}
     }
+
+    /* Social sign-in */
+    .auth-provider-list{max-width:540px;display:flex;flex-direction:column;gap:8px;margin-top:18px}
+    .auth-provider-button{
+      width:100%;min-height:46px;border:1px solid var(--ink);border-radius:2px;background:transparent;
+      color:var(--ink);display:flex;align-items:center;justify-content:space-between;padding:11px 13px;
+      font-weight:750;text-align:left
+    }
+    .auth-provider-button:hover{background:#fff}
+    .auth-provider-button:disabled{opacity:.5;cursor:default}
+    .auth-provider-name{font-family:Georgia,"Times New Roman",serif;font-size:18px;font-weight:600}
+    .auth-provider-arrow{font-family:Georgia,"Times New Roman",serif;font-size:21px;line-height:1}
+    .auth-divider{
+      max-width:540px;display:flex;align-items:center;gap:10px;margin:20px 0 18px;
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;
+      letter-spacing:.12em;text-transform:uppercase;color:var(--muted)
+    }
+    .auth-divider:before,.auth-divider:after{content:"";height:1px;background:var(--line);flex:1}
+    .auth-provider-note{
+      max-width:540px;margin-top:10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+      font-size:9px;line-height:1.5;color:var(--muted)
+    }
   </style>
 </head>
 <body>
@@ -515,8 +553,15 @@
 <div id="toast" class="toast" role="status"></div>
 <script src="/opml.js"></script>
 <script src="/starter-editions.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.116.0/dist/umd/supabase.min.js"></script>
 <script>
 const API='https://wuikfmmwvrzpaoevtskn.supabase.co/functions/v1/app-api';
+const SUPABASE_URL='https://wuikfmmwvrzpaoevtskn.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY='sb_publishable_2ud8GZElwdLaKIrZ0AmpBw_Eb7h-p6E';
+const SOCIAL_AUTH_ENABLED=false;
+const authClient=window.supabase?.createClient
+  ? window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}})
+  : null;
 const SENDER='reader@antonioskilton.com';
 const AMAZON_SETTINGS='https://www.amazon.com/mycd';
 const AMAZON_HELP='https://digprjsurvey.amazon.com/csad/help/node/GK4QXXXR76TPPVPM?searchNodes=GDRLC59WEFZTBPU7';
@@ -543,7 +588,8 @@ function latestRunText(job){
   if(!job)return '';
   const when=fmtTime(job.finished_at||job.updated_at||job.created_at);
   const articles=job.result?.articles;
-  if(job.status==='sent')return `Last sent ${when}${articles!=null?' · '+articles+' article'+(articles===1?'':'s'):''}`;
+  const label=job.reason==='one_time'&&job.packet_name?`“${job.packet_name}”`:'edition';
+  if(job.status==='sent')return `Last sent ${label} ${when}${articles!=null?' · '+articles+' article'+(articles===1?'':'s'):''}`;
   if(job.status==='empty')return `Last checked ${when} · No new articles`;
   if(job.status==='failed')return `Last send failed ${when}`;
   if(job.status==='running')return 'Building your edition…';
@@ -584,6 +630,34 @@ async function api(path,options={}){
 }
 async function refresh(){state=await api('/me');render()}
 
+async function exchangeSupabaseSession(session){
+  if(!session?.access_token)throw new Error('Social sign-in did not return a valid session.');
+  const response=await fetch(API+'/auth/exchange-supabase',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+session.access_token}
+  });
+  const body=await response.json().catch(()=>({}));
+  if(!response.ok)throw new Error(body.error||'Could not complete social sign-in.');
+  token=body.token;localStorage.morningReaderToken=token;state=body;
+  try{history.replaceState({},'',location.pathname)}catch{}
+  return body;
+}
+async function socialSignIn(provider){
+  if(!SOCIAL_AUTH_ENABLED||!authClient){toast('Social sign-in is unavailable right now. Use the email code instead.');return}
+  const buttons=[...document.querySelectorAll('.auth-provider-button')];
+  buttons.forEach(button=>button.disabled=true);
+  try{
+    const {error}=await authClient.auth.signInWithOAuth({
+      provider,
+      options:{redirectTo:location.origin+location.pathname}
+    });
+    if(error)throw error;
+  }catch(err){
+    buttons.forEach(button=>button.disabled=false);
+    toast(err.message||'Could not start social sign-in.');
+  }
+}
+
 function landing(error=''){
   app.innerHTML=shell(`
     <section class="auth-page">
@@ -595,16 +669,33 @@ function landing(error=''){
 
       <section class="auth-form-section">
         <div class="editorial-label">Sign in or start</div>
-        <h2>Enter your email.</h2>
-        <div class="auth-form-copy">No password. We'll send you a six-digit sign-in code.</div>
+        <h2>Choose how to continue.</h2>
+        ${error?`<div class="notice error" style="max-width:540px;margin-top:14px">${esc(error)}</div>`:''}
+
+        ${SOCIAL_AUTH_ENABLED?`<div class="auth-provider-list">
+          <button class="auth-provider-button" id="sign-in-google" type="button">
+            <span class="auth-provider-name">Continue with Google</span><span class="auth-provider-arrow">›</span>
+          </button>
+          <button class="auth-provider-button" id="sign-in-apple" type="button">
+            <span class="auth-provider-name">Continue with Apple</span><span class="auth-provider-arrow">›</span>
+          </button>
+        </div>
+        <div class="auth-provider-note">Social sign-in only requests the identity information needed to create or find your Morning Reader account.</div>
+
+        <div class="auth-divider">or use email</div>`:''}
+
         <form id="login-form" class="auth-form">
+          <div class="auth-form-copy">We'll send you a six-digit sign-in code. No password.</div>
           <div class="field"><label for="email">Email address</label><input id="email" class="input" name="email" type="email" autocomplete="email" required placeholder="you@example.com"></div>
-          ${error?`<div class="notice error">${esc(error)}</div>`:''}
           <div class="auth-form-actions"><button class="btn primary" id="login-submit">Continue →</button></div>
-          <div class="auth-note">New here? The same sign-in creates your account. No password to remember.</div>
+          <div class="auth-note">New here? Your verified email creates your account.</div>
         </form>
       </section>
     </section>`);
+  if(SOCIAL_AUTH_ENABLED){
+    document.querySelector('#sign-in-google').onclick=()=>socialSignIn('google');
+    document.querySelector('#sign-in-apple').onclick=()=>socialSignIn('apple');
+  }
   document.querySelector('#login-form').onsubmit=async e=>{
     e.preventDefault();
     const button=document.querySelector('#login-submit'); button.disabled=true; button.textContent='Sending…';
@@ -643,6 +734,7 @@ function verify(email,error=''){
 }
 async function signOut(){
   try{await api('/auth/logout',{method:'POST'})}catch{}
+  try{if(authClient)await authClient.auth.signOut()}catch{}
   token=''; localStorage.removeItem('morningReaderToken'); localStorage.removeItem('morningReaderSkipStarters'); state=null; landing();
 }
 
@@ -907,6 +999,7 @@ function dashboard(){
             </div>
           </div>
           ${latestJob?`<div class="latest-run human-run">${esc(latestRunText(latestJob))}</div>`:''}
+          <button class="one-time-action" id="one-time-send">Send selected articles once →</button>
         </section>
 
         <section class="side-card compact-panel">
@@ -934,6 +1027,7 @@ function wireDashboard(){
   document.querySelector('#import-opml').onclick=e=>{e.preventDefault();opmlImportModal()};
 
   const sendNow=document.querySelector('#send-now');if(sendNow)sendNow.onclick=()=>queueSend('/send-now','Edition queued');
+  document.querySelector('#one-time-send').onclick=oneTimeEditionModal;
   const preview=document.querySelector('#preview');if(preview)preview.onclick=previewModal;
   const deliveryMenu=document.querySelector('#delivery-menu');if(deliveryMenu)deliveryMenu.onclick=deliveryMenuModal;
   const manageKindle=document.querySelector('#manage-kindle');if(manageKindle)manageKindle.onclick=kindleManageModal;
@@ -1018,7 +1112,7 @@ function renderSystemHealth(h){
       <section class="system-section">
         <div class="editorial-label">Recent jobs</div>
         <h2>Delivery runs</h2>
-        <div class="system-list">${jobs.length?jobs.map(j=>`<div class="system-row"><div><div class="system-row-title">${esc(j.reason==='scheduled'?'Scheduled delivery':j.reason==='test'?'Test delivery':'Manual delivery')}</div><div class="system-row-meta">${esc(String(j.id).slice(0,8))} · ${esc(fmtDate(j.created_at))}${j.started_at&&j.finished_at?' · '+esc(fmtDuration(new Date(j.finished_at)-new Date(j.started_at))):''}</div>${j.error?`<div class="system-row-error">${esc(j.error)}</div>`:''}</div><div class="system-job-status ${esc(j.status)}">${esc(j.status)}</div></div>`).join(''):'<div class="empty">No jobs in the last 24 hours.</div>'}</div>
+        <div class="system-list">${jobs.length?jobs.map(j=>`<div class="system-row"><div><div class="system-row-title">${esc(j.reason==='scheduled'?'Scheduled delivery':j.reason==='test'?'Test delivery':j.reason==='one_time'?(j.packet_name||'One-time edition'):'Manual delivery')}</div><div class="system-row-meta">${esc(String(j.id).slice(0,8))} · ${esc(fmtDate(j.created_at))}${j.started_at&&j.finished_at?' · '+esc(fmtDuration(new Date(j.finished_at)-new Date(j.started_at))):''}</div>${j.error?`<div class="system-row-error">${esc(j.error)}</div>`:''}</div><div class="system-job-status ${esc(j.status)}">${esc(j.status)}</div></div>`).join(''):'<div class="empty">No jobs in the last 24 hours.</div>'}</div>
       </section>
 
       <section class="system-section">
@@ -1173,9 +1267,61 @@ async function previewModal(){
     document.querySelector('#close-modal').onclick=closeModal;
   }catch(err){modal.querySelector('.modal-card').innerHTML=`<h2>Preview unavailable</h2><div class="notice error">${esc(err.message)}</div><div style="margin-top:16px"><button class="btn" id="close-modal">Close</button></div>`;document.querySelector('#close-modal').onclick=closeModal}
 }
+function oneTimeEditionModal(seed={}){
+  const name=seed.name||'',urls=seed.urls||'';
+  openModal(`<div class="row"><div><div class="editorial-label">One-time edition</div><h2 style="margin-top:6px">Send selected articles</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
+    <p class="muted small">Paste one article URL or several. They will be combined, in this order, into one named Kindle edition. This will not add a recurring feed.</p>
+    <form id="one-time-form">
+      <div class="field"><label for="one-time-name">Edition name</label><input class="input" id="one-time-name" name="name" maxlength="80" required placeholder="Weekend reading" value="${esc(name)}"></div>
+      <div class="field"><label for="one-time-urls">Article URLs <span class="muted">(1–20)</span></label><textarea class="input article-urls" id="one-time-urls" name="urls" required placeholder="https://example.com/article-one&#10;https://example.com/article-two">${esc(urls)}</textarea></div>
+      <div class="notice info">We’ll fetch and check each article before anything is sent.</div>
+      <div style="margin-top:16px"><button class="btn primary" id="review-one-time">Review articles</button></div>
+    </form>`);
+  document.querySelector('#close-modal').onclick=closeModal;
+  document.querySelector('#one-time-form').onsubmit=async event=>{
+    event.preventDefault();
+    const form=new FormData(event.currentTarget),editionName=String(form.get('name')||'').trim(),raw=String(form.get('urls')||'').trim();
+    const articleUrls=[...new Set(raw.split(/\s+/).map(value=>value.trim()).filter(Boolean))];
+    if(!editionName||articleUrls.length<1||articleUrls.length>20){toast('Add a name and between 1 and 20 article URLs.');return}
+    const button=document.querySelector('#review-one-time');button.disabled=true;button.textContent='Checking articles…';
+    try{
+      const result=await api('/one-time/preview',{method:'POST',body:{name:editionName,urls:articleUrls}});
+      oneTimeReview(result.name,result.items||[]);
+    }catch(err){button.disabled=false;button.textContent='Review articles';toast(err.message)}
+  };
+}
+function oneTimeReview(name,items){
+  const failed=items.filter(item=>item.status!=='ready').length;
+  modal.querySelector('.modal-card').innerHTML=`<div class="row"><div><div class="editorial-label">One-time edition</div><h2 style="margin-top:6px">${esc(name)}</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
+    <p class="muted small">Confirm the order. Remove anything you do not want included, or go back to change the URLs.</p>
+    <div class="one-time-list">${items.map((item,index)=>`<div class="one-time-item">
+      <div><div class="one-time-item-title">${esc(item.title||`Article ${index+1}`)}</div><div class="one-time-item-url">${esc(item.canonical_url||item.url)}</div>${item.source?`<div class="preview-source">${esc(item.source)}${item.author?' · '+esc(item.author):''}</div>`:''}${item.error?`<div class="one-time-item-error">Could not prepare: ${esc(item.error)}</div>`:''}</div>
+      <div class="one-time-item-actions"><button class="btn small-btn one-time-up" data-index="${index}" ${index===0?'disabled':''} aria-label="Move article up">↑</button><button class="btn small-btn one-time-down" data-index="${index}" ${index===items.length-1?'disabled':''} aria-label="Move article down">↓</button><button class="btn small-btn one-time-remove" data-index="${index}" aria-label="Remove article">Remove</button></div>
+    </div>`).join('')}</div>
+    ${failed?`<div class="notice error" style="margin-top:14px">${failed} article${failed===1?' could':'s could'} not be prepared. Remove ${failed===1?'it':'them'} or go back and correct the URL${failed===1?'':'s'}.</div>`:''}
+    <div class="one-time-summary"><p class="muted small">${items.length} article${items.length===1?'':'s'} · sent once</p><div class="row wrap"><button class="btn" id="edit-one-time">Edit URLs</button><button class="btn primary" id="confirm-one-time" ${failed||!items.length?'disabled':''}>Send to Kindle</button></div></div>`;
+  document.querySelector('#close-modal').onclick=closeModal;
+  document.querySelector('#edit-one-time').onclick=()=>oneTimeEditionModal({name,urls:items.map(item=>item.url).join('\n')});
+  document.querySelectorAll('.one-time-up').forEach(button=>button.onclick=()=>{const index=Number(button.dataset.index);[items[index-1],items[index]]=[items[index],items[index-1]];oneTimeReview(name,items)});
+  document.querySelectorAll('.one-time-down').forEach(button=>button.onclick=()=>{const index=Number(button.dataset.index);[items[index+1],items[index]]=[items[index],items[index+1]];oneTimeReview(name,items)});
+  document.querySelectorAll('.one-time-remove').forEach(button=>button.onclick=()=>{items.splice(Number(button.dataset.index),1);oneTimeReview(name,items)});
+  const confirm=document.querySelector('#confirm-one-time');if(confirm)confirm.onclick=()=>queueOneTime(name,items.map(item=>item.url),confirm);
+}
+async function queueOneTime(name,urls,button){
+  button.disabled=true;button.textContent='Queuing…';
+  try{
+    const result=await api('/one-time/send',{method:'POST',body:{name,urls}});
+    if(!modal.classList.contains('open')){toast(`${name} queued`);return}
+    const fallback=result.next_worker_check_at?new Date(result.next_worker_check_at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):null;
+    const startCopy=result.worker_triggered?'Processing is starting now.':(fallback?`Queued — processing will start by ${fallback}.`:'Queued for processing.');
+    modal.querySelector('.modal-card').innerHTML=`<div class="row"><div><div class="editorial-label">One-time edition</div><h2 style="margin-top:6px">${esc(name)} queued</h2></div><button class="btn small-btn" id="close-modal">Close</button></div><div class="notice info" id="job-progress">${esc(startCopy)}</div><p class="muted small">We’re building one EPUB with ${urls.length} article${urls.length===1?'':'s'}. After it is sent, Amazon may take a few more minutes to place it on your Kindle.</p>`;
+    document.querySelector('#close-modal').onclick=closeModal;
+    await watchJob(result.job.id);
+  }catch(err){button.disabled=false;button.textContent='Send to Kindle';toast(err.message)}
+}
 async function queueSend(path,message){
   const button=path==='/send-test'?document.querySelector('#send-test'):document.querySelector('#send-now');
-  button.disabled=true; const old=button.textContent; button.textContent='Queuing…';
+  const old=button?.textContent||'';if(button){button.disabled=true;button.textContent='Queuing…'}
   try{
     const result=await api(path,{method:'POST'});
     const fallback=result.next_worker_check_at?new Date(result.next_worker_check_at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):null;
@@ -1185,11 +1331,12 @@ async function queueSend(path,message){
       <p class="muted small">Morning Reader will update this status automatically. After we mark it sent, Amazon may take a few more minutes to place it on your Kindle.</p>`);
     document.querySelector('#close-modal').onclick=closeModal;
     await watchJob(result.job.id);
-  }catch(err){button.disabled=false;button.textContent=old;toast(err.message)}
+  }catch(err){if(button){button.disabled=false;button.textContent=old}toast(err.message)}
 }
 async function watchJob(jobId){
   const deadline=Date.now()+120000;
   while(Date.now()<deadline){
+    if(!modal.classList.contains('open')){try{state=await api('/me')}catch{}return}
     await new Promise(r=>setTimeout(r,2200));
     try{
       state=await api('/me');
@@ -1215,8 +1362,24 @@ function render(){
 }
 
 (async()=>{
-  if(!token)return landing();
-  try{state=await api('/me');render()}catch{token='';localStorage.removeItem('morningReaderToken');landing()}
+  let loginError='';
+  const params=new URLSearchParams(location.search);
+  if(params.get('error_description'))loginError=params.get('error_description');
+  if(token){
+    try{state=await api('/me');render();return}
+    catch{token='';localStorage.removeItem('morningReaderToken')}
+  }
+  if(SOCIAL_AUTH_ENABLED&&authClient){
+    try{
+      const {data,error}=await authClient.auth.getSession();
+      if(error)throw error;
+      if(data?.session){
+        await exchangeSupabaseSession(data.session);
+        render();return;
+      }
+    }catch(err){loginError=loginError||err.message||'Could not complete social sign-in.'}
+  }
+  landing(loginError);
 })();
 </script>
 </body>

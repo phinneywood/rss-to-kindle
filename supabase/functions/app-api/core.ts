@@ -1,5 +1,5 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
-import { XMLParser } from "npm:fast-xml-parser@4.5.0";
+import { createClient } from "npm:@supabase/supabase-js@2.116.0";
+import { XMLParser } from "npm:fast-xml-parser@5.11.1";
 
 export const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -24,22 +24,72 @@ async function mailCode(email:string,c:string){
   if(!r.ok)throw new Error(`Email provider error (${r.status}): ${(await r.text()).slice(0,250)}`);
 }
 export async function requestCode(email:string){const since=new Date(Date.now()-600_000).toISOString();const{count}=await admin.from("login_codes").select("id",{count:"exact",head:true}).eq("email",email).gte("created_at",since);if((count||0)>=5)throw Object.assign(new Error("Too many codes requested. Try again in a few minutes."),{status:429});const c=code(),expires=new Date(Date.now()+600_000).toISOString();const{data,error}=await admin.from("login_codes").insert({email,code_hash:await codeHash(email,c),expires_at:expires}).select("id").single();if(error)throw error;try{await mailCode(email,c)}catch(e){await admin.from("login_codes").delete().eq("id",data.id);throw e}}
-export async function verifyCode(email:string,c:string){const{data:login,error}=await admin.from("login_codes").select("*").eq("email",email).is("consumed_at",null).gt("expires_at",new Date().toISOString()).lt("attempts",5).order("created_at",{ascending:false}).limit(1).maybeSingle();if(error)throw error;if(!login)throw Object.assign(new Error("That code has expired. Request a new one."),{status:401});if(await codeHash(email,c)!==login.code_hash){await admin.from("login_codes").update({attempts:login.attempts+1}).eq("id",login.id);throw Object.assign(new Error("That code is not correct."),{status:401})}await admin.from("login_codes").update({consumed_at:new Date().toISOString()}).eq("id",login.id);const{data:user,error:userError}=await admin.from("app_users").upsert({email},{onConflict:"email"}).select("id,email").single();if(userError)throw userError;const{data:settings}=await admin.from("user_settings").select("user_id").eq("user_id",user.id).maybeSingle();if(!settings)await admin.from("user_settings").insert({user_id:user.id,timezone:"America/Los_Angeles",delivery_time:"06:00:00"});const{count}=await admin.from("sections").select("id",{count:"exact",head:true}).eq("user_id",user.id).is("archived_at",null);if(!count)await admin.from("sections").insert({user_id:user.id,name:"Reading",position:0});const raw=token(),expiresAt=new Date(Date.now()+30*86400_000).toISOString();const{error:se}=await admin.from("sessions").insert({user_id:user.id,token_hash:await sha256(raw),expires_at:expiresAt});if(se)throw se;return{raw,expiresAt,user}}
+async function ensureUserSetup(userId:string){
+  const{data:settings,error:settingsError}=await admin.from("user_settings").select("user_id").eq("user_id",userId).maybeSingle();
+  if(settingsError)throw settingsError;
+  if(!settings){const{error}=await admin.from("user_settings").insert({user_id:userId,timezone:"America/Los_Angeles",delivery_time:"06:00:00"});if(error)throw error}
+  const{count,error:sectionError}=await admin.from("sections").select("id",{count:"exact",head:true}).eq("user_id",userId).is("archived_at",null);
+  if(sectionError)throw sectionError;
+  if(!count){const{error}=await admin.from("sections").insert({user_id:userId,name:"Reading",position:0});if(error)throw error}
+}
+async function issueAppSession(user:{id:string,email:string}){
+  await ensureUserSetup(user.id);
+  const raw=token(),expiresAt=new Date(Date.now()+30*86400_000).toISOString();
+  const{error}=await admin.from("sessions").insert({user_id:user.id,token_hash:await sha256(raw),expires_at:expiresAt});
+  if(error)throw error;
+  return{raw,expiresAt,user};
+}
+export async function verifyCode(email:string,c:string){
+  const{data:login,error}=await admin.from("login_codes").select("*").eq("email",email).is("consumed_at",null).gt("expires_at",new Date().toISOString()).lt("attempts",5).order("created_at",{ascending:false}).limit(1).maybeSingle();
+  if(error)throw error;
+  if(!login)throw Object.assign(new Error("That code has expired. Request a new one."),{status:401});
+  if(await codeHash(email,c)!==login.code_hash){await admin.from("login_codes").update({attempts:login.attempts+1}).eq("id",login.id);throw Object.assign(new Error("That code is not correct."),{status:401})}
+  await admin.from("login_codes").update({consumed_at:new Date().toISOString()}).eq("id",login.id);
+  const{data:user,error:userError}=await admin.from("app_users").upsert({email},{onConflict:"email"}).select("id,email").single();
+  if(userError)throw userError;
+  return issueAppSession(user);
+}
+export async function exchangeSupabaseAuth(accessToken:string){
+  if(!accessToken)throw Object.assign(new Error("Missing Supabase access token."),{status:401});
+  const{data,error}=await admin.auth.getUser(accessToken);
+  const authUser=data?.user;
+  if(error||!authUser?.id||!authUser.email)throw Object.assign(new Error("Supabase session is invalid or expired."),{status:401});
+  if(!authUser.email_confirmed_at)throw Object.assign(new Error("Your email address must be verified before signing in."),{status:401});
+  const provider=String(authUser.app_metadata?.provider||"").toLowerCase();
+  if(provider&&!["google","apple","email"].includes(provider))throw Object.assign(new Error("This sign-in provider is not enabled for Morning Reader."),{status:403});
+  const email=normEmail(authUser.email);
+  let{data:user,error:userError}=await admin.from("app_users").select("id,email,auth_user_id").eq("auth_user_id",authUser.id).maybeSingle();
+  if(userError)throw userError;
+  if(!user){
+    const{data:byEmail,error:emailError}=await admin.from("app_users").select("id,email,auth_user_id").eq("email",email).maybeSingle();
+    if(emailError)throw emailError;
+    if(byEmail){
+      if(byEmail.auth_user_id&&byEmail.auth_user_id!==authUser.id)throw Object.assign(new Error("This email is already linked to another sign-in identity."),{status:409});
+      const{data:linked,error:linkError}=await admin.from("app_users").update({auth_user_id:authUser.id,updated_at:new Date().toISOString()}).eq("id",byEmail.id).select("id,email,auth_user_id").single();
+      if(linkError)throw linkError; user=linked;
+    }else{
+      const{data:created,error:createError}=await admin.from("app_users").insert({email,auth_user_id:authUser.id}).select("id,email,auth_user_id").single();
+      if(createError)throw createError; user=created;
+    }
+  }
+  const session=await issueAppSession({id:user.id,email:user.email});
+  return{...session,provider:provider||"oauth",auth_user_id:authUser.id};
+}
 export async function auth(req:Request){const h=req.headers.get("authorization")||"",raw=h.startsWith("Bearer ")?h.slice(7).trim():"";if(!raw)return null;const{data,error}=await admin.from("sessions").select("id,user_id,app_users(id,email)").eq("token_hash",await sha256(raw)).is("revoked_at",null).gt("expires_at",new Date().toISOString()).maybeSingle();if(error||!data)return null;await admin.from("sessions").update({last_seen_at:new Date().toISOString()}).eq("id",data.id);const u:any=Array.isArray((data as any).app_users)?(data as any).app_users[0]:(data as any).app_users;return{sessionId:data.id,user:{id:data.user_id,email:u?.email||""}}}
-export async function dashboard(userId:string,email:string){const[s,se,fe,di,jo]=await Promise.all([admin.from("user_settings").select("*").eq("user_id",userId).single(),admin.from("sections").select("*").eq("user_id",userId).is("archived_at",null).order("position").order("created_at"),admin.from("feeds").select("*").eq("user_id",userId).is("archived_at",null).order("created_at"),admin.from("digests").select("id,section_id,status,article_count,error,created_at,sent_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(25),admin.from("digest_jobs").select("id,reason,status,result,error,created_at,started_at,finished_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(15)]);if(s.error)throw s.error;const sections=(se.data||[]).map((x:any)=>({...x,feeds:(fe.data||[]).filter((f:any)=>f.section_id===x.id)}));return{user:{id:userId,email},settings:s.data,sections,digests:di.data||[],jobs:jo.data||[],sender_email:"reader@antonioskilton.com"}}
+export async function dashboard(userId:string,email:string){const[s,se,fe,di,jo]=await Promise.all([admin.from("user_settings").select("*").eq("user_id",userId).single(),admin.from("sections").select("*").eq("user_id",userId).is("archived_at",null).order("position").order("created_at"),admin.from("feeds").select("*").eq("user_id",userId).is("archived_at",null).order("created_at"),admin.from("digests").select("id,section_id,edition_name,status,article_count,error,created_at,sent_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(25),admin.from("digest_jobs").select("id,reason,packet_name,article_urls,status,result,error,created_at,started_at,finished_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(15)]);if(s.error)throw s.error;const sections=(se.data||[]).map((x:any)=>({...x,feeds:(fe.data||[]).filter((f:any)=>f.section_id===x.id)}));return{user:{id:userId,email},settings:s.data,sections,digests:di.data||[],jobs:jo.data||[],sender_email:"reader@antonioskilton.com"}}
 export async function systemHealth(userId:string){
   const since=new Date(Date.now()-24*3600_000).toISOString();
   const [settingsR,feedsR,jobsR,articlesR]=await Promise.all([
     admin.from("user_settings").select("paused,onboarding_complete,next_run_at,kindle_email").eq("user_id",userId).single(),
     admin.from("feeds").select("id,name,last_fetch_at,last_success_at,last_error,consecutive_failures,enabled").eq("user_id",userId).eq("enabled",true).is("archived_at",null).order("consecutive_failures",{ascending:false}),
-    admin.from("digest_jobs").select("id,reason,status,result,error,created_at,started_at,finished_at").eq("user_id",userId).gte("created_at",since).order("created_at",{ascending:false}).limit(100),
+    admin.from("digest_jobs").select("id,reason,packet_name,status,result,error,created_at,started_at,finished_at").eq("user_id",userId).gte("created_at",since).order("created_at",{ascending:false}).limit(100),
     admin.from("article_deliveries").select("id",{count:"exact",head:true}).eq("user_id",userId).gte("delivered_at",since)
   ]);
   if(settingsR.error)throw settingsR.error;if(feedsR.error)throw feedsR.error;if(jobsR.error)throw jobsR.error;if(articlesR.error)throw articlesR.error;
   const settings=settingsR.data,feeds=feedsR.data||[],jobs=jobsR.data||[];
   const completed=jobs.filter((j:any)=>["sent","empty","partial","failed"].includes(j.status));
   const successful=completed.filter((j:any)=>j.status==="sent"||j.status==="empty").length;
-  const durations=completed.map((j:any)=>j.started_at&&j.finished_at?new Date(j.finished_at).getTime()-new Date(j.started_at).getTime():null).filter((x:any)=>typeof x==="number"&&x>=0).sort((a:number,b:number)=>a-b);
+  const durations=completed.map((j:any)=>j.started_at&&j.finished_at?new Date(j.finished_at).getTime()-new Date(j.started_at).getTime():null).filter((x:number|null):x is number=>typeof x==="number"&&x>=0).sort((a,b)=>a-b);
   const medianMs=durations.length?durations[Math.floor((durations.length-1)/2)]:null;
   const failingFeeds=feeds.filter((f:any)=>f.last_error);
   const repeatedFeeds=feeds.filter((f:any)=>Number(f.consecutive_failures||0)>=3);
