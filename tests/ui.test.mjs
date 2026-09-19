@@ -20,6 +20,28 @@ test('email-only sign-in has an explicit heading and button', async () => {
   assert.equal(result[0], 'Sign in with email.');assert.equal(result[1], 'Send code');
 });
 
+test('opening and reloading a saved session restores the dashboard without a code',async()=>{
+  const result=await run(`localStorage.morningReaderToken=token;let calls=0;fetch=async()=>{calls++;return new Response(JSON.stringify(state),{status:200})};await startApp();await startApp();return {calls,saved:localStorage.morningReaderToken,dashboard:!!document.querySelector('#one-time-send')}`);
+  assert.equal(result.calls,2);assert.equal(result.saved,'test-token');assert.ok(result.dashboard);
+});
+
+test('network and server failures retain the token, and Retry restores the dashboard',async()=>{
+  for(const failure of ['throw new TypeError("Failed to fetch")','return new Response("Temporary outage",{status:503})']){
+    const result=await run(`localStorage.morningReaderToken=token;fetch=async()=>{${failure}};await startApp();const saved=localStorage.morningReaderToken,notice=app.textContent,retry=document.querySelector('#retry-session');fetch=async()=>new Response(JSON.stringify(state),{status:200});await retry.onclick({currentTarget:retry});return {saved,notice,dashboard:!!document.querySelector('#one-time-send')}`);
+    assert.equal(result.saved,'test-token');assert.match(result.notice,/Your sign-in is saved/);assert.ok(result.dashboard);
+  }
+});
+
+test('a confirmed expired or revoked session clears the token and requests sign-in',async()=>{
+  const result=await run(`localStorage.morningReaderToken=token;fetch=async()=>new Response(JSON.stringify({error:'Unauthorized'}),{status:401});await startApp();return {saved:localStorage.getItem('morningReaderToken'),signedOut:state===null,login:!!document.querySelector('#login-submit'),notice:app.textContent}`);
+  assert.equal(result.saved,null);assert.ok(result.signedOut&&result.login);assert.match(result.notice,/Your session has ended/);
+});
+
+test('explicit sign-out clears credentials only after server revocation succeeds',async()=>{
+  const result=await run(`localStorage.morningReaderToken=token;dashboard();fetch=async()=>new Response('{}',{status:503});await signOut();const retained=localStorage.morningReaderToken,message=toastEl.textContent;fetch=async()=>new Response('{}',{status:200});await signOut();return {retained,message,saved:localStorage.getItem('morningReaderToken'),login:!!document.querySelector('#login-submit')}`);
+  assert.equal(result.retained,'test-token');assert.match(result.message,/Could not sign out/);assert.equal(result.saved,null);assert.ok(result.login);
+});
+
 test('one-time sending, history, paused sources and removal are discoverable', async () => {
   const result = await run(`expandedSections.add('s1');dashboard();return {first:document.querySelector('.source-index-action').id,paused:document.querySelector('.feed').textContent.includes('Paused'),history:!!document.querySelector('#delivery-history'),remove:!!document.querySelector('.remove-section'),label:document.querySelector('.kindle-state').textContent}`);
   assert.equal(result.first, 'one-time-send');assert.ok(result.paused && result.history && result.remove);assert.match(result.label, /Address saved/);

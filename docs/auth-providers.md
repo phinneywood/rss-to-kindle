@@ -9,9 +9,9 @@ Morning Reader keeps the existing six-digit email-code flow and adds Google and 
 3. The browser sends the Supabase access token to `POST /auth/exchange-supabase`.
 4. `app-api` validates that token with `auth.getUser(jwt)`.
 5. Morning Reader links the verified identity to `app_users.auth_user_id`, matching an existing account by verified email when appropriate.
-6. Morning Reader issues its existing 30-day application session. All existing application authorization remains unchanged.
+6. Morning Reader issues an application session with a rolling 90-day inactivity timeout. Each authenticated request atomically validates and renews the session; expired or revoked sessions cannot renew. Internal MCP delegated sessions retain their fixed two-minute expiry.
 
-Existing email-code sessions continue to work.
+Existing active email-code sessions are upgraded to the same inactivity timeout. Temporary network or server failures keep the browser token and show a retry screen; only an explicit unauthorized response clears it. Sign-out revokes the server session before clearing local credentials.
 
 ## Supabase configuration
 

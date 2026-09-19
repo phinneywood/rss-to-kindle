@@ -35,8 +35,9 @@ async function ensureUserSetup(userId:string){
 }
 async function issueAppSession(user:{id:string,email:string}){
   await ensureUserSetup(user.id);
-  const raw=token(),expiresAt=new Date(Date.now()+30*86400_000).toISOString();
-  const{error}=await admin.from("sessions").insert({user_id:user.id,token_hash:await sha256(raw),expires_at:expiresAt});
+  const idleTimeoutSeconds=90*86400;
+  const raw=token(),expiresAt=new Date(Date.now()+idleTimeoutSeconds*1000).toISOString();
+  const{error}=await admin.from("sessions").insert({user_id:user.id,token_hash:await sha256(raw),expires_at:expiresAt,idle_timeout_seconds:idleTimeoutSeconds});
   if(error)throw error;
   return{raw,expiresAt,user};
 }
@@ -76,7 +77,16 @@ export async function exchangeSupabaseAuth(accessToken:string){
   const session=await issueAppSession({id:user.id,email:user.email});
   return{...session,provider:provider||"oauth",auth_user_id:authUser.id};
 }
-export async function auth(req:Request){const h=req.headers.get("authorization")||"",raw=h.startsWith("Bearer ")?h.slice(7).trim():"";if(!raw)return null;const{data,error}=await admin.from("sessions").select("id,user_id,app_users(id,email)").eq("token_hash",await sha256(raw)).is("revoked_at",null).gt("expires_at",new Date().toISOString()).maybeSingle();if(error||!data)return null;await admin.from("sessions").update({last_seen_at:new Date().toISOString()}).eq("id",data.id);const u:any=Array.isArray((data as any).app_users)?(data as any).app_users[0]:(data as any).app_users;return{sessionId:data.id,user:{id:data.user_id,email:u?.email||""}}}
+export async function auth(req:Request){
+  const h=req.headers.get("authorization")||"",raw=h.startsWith("Bearer ")?h.slice(7).trim():"";
+  if(!raw)return null;
+  // Validate and renew together: an expired or revoked session must never revive.
+  const{data,error}=await admin.rpc("authenticate_app_session",{p_token_hash:await sha256(raw)});
+  if(error)throw Object.assign(new Error("Sign-in could not be checked. Please try again."),{status:503});
+  const session=data?.[0];
+  if(!session)return null;
+  return{sessionId:session.session_id,user:{id:session.user_id,email:session.email}};
+}
 export async function dashboard(userId:string,email:string){const[s,se,fe,di,jo]=await Promise.all([admin.from("user_settings").select("*").eq("user_id",userId).single(),admin.from("sections").select("*").eq("user_id",userId).is("archived_at",null).order("position").order("created_at"),admin.from("feeds").select("*").eq("user_id",userId).is("archived_at",null).order("created_at"),admin.from("digests").select("id,section_id,edition_name,status,article_count,error,created_at,sent_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(25),admin.from("digest_jobs").select("id,reason,section_id,edition_name,scheduled_for,packet_name,article_urls,status,result,error,attempts,run_after,created_at,started_at,finished_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(15)]);if(s.error)throw s.error;const sections=(se.data||[]).map((x:any)=>({...x,feeds:(fe.data||[]).filter((f:any)=>f.section_id===x.id)}));return{user:{id:userId,email},settings:s.data,sections,digests:di.data||[],jobs:jo.data||[],sender_email:"reader@antonioskilton.com"}}
 export async function systemHealth(userId:string){
   const since=new Date(Date.now()-24*3600_000).toISOString();

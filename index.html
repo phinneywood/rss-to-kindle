@@ -655,7 +655,7 @@ async function api(path,options={}){
   if(options.auth!==false&&token)headers.Authorization='Bearer '+token;
   const response=await fetch(API+path,{method:options.method||'GET',headers,signal:AbortSignal.timeout(options.timeout||100000),body:options.body?JSON.stringify(options.body):null});
   const body=await response.json().catch(()=>({}));
-  if(!response.ok)throw new Error(body.error||'Request failed');
+  if(!response.ok)throw Object.assign(new Error(body.error||'Request failed'),{status:response.status});
   return body;
 }
 async function refresh(){state=await api('/me');render()}
@@ -763,8 +763,10 @@ function verify(email,error=''){
   };
 }
 async function signOut(){
+  try{await api('/auth/logout',{method:'POST'})}catch(err){
+    if(err.status!==401){toast('Could not sign out. Check your connection and try again.');return}
+  }
   oneTimeDraft=null;pendingSends.clear();
-  try{await api('/auth/logout',{method:'POST'})}catch{}
   try{if(authClient)await authClient.auth.signOut()}catch{}
   token=''; localStorage.removeItem('morningReaderToken'); localStorage.removeItem('morningReaderSkipStarters'); state=null; landing();
 }
@@ -1478,13 +1480,29 @@ function render(){
   return onboarding();
 }
 
-(async()=>{
+function sessionUnavailable(){
+  app.innerHTML=shell(`<section class="auth-page"><div class="auth-hero">
+    <h1>Couldn’t load Morning Reader.</h1>
+    <p>Your sign-in is saved. Check your connection and try again.</p>
+    <button class="btn primary" id="retry-session">Try again</button>
+  </div></section>`);
+  document.querySelector('#retry-session').onclick=async event=>{
+    event.currentTarget.disabled=true;
+    await startApp();
+  };
+}
+async function startApp(){
   let loginError='';
   const params=new URLSearchParams(location.search);
   if(params.get('error_description'))loginError=params.get('error_description');
   if(token){
-    try{state=await api('/me');render();return}
-    catch{token='';localStorage.removeItem('morningReaderToken')}
+    try{state=await api('/me')}
+    catch(err){
+      if(err.status!==401){sessionUnavailable();return}
+      token='';localStorage.removeItem('morningReaderToken');state=null;
+      landing('Your session has ended. Sign in to continue.');return;
+    }
+    render();return;
   }
   if(SOCIAL_AUTH_ENABLED&&authClient){
     try{
@@ -1497,6 +1515,9 @@ function render(){
     }catch(err){loginError=loginError||err.message||'Could not complete social sign-in.'}
   }
   landing(loginError);
+}
+(async()=>{
+  await startApp();
 })();
 </script>
 </body>
