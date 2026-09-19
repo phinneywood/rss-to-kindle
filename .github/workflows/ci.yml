@@ -14,6 +14,8 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      - name: Install pinned dependencies
+        run: npm ci
       - name: Check app API
         run: deno check supabase/functions/app-api/index.ts
       - name: Check worker
