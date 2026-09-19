@@ -50,47 +50,85 @@ export async function makeCoverPng(options: EpubOptions, articleCount: number) {
   const month = datePart(options.date, options.timezone, "month").toUpperCase();
   const day = datePart(options.date, options.timezone, "day");
   const year = datePart(options.date, options.timezone, "year");
-  const titleSize = options.name.length <= 14 ? 132 : options.name.length <= 28 ? 108 : options.name.length <= 46 ? 86 : 70;
-  const paper = "#f7f5ef", ink = "#11110f", muted = "#5d5a54", red = "#b3131b";
+  const titleSize = options.name.length <= 14 ? 132 : options.name.length <= 28 ? 108 : options.name.length <= 46 ? 84 : 68;
+  const paper = "#ffffff", ink = "#000000";
   const cover = element("div", {
     style: {
       width: "100%", height: "100%", display: "flex", flexDirection: "column",
-      background: paper, color: ink, fontFamily: "serif", borderTop: `20px solid ${red}`,
+      background: paper, color: ink, fontFamily: "serif",
     },
   },
-  element("div", { style: { display: "flex", flexDirection: "column", padding: "64px 76px 48px", flex: 1 } },
+  element("div", {
+    style: {
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      background: ink, color: paper, padding: "40px 68px",
+    },
+  },
     element("div", {
       style: {
-        display: "flex", justifyContent: "space-between", alignItems: "baseline",
-        fontFamily: "monospace", fontSize: 22, fontWeight: 800, letterSpacing: 3.2, textTransform: "uppercase",
+        display: "flex", alignItems: "center", flexShrink: 0, fontFamily: "monospace",
       },
     },
-    element("div", null, "MORNING READER"),
-    element("div", { style: { fontSize: 17, color: red, letterSpacing: 2.4 } }, (options.label || "KINDLE EDITION").toUpperCase())),
-    element("div", { style: { height: 3, background: ink, marginTop: 25 } }),
-    element("div", { style: { display: "flex", flexDirection: "column", paddingTop: 56 } },
+    element("div", {
+      style: {
+        width: 72, height: 72, display: "flex", alignItems: "center", justifyContent: "center",
+        background: paper, color: ink, fontSize: 29, fontWeight: 900, letterSpacing: -2,
+      },
+    }, "MR"),
+    element("div", {
+      style: { marginLeft: 24, fontSize: 23, fontWeight: 800, letterSpacing: 3.5, textTransform: "uppercase" },
+    }, "MORNING READER")),
+    element("div", {
+      style: {
+        flexShrink: 0, border: `2px solid ${paper}`, padding: "10px 16px 9px", fontFamily: "monospace",
+        fontSize: 16, fontWeight: 800, letterSpacing: 2, textTransform: "uppercase",
+      },
+    }, (options.label || "KINDLE EDITION").toUpperCase())),
+  element("div", { style: { display: "flex", flexDirection: "column", padding: "54px 68px 48px", flex: 1 } },
+    element("div", { style: { display: "flex", flexDirection: "column" } },
       element("div", {
         style: {
           fontSize: titleSize, fontWeight: 700, lineHeight: 0.94, letterSpacing: -3,
-          maxWidth: 1040, minHeight: 245, display: "flex", alignItems: "flex-start",
+          maxWidth: 1064, minHeight: 300, display: "flex", alignItems: "flex-start",
         },
       }, options.name),
-      element("div", { style: { height: 2, background: ink, marginTop: 38 } }),
       element("div", {
         style: {
-          display: "flex", flexDirection: "column", flex: 1, paddingTop: 76,
+          display: "flex", height: 480, border: `6px solid ${ink}`, marginTop: 42,
         },
       },
       element("div", {
-        style: { fontFamily: "monospace", fontSize: 164, fontWeight: 800, lineHeight: 1, letterSpacing: -7, color: red },
-      }, `${month} ${day} ${year}`)))),
+        style: {
+          width: 338, display: "flex", flexDirection: "column", justifyContent: "space-between",
+          background: ink, color: paper, padding: "44px 40px 40px", fontFamily: "monospace",
+        },
+      },
+      element("div", { style: { fontSize: 70, fontWeight: 900, lineHeight: 1, letterSpacing: 1 } }, month),
+      element("div", {
+        style: { display: "flex", flexDirection: "column", fontSize: 21, fontWeight: 800, letterSpacing: 2.3, textTransform: "uppercase" },
+      }, element("div", null, "EDITION"), element("div", null, "DATE")),
+      element("div", { style: { fontSize: 47, fontWeight: 900, letterSpacing: 3 } }, year)),
+      element("div", {
+        style: {
+          display: "flex", flex: 1, alignItems: "center", justifyContent: "center",
+          fontFamily: "monospace", fontSize: 310, fontWeight: 900, lineHeight: 0.8, letterSpacing: -28,
+          paddingRight: 26,
+        },
+      }, day)),
+      element("div", {
+        style: { display: "flex", alignItems: "center", marginTop: 32, fontFamily: "monospace", textTransform: "uppercase" },
+      },
+      element("div", { style: { height: 18, width: 170, background: ink } }),
+      element("div", { style: { height: 18, width: 18, background: ink, marginLeft: 12 } }),
+      element("div", { style: { height: 18, width: 56, background: ink, marginLeft: 12 } }),
+      element("div", { style: { marginLeft: 22, fontSize: 18, fontWeight: 800, letterSpacing: 2 } }, `${articleCount} ${articleCount === 1 ? "article" : "articles"}`)))),
   element("div", {
     style: {
       display: "flex", justifyContent: "space-between", alignItems: "center",
-      borderTop: `2px solid ${ink}`, padding: "23px 76px 27px", fontFamily: "monospace",
+      borderTop: `3px solid ${ink}`, padding: "23px 68px 27px", fontFamily: "monospace",
       fontSize: 15, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase",
     },
-  }, element("div", null, `${options.displayDate} · ${articleCount} ${articleCount === 1 ? "article" : "articles"}`), element("div", { style: { color: red, textTransform: "none" } }, "reader.antonioskilton.com")));
+  }, element("div", null, options.displayDate), element("div", { style: { textTransform: "none" } }, "reader.antonioskilton.com")));
   const response = new ImageResponse(cover, { width: 1200, height: 1600 });
   if (!response.ok) throw new Error("Could not render the cover image.");
   return new Uint8Array(await response.arrayBuffer());
