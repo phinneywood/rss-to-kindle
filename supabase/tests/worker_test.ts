@@ -39,12 +39,13 @@ async function scenario(mode: "empty" | "failed" | "partial" | "retry" | "schedu
       rows = outbox ? [outbox] : [];
     } else if (table === "user_settings") rows = [{ kindle_email: "test@example.com", timezone: "UTC",paused:false,onboarding_complete:true }];
     else if (table === "sections") {
-      rows = [{ id: "section-1", name: "Reading",enabled:true,schedule_version:mode==='rescheduled'?2:1 },{id:"section-2",name:"Other edition",enabled:true,schedule_version:1}];
+      rows = [{ id: "section-1", name: "Reading",enabled:true,delivery_days:[0,1,2,3,4,5,6] },{id:"section-2",name:"Other section",enabled:true,delivery_days:[]}];
       const idFilter = url.searchParams.get("id");
       if (idFilter?.startsWith("eq.")) rows = rows.filter(row => row.id === idFilter.slice(3));
     }
     else if (table === "feeds") { if (body) feedUpdates.push(body);else rows = feeds; }
     else if (table === "digests") rows = [{ id: "digest-1" }];
+    else if (table === "pending_issue_articles") rows = [];
     else if (table !== "article_deliveries") throw new Error("Unexpected table: " + table);
     return Response.json(req.headers.get("accept")?.includes("vnd.pgrst.object") ? rows[0] : rows);
   }) as typeof fetch;
@@ -76,15 +77,12 @@ Deno.test("worker reconciles accepted delivery without resending after final sta
   assert(result.job.status === "sent", JSON.stringify(result.first));assert(result.sends === 1, "A reconciliation retry must not resubmit accepted mail");
 });
 
-Deno.test("a weekly scheduled job sends only its edition and includes five-day-old articles",async()=>{
+Deno.test("a scheduled daily issue combines eligible sections into one EPUB",async()=>{
   const r=await scenario("scheduled");assert(r.job.status==='sent',JSON.stringify(r.first));assert(r.sends===1);
-  assert(!r.fetched.includes('/broken'),"another edition's feed must not be fetched");
-  assert(r.outbox.payload.email.attachments.length===1 && r.outbox.payload.groups[0].section.id==='section-1');
-  assert(r.job.result.articles===1,"weekly delivery must include articles outside the former 48-hour window");
-});
-Deno.test("a changed edition schedule skips an old job before preparing or sending",async()=>{
-  const r=await scenario("rescheduled");assert(r.sends===0 && r.fetched.length===0);
-  assert(r.job.status==='empty' && r.job.result.note.includes('schedule changed'));
+  assert(!r.fetched.includes('/broken'),"a section excluded today must not be fetched");
+  assert(r.outbox.payload.email.attachments.length===1,"daily issue must have exactly one EPUB");
+  assert(r.outbox.payload.email.attachments[0].filename.startsWith("morning-reader-"));
+  assert(r.job.result.articles===1);
 });
 
 Deno.test("worker rejects requests without its configured authentication", async () => {

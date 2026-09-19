@@ -91,19 +91,19 @@ test('unsafe feed links cannot inject active URLs', async () => {
   assert.equal(await run(`return safeHref('javascript:alert(1)')`), '#');
 });
 
-test('edition schedule saves selected weekdays and time only for that edition', async () => {
-  const result=await run(`editionScheduleModal('s1');const form=document.querySelector('#edition-schedule-form');form.querySelectorAll('[name="delivery_days"]').forEach(c=>c.checked=c.value==='1'||c.value==='5');form.querySelector('[name="delivery_time"]').value='07:30';let request;api=async(path,options)=>{request={path,body:options.body};return state};await form.onsubmit({preventDefault(){},currentTarget:form});return request`);
-  assert.equal(result.path,'/sections/s1');assert.deepEqual([...result.body.delivery_days],[1,5]);assert.equal(result.body.delivery_time,'07:30');assert.equal(result.body.enabled,true);
+test('section frequency saves selected weekdays without a separate delivery time', async () => {
+  const result=await run(`sectionDaysModal('s1');const form=document.querySelector('#section-days-form');form.querySelectorAll('[name="delivery_days"]').forEach(c=>c.checked=c.value==='1'||c.value==='5');let request;api=async(path,options)=>{request={path,body:options.body};return state};await form.onsubmit({preventDefault(){},currentTarget:form});return request`);
+  assert.equal(result.path,'/sections/s1');assert.deepEqual([...result.body.delivery_days],[1,5]);assert.equal(result.body.delivery_time,undefined);
 });
-test('empty weekday selection prevents saving and preserves the draft',async()=>{
-  const result=await run(`editionScheduleModal('s1');const form=document.querySelector('#edition-schedule-form');form.querySelectorAll('[name="delivery_days"]').forEach(c=>c.checked=false);let calls=0;api=async()=>{calls++;return state};await form.onsubmit({preventDefault(){},currentTarget:form});return {calls,notice:document.querySelector('#schedule-error').textContent,open:modal.classList.contains('open')}`);
-  assert.equal(result.calls,0);assert.match(result.notice,/at least one/);assert.ok(result.open);
+test('empty section weekday selection prevents saving',async()=>{
+  const result=await run(`sectionDaysModal('s1');const form=document.querySelector('#section-days-form');form.querySelectorAll('[name="delivery_days"]').forEach(c=>c.checked=false);let calls=0;api=async()=>{calls++;return state};await form.onsubmit({preventDefault(){},currentTarget:form});return {calls,notice:document.querySelector('#schedule-error').textContent}`);
+  assert.equal(result.calls,0);assert.match(result.notice,/at least one/);
 });
-test('edition cards expose schedules without expansion and distinguish pause-all',async()=>{
-  const result=await run(`state.sections[0].delivery_days=[1,2,3,4,5];state.sections[0].delivery_time='07:30';state.settings.paused=true;dashboard();return {label:document.querySelector('.edition-schedule-link').textContent,visible:!document.querySelector('.edition-schedule-link').closest('[hidden]'),next:document.querySelector('.edition-next').textContent}`);
-  assert.match(result.label,/Weekdays · 07:30/);assert.ok(result.visible);assert.equal(result.next,'All editions paused');
+test('dashboard presents one daily issue and section frequency',async()=>{
+  const result=await run(`state.sections[0].delivery_days=[1,2,3,4,5];state.settings.paused=true;dashboard();return {label:document.querySelector('.section-days-link').textContent,next:document.querySelector('.edition-next').textContent,text:document.body.textContent}`);
+  assert.match(result.label,/Weekdays only/);assert.equal(result.next,'Delivery paused');assert.match(result.text,/Your sections/);
 });
-test('account settings contain timezone but no account-wide delivery time',async()=>{
+test('account settings contain the one daily delivery time',async()=>{
   const result=await run(`settingsModal();return {time:!!document.querySelector('[name="delivery_time"]'),zone:!!document.querySelector('[name="timezone"]')}`);
-  assert.equal(result.time,false);assert.equal(result.zone,true);
+  assert.equal(result.time,true);assert.equal(result.zone,true);
 });

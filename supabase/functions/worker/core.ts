@@ -157,7 +157,7 @@ async function sendResend(email: any, jobId: string) {
 }
 
 async function queueScheduled() {
-  const { error } = await admin.rpc("queue_due_editions");
+  const { error } = await admin.rpc("queue_due_daily_issues");
   if (error) throw error;
 }
 
@@ -237,14 +237,19 @@ async function buildOneTime(job: any, settings: any, now: Date, displayDate: str
 }
 
 async function buildRecurring(job: any, settings: any, now: Date, displayDate: string, filenameDate: string, deadline: number) {
-  const [sectionResult, feedResult] = await Promise.all([
+  const [sectionResult, feedResult, pendingResult] = await Promise.all([
     admin.from("sections").select("*").eq("user_id", job.user_id).eq("enabled", true).is("archived_at", null).order("position"),
     admin.from("feeds").select("*").eq("user_id", job.user_id).eq("enabled", true).is("archived_at", null),
+    admin.from("pending_issue_articles").select("*").eq("user_id", job.user_id).order("created_at").limit(20),
   ]);
   if (sectionResult.error) throw sectionResult.error;
   if (feedResult.error) throw feedResult.error;
-  // Filter by owner and edition even if a malformed job references another account.
-  const sections = (sectionResult.data || []).filter((section: any) => !job.section_id || section.id === job.section_id);
+  if (pendingResult.error) throw pendingResult.error;
+  const timezone = settings.timezone || "UTC";
+  const weekdayName = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" }).format(now);
+  const weekdayNumber = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].indexOf(weekdayName);
+  const sections = (sectionResult.data || []).filter((section: any) =>
+    job.reason !== "scheduled" || !Array.isArray(section.delivery_days) || section.delivery_days.includes(weekdayNumber));
   const feeds = (feedResult.data || []).filter((feed: any) => sections.some((section: any) => section.id === feed.section_id));
   const cutoff = new Date(now.getTime() - job.lookback_hours * 3_600_000);
   let all: EpubArticle[] = [];
@@ -270,18 +275,35 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
   const seen = new Set<string>();
   all = all.filter((article) => { const key = `${article.section_id}:${article.article_hash}`; if (delivered.has(article.article_hash) || seen.has(key)) return false; seen.add(key); return true; });
   all.sort((a, b) => (b.published_at ? +new Date(b.published_at) : 0) - (a.published_at ? +new Date(a.published_at) : 0));
+  const pendingItems: EpubArticle[] = [];
+  for (const pending of pendingResult.data || []) {
+    if (Date.now() >= budget.deadline) { issues.push("Preparation limit reached; some saved articles were deferred."); break; }
+    try {
+      const article = await extractArticle({ url: pending.url, includeImages: true, budget });
+      pendingItems.push({ ...article, section_name: pending.section_name || "Saved articles", pending_id: pending.id });
+    } catch (error) {
+      issues.push(`Saved article could not be prepared: ${pending.url}`);
+      logEvent("pending_article.extract_failed", { job_id: job.id, pending_id: pending.id, error: error instanceof Error ? error.message : String(error) }, "warn");
+    }
+  }
   const attachments: any[] = [];
   const groups: { section: any; items: EpubArticle[] }[] = [];
+  const issueItems: EpubArticle[] = [];
   for (const section of sections) {
     let items = all.filter((article) => article.section_id === section.id);
-    items = items.slice(0, job.reason === "test" ? 3 : 80);
+    items = items.slice(0, job.reason === "test" ? 3 : 80).map((article) => ({ ...article, section_name: section.name }));
     if (!items.length) continue;
-    const bytes = await makeEpub({ name: section.name, displayDate, date: now, timezone: settings.timezone || "UTC" }, items);
-    attachments.push({ filename: `${slug(section.name)}-${filenameDate}.epub`, content: base64(bytes), content_type: "application/epub+zip" });
     groups.push({ section, items });
+    issueItems.push(...items);
+  }
+  issueItems.push(...pendingItems);
+  if (pendingItems.length) groups.push({ section: { id: null, name: "Saved articles" }, items: pendingItems });
+  if (issueItems.length) {
+    const bytes = await makeEpub({ name: "Morning Reader", displayDate, date: now, timezone: settings.timezone || "UTC", label: "Daily issue" }, issueItems);
+    attachments.push({ filename: `morning-reader-${filenameDate}.epub`, content: base64(bytes), content_type: "application/epub+zip" });
     checkAttachmentBudget(attachments);
   }
-  return { attachments, groups, issues, feedCount: feeds.length, subject: `${job.section_id && sections[0] ? sections[0].name : "Morning Reader"} — ${displayDate}` };
+  return { attachments, groups, issues, feedCount: feeds.length, subject: `Morning Reader — ${displayDate}` };
 }
 
 export async function processJob(queuedJob: any, deadline = Date.now() + 90_000) {
@@ -297,16 +319,9 @@ export async function processJob(queuedJob: any, deadline = Date.now() + 90_000)
         const settingsResult = await admin.from("user_settings").select("*").eq("user_id", job.user_id).single();
         if (settingsResult.error) throw settingsResult.error;
         const settings = settingsResult.data;
-        if (job.reason === "scheduled") {
-          const { data: section, error } = job.section_id
-            ? await admin.from("sections").select("id,enabled,archived_at,schedule_version").eq("id", job.section_id).eq("user_id", job.user_id).maybeSingle()
-            : { data: null, error: null };
-          if (error) throw error;
-          if (!section || !section.enabled || section.archived_at || section.schedule_version !== job.schedule_version ||
-            settings.paused || !settings.onboarding_complete || !settings.kindle_email) {
-            return { email: { from: "Morning Reader <reader@antonioskilton.com>", to: [], subject: "", text: "", attachments: [] },
-              groups: [], feedCount: 0, issues: [], skipReason: "Skipped because this edition or its delivery schedule changed." };
-          }
+        if (job.reason === "scheduled" && (settings.paused || !settings.onboarding_complete || !settings.kindle_email)) {
+          return { email: { from: "Morning Reader <reader@antonioskilton.com>", to: [], subject: "", text: "", attachments: [] },
+            groups: [], feedCount: 0, issues: [], skipReason: "Skipped because daily delivery settings changed." };
         }
         if (!settings?.kindle_email) throw new Error("No Send-to-Kindle email is configured.");
         const now = new Date(job.created_at);
@@ -335,9 +350,17 @@ export async function processJob(queuedJob: any, deadline = Date.now() + 90_000)
       return { job: job.id, status: "empty" };
     }
     let total = 0;
+    const pendingIds: string[] = [];
     for (const group of build.groups) {
       await digestForGroup(job, group, providerId);
       total += group.items.length;
+      pendingIds.push(...group.items.map((item: any) => item.pending_id).filter(Boolean));
+    }
+    const frozenPending = (build as any).pendingItems || [];
+    pendingIds.push(...frozenPending.map((item: any) => item.pending_id).filter(Boolean));
+    if (pendingIds.length) {
+      const deletion = await admin.from("pending_issue_articles").delete().eq("user_id", job.user_id).in("id", [...new Set(pendingIds)]);
+      if (deletion.error) throw deletion.error;
     }
     const warningMessages = [...new Set<string>(build.groups.flatMap(group => group.items.flatMap((article: any) => article.warnings || [])))];
     const status = build.issues.length || warningMessages.length ? "partial" : "sent";
