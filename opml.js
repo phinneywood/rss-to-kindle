@@ -30,7 +30,7 @@ function opmlImportModal(){
     '<div class="row"><h2>Import feeds</h2><button class="btn small-btn" id="close-modal">Close</button></div>'+
     '<p class="muted small">Choose an OPML export from NetNewsWire or another RSS reader. Morning Reader reads the file in your browser, then imports the feeds you approve.</p>'+
     '<div class="field"><label for="opml-file">OPML file</label><input id="opml-file" class="input" type="file" accept=".opml,.xml,text/xml,application/xml"></div>'+
-    '<div class="notice info">Folders in the OPML file can become Kindle editions. Ungrouped feeds default to your first existing edition.</div>'
+    '<div class="notice info">Folders in the OPML file can become sections in your daily issue. Ungrouped feeds default to your first existing section.</div>'
   );
   document.querySelector("#close-modal").onclick=closeModal;
   document.querySelector("#opml-file").onchange=async e=>{
@@ -86,7 +86,7 @@ function renderOpmlPreview(feeds,fileName){
     if(group.folder&&!existingByName.has(group.folder.toLowerCase())){
       const newValue="new:"+encodeURIComponent(group.folder.slice(0,80));
       create='<option value="'+esc(newValue)+'" '+(selected===newValue?"selected":"")+'>'+
-        'Create “'+esc(group.folder.slice(0,80))+'” edition</option>';
+        'Create “'+esc(group.folder.slice(0,80))+'” section</option>';
     }
     return create+existing;
   };
@@ -111,7 +111,7 @@ function renderOpmlPreview(feeds,fileName){
   modal.querySelector(".modal-card").innerHTML=
     '<div class="row"><div><h2>Review OPML import</h2><div class="tiny muted">'+esc(fileName)+' · '+feeds.length+
       ' feed'+(feeds.length===1?"":"s")+'</div></div><button class="btn small-btn" id="close-modal">Close</button></div>'+
-    '<p class="muted small">Choose the Kindle edition for each OPML folder. Morning Reader will validate every feed before adding it.</p>'+
+    '<p class="muted small">Choose the section for each OPML folder. Morning Reader will validate every feed before adding it.</p>'+
     '<div class="stack" style="margin-top:16px">'+groupHtml+'</div>'+
     '<div class="row wrap" style="justify-content:flex-start;margin-top:18px">'+
       '<button class="btn primary" id="confirm-opml-import">Import '+feeds.length+' feed'+(feeds.length===1?"":"s")+'</button>'+

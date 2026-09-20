@@ -107,3 +107,38 @@ test('account settings contain the one daily delivery time',async()=>{
   const result=await run(`settingsModal();return {time:!!document.querySelector('[name="delivery_time"]'),zone:!!document.querySelector('[name="timezone"]')}`);
   assert.equal(result.time,true);assert.equal(result.zone,true);
 });
+
+test('source alerts name the source and section and open the exact source with focus restored',async()=>{
+  const result=await run(`state.sections[0].feeds[0].enabled=true;state.sections[0].feeds[0].last_error='HTTP 503';dashboard();const banner=document.querySelector('.problem-banner').textContent,flag=document.querySelector('.section-head .section-attention').textContent;document.querySelector('.problem-banner .review-source').click();const dialog=modal.textContent,expanded=expandedSections.has('s1');closeModal();return {banner,flag,dialog,expanded,focus:document.activeElement.id}`);
+  assert.match(result.banner,/Example source/);assert.match(result.banner,/Reading section/);assert.match(result.flag,/1 source needs attention/);assert.match(result.dialog,/Reading section/);assert.match(result.dialog,/HTTP 503/);assert.ok(result.expanded);assert.equal(result.focus,'feed-f1');
+});
+
+test('multiple alerts keep source and section paired; paused failures remain historical',async()=>{
+  const result=await run(`state.sections[0].feeds[0].last_error='Old failure';state.sections[1].feeds=[{id:'f2',name:'Same name',enabled:true,last_error:'Timeout'},{id:'f3',name:'Another source',enabled:true,last_error:'HTTP 500'}];dashboard();const alerts=[...document.querySelectorAll('.problem-banner li')].map(e=>e.textContent);state.sections[1].enabled=false;expandedSections.add('s1');dashboard();return {alerts,banner:!!document.querySelector('.problem-banner'),historical:document.querySelector('.feed').textContent}`);
+  assert.equal(result.alerts.length,2);assert.match(result.alerts[0],/Same name.*Science section/);assert.match(result.alerts[1],/Another source.*Science section/);assert.equal(result.banner,false);assert.match(result.historical,/source paused/);
+});
+
+test('source recheck calls only the source endpoint and clears recovered alerts',async()=>{
+  const result=await run(`state.sections[0].feeds[0].enabled=true;state.sections[0].feeds[0].last_error='HTTP 503';dashboard();reviewSource('f1');let calls=[];api=async(path,options)=>{calls.push({path,method:options.method});state.sections[0].feeds[0].last_error=null;return {result:{feed_id:'f1',items:[]},dashboard:state}};await document.querySelector('#manage-recheck').onclick({currentTarget:document.querySelector('#manage-recheck')});return {calls,banner:!!document.querySelector('.problem-banner'),message:modal.textContent}`);
+  assert.equal(result.calls.length,1);assert.equal(result.calls[0].path,'/feeds/f1/check');assert.equal(result.calls[0].method,'POST');assert.equal(result.banner,false);assert.match(result.message,/warning has been cleared/);
+});
+
+test('failed rechecks retain actionable errors and late responses do not reopen dialogs',async()=>{
+  const result=await run(`dashboard();feedActionsModal('f1');api=async()=>{throw new Error('Offline')};await recheckSource('f1',document.querySelector('#manage-recheck'));const failure=document.querySelector('#source-check-result').textContent,enabled=!document.querySelector('#manage-recheck').disabled;let resolve;api=()=>new Promise(r=>resolve=r);const pending=recheckSource('f1',document.querySelector('#manage-recheck'));closeModal();openModal('<h2>Other dialog</h2>');resolve({result:{items:[]},dashboard:state});await pending;return {failure,enabled,text:modal.textContent}`);
+  assert.match(result.failure,/Offline/);assert.ok(result.enabled);assert.equal(result.text,'Other dialog');
+});
+
+test('article preview errors identify their sources and update stale dashboard warnings',async()=>{
+  const result=await run(`state.sections[0].feeds[0].enabled=true;dashboard();api=async()=>({items:[],feeds:[{feed_id:'f1',error:'Timed out'}]});await previewModal();const text=modal.textContent,banner=document.querySelector('.problem-banner').textContent;document.querySelector('.notice .review-source').click();const context=modal.textContent;closeModal();api=async()=>({items:[],feeds:[{feed_id:'f1',items:[]}]});await previewModal();return {text,banner,context,cleared:!document.querySelector('.problem-banner')}`);
+  assert.match(result.text,/Example source.*Reading section/s);assert.match(result.text,/Review the source errors/);assert.match(result.banner,/Example source/);assert.match(result.context,/Timed out/);assert.ok(result.cleared);
+});
+
+test('system health links source errors to the correct section',async()=>{
+  const result=await run(`renderSystemHealth({source_issues:[{id:'f1',name:'Example source',last_error:'HTTP 503',consecutive_failures:2}]});const label=document.querySelector('.review-source').textContent;document.querySelector('.review-source').click();return {label,dialog:modal.textContent}`);
+  assert.match(result.label,/Example source.*Reading section/s);assert.match(result.dialog,/Example source.*Reading section/s);
+});
+
+test('source names and errors are escaped in alert links and dialogs',async()=>{
+  const result=await run(`state.sections[0].name='<img src=x onerror=alert(1)>';state.sections[0].feeds[0].name='<script>bad()</script>';state.sections[0].feeds[0].enabled=true;state.sections[0].feeds[0].last_error='<img src=x>';dashboard();reviewSource('f1');return {injected:document.querySelectorAll('#app img,#app script,#modal img,#modal script').length,text:modal.textContent}`);
+  assert.equal(result.injected,0);assert.match(result.text,/<script>bad\(\)<\/script>/);
+});

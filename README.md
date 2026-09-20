@@ -1,20 +1,22 @@
 # Morning Reader
 
-Morning Reader turns websites, RSS, and Atom feeds into grouped Kindle editions (EPUB files). Editions can be delivered on a schedule or assembled once from 1–20 article URLs under a user-supplied name.
+Morning Reader turns websites, RSS, and Atom feeds into one daily Kindle issue (an EPUB file), organized into sections. Readers can also add 1–20 article URLs to the next issue under a reading-list name.
 
 Article pages are reduced to their readable body while preserving headings, lists, links, tables, code, quotations, captions, and supported images. Every EPUB includes reflowable styling, EPUB 3 and legacy Kindle navigation, publisher metadata, and a dated cover designed to remain recognizable as a Kindle home-screen thumbnail.
 
 Covers use a 1200×1600 JPEG with both EPUB 3 and legacy cover metadata, without an additional HTML cover page. This packaging was confirmed in Kindle iOS on September 19, 2026. Article anchors that EPUB rejects are repaired with their local links preserved. Existing delivered documents are not updated; the change applies when a new EPUB is built.
 
-## Edition schedules
+## Daily issue and section frequency
 
-Each edition has its own selected weekdays and one delivery time, using the account time zone. New editions default to every day at the account's existing time. Existing editions retain their previous daily time and next intended delivery during migration. An edition can be paused independently; Pause all retains every edition's chosen days and time.
+The account has one delivery time and time zone. Each section selects which weekdays it appears inside the daily issue; it does not send separately. The worker checks every five minutes and queues one due issue per account. Manual sends and scheduled sends share the daily idempotency key, so repeated attempts do not produce a second daily issue. Explicit test sends remain separate.
 
-The worker checks every five minutes and queues one job per due edition. A weekly schedule looks back eight days, while more frequent schedules use the gap since the previous selected weekday plus one day. Already delivered articles are suppressed. Only articles still available in the publisher's feed can be recovered.
+Section frequency uses `delivery_days` (unique integers, Sunday = 0 through Saturday = 6). Account delivery time and time zone live in settings. Pausing delivery retains these preferences. Already delivered articles are suppressed, and one-off article selections are consumed by the next issue.
 
-Schedule changes invalidate queued jobs that have not been prepared. Frozen delivery payloads retain their retry guarantees. Queue insertion and schedule advancement are atomic, and recovery after an outage queues one catch-up per edition rather than every missed slot. Local times follow daylight saving: nonexistent spring times shift forward, and ambiguous autumn times use the second occurrence.
+## Source warnings
 
-The sections API accepts `delivery_days` (unique integers, Sunday = 0 through Saturday = 6), `delivery_time` (`HH:MM`), and `enabled`. Account time-zone changes recalculate future deliveries without changing edition preferences. Deploy the edition-schedule migration before the updated worker and application API, then publish the UI.
+Dashboard warnings identify each affected source and section. Review source opens the source controls and expands its section. Active source failures also appear on collapsed section headers; paused source failures remain visible as historical errors inside the section. Article browsing and System health link errors to the same source controls.
+
+`POST /feeds/:id/check` rechecks one non-archived source owned by the signed-in account. It reuses the normal feed preview and persisted health tracking, returns the updated dashboard, does not resume paused feeds, and never queues a Kindle delivery. Publisher failures remain actionable in the dialog; recovered sources lose their warning.
 
 ## Production architecture
 
