@@ -1,6 +1,6 @@
 import JSZip from "npm:jszip@3.10.1";
 import jpeg from "npm:jpeg-js@0.4.4";
-import { extractArticleDocument, plainText, sanitizeArticleHtml, textValue, type Article } from "../functions/_shared/article.ts";
+import { extractArticleDocument, extractMediumFeedArticle, plainText, sanitizeArticleHtml, textValue, type Article } from "../functions/_shared/article.ts";
 import { makeEpub, repairArticleAnchors } from "../functions/_shared/epub.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -21,6 +21,20 @@ Deno.test("repairs publisher anchors that EPUB rejects without breaking fragment
 Deno.test("joins array-valued RSS and Atom content", () => {
   const value = { __cdata: ["<p>First</p>", "<p>Second</p>"] };
   assert(textValue(value) === "<p>First</p><p>Second</p>", "CDATA arrays should be joined in order");
+});
+
+Deno.test("uses a matching Medium publication-feed item when the article page is blocked", () => {
+  const requested = "https://tpmstories.medium.com/tpm-stories-divya-bhagavan-from-target-237c6eb1c542";
+  const body = "<p>This is a deliberately substantial Medium article body used to verify the feed fallback when the publisher page rejects the worker request.</p><p>It contains enough text to pass the readability threshold while preserving the original article URL, title, author, publication name, and date.</p><p>The real worker fetches this content from the publication RSS feed only after the article-page request fails.</p>";
+  const feed = `<?xml version="1.0"?><rss><channel><title>TPM Stories</title><item><title>TPM Stories — Divya Bhagavan from Target</title><link>${requested}?source=rss</link><guid>${requested}?source=rss</guid><dc:creator>TPM Stories</dc:creator><pubDate>Thu, 14 May 2026 12:00:00 GMT</pubDate><content:encoded><![CDATA[${body}]]></content:encoded></item></channel></rss>`;
+  const article = extractMediumFeedArticle(feed, requested);
+  assert(article !== null, "matching Medium feed entries should be found by article ID");
+  assert(article.title === "TPM Stories — Divya Bhagavan from Target", "feed title should be retained");
+  assert(article.source === "TPM Stories", "publication title should become the source");
+  assert(article.author === "TPM Stories", "feed creator should become the author");
+  assert(article.publishedAt === "2026-05-14T12:00:00.000Z", "feed publication date should be normalized");
+  assert(article.canonicalUrl === requested, "RSS tracking parameters should be removed from the canonical URL");
+  assert(plainText(article.html).includes("publisher page rejects the worker request"), "full feed content should be preserved");
 });
 
 Deno.test("preserves reading structure and repairs URLs", () => {
