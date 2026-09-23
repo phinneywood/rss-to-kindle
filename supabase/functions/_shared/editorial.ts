@@ -41,16 +41,18 @@ function outputText(payload: any): string {
   throw new Error("OpenAI returned no structured editorial output.");
 }
 
-function schemaFor() {
+function schemaFor(articleIds: string[]) {
   return {
     type: "object",
     properties: {
       articles: {
         type: "array",
+        minItems: articleIds.length,
+        maxItems: articleIds.length,
         items: {
           type: "object",
           properties: {
-            id: { type: "string" },
+            id: { type: "string", enum: articleIds },
             topic_name: { type: "string" },
             topic_intro: { type: "string" },
             article_note: { type: "string" },
@@ -174,7 +176,7 @@ export async function editorializeIssue(
             type: "json_schema",
             name: "morning_reader_editorial_plan",
             strict: true,
-            schema: schemaFor(),
+            schema: schemaFor(candidates.map((candidate) => candidate.id)),
           },
         },
       }),
