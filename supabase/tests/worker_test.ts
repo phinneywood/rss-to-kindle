@@ -3,10 +3,11 @@
 Deno.env.set("SUPABASE_URL", "https://database.example.invalid");
 Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "test-only-key");
 Deno.env.set("RESEND_API_KEY", "test-only-key");
+Deno.env.set("OPENAI_API_KEY", "test-only-key");
 const { processJob, handleWorkerRequest } = await import("../functions/worker/core.ts");
 function assert(value: unknown, message = "Assertion failed"): asserts value { if (!value) throw new Error(message); }
 
-async function scenario(mode: "empty" | "failed" | "partial" | "retry" | "scheduled" | "rescheduled" | "test") {
+async function scenario(mode: "empty" | "failed" | "partial" | "retry" | "scheduled" | "rescheduled" | "test" | "classified") {
   const original = globalThis.fetch;
   const job: any = { id: "job-1", user_id: "user-1", status: "queued", attempts: mode === "failed" ? 2 : 0, reason: "manual", created_at: new Date().toISOString(), lookback_hours: 168 };
   if(mode === "scheduled" || mode === "rescheduled")Object.assign(job,{reason:"scheduled",section_id:"section-1",schedule_version:1,lookback_hours:192});
@@ -22,9 +23,45 @@ async function scenario(mode: "empty" | "failed" | "partial" | "retry" | "schedu
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const req = new Request(input, init), url = new URL(req.url);
     if (url.hostname === "api.resend.com") { sends++;snapshots.push(await req.text());return Response.json({ id: "email-1" }); }
+    if (url.hostname === "api.openai.com") {
+      const payload = JSON.parse(await req.text());
+      const format = payload?.text?.format?.name;
+      const userContent = JSON.parse(payload?.input?.at(-1)?.content || "{}");
+      if (format === "morning_reader_assignment_plan") {
+        const plan = {
+          articles: (userContent.candidates || []).map((candidate: any) => ({
+            id: candidate.id,
+            label: candidate.title === "Drop me" ? "OMIT" : (candidate.current_section || "Reading"),
+            confidence: candidate.title === "Drop me" ? 0.99 : 0.95,
+            reason: candidate.title === "Drop me" ? "Fixture marks this article out of scope." : "Fixture keeps the article in its assigned section.",
+          })),
+        };
+        return Response.json({ output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(plan) }] }], usage: { input_tokens: 10, output_tokens: 10 } });
+      }
+      if (format === "morning_reader_editorial_plan") {
+        const plan = {
+          articles: (userContent.candidates || []).map((candidate: any) => ({
+            id: candidate.id,
+            topic_name: "Fixture topic",
+            topic_intro: "Fixture introduction.",
+            article_note: "Fixture article note.",
+          })),
+        };
+        return Response.json({ output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(plan) }] }], usage: { input_tokens: 10, output_tokens: 10 } });
+      }
+      return new Response("unexpected OpenAI request", { status: 400 });
+    }
     if (url.hostname === "8.8.8.8") {
       fetched.push(url.pathname);
       if (url.pathname === "/broken") return new Response("Unavailable", { status: 503 });
+      if (url.pathname.endsWith(".png")) return new Response(new Uint8Array([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]));
+      if (mode === "classified" && url.pathname === "/feed") {
+        const body = "Substantial original reading text. ".repeat(24);
+        return new Response(`<rss><channel>
+          <item><title>Keep me</title><link>https://8.8.8.8/keep-article</link><content:encoded><![CDATA[<p>${body}</p><img src="https://8.8.8.8/keep.png" alt="Keep">]]></content:encoded></item>
+          <item><title>Drop me</title><link>https://8.8.8.8/drop-article</link><content:encoded><![CDATA[<p>${body}</p><img src="https://8.8.8.8/drop.png" alt="Drop">]]></content:encoded></item>
+        </channel></rss>`);
+      }
       return new Response(`<rss><channel><item><title>Example article</title><link>https://8.8.8.8/article</link>${mode==='scheduled'?`<pubDate>${new Date(Date.now()-5*86400_000).toUTCString()}</pubDate>`:''}<content:encoded><![CDATA[<p>${"Substantial original reading text. ".repeat(24)}</p>]]></content:encoded></item></channel></rss>`);
     }
     assert(url.hostname === "database.example.invalid", "Unexpected network call " + url.hostname);
@@ -75,8 +112,10 @@ Deno.test("worker submits partial editions and persists source omissions", async
   const result = await scenario("partial");
   assert(result.job.status === "partial", JSON.stringify(result.first));assert(result.sends === 1);
   assert(result.job.result.articles === 1);assert(result.job.result.issues.some((x: string) => x.includes("Broken source")));
-  assert(result.job.result.editorial?.status === "skipped", "editorial report must survive outbox freezing into the final job result");
-  assert(result.outbox.payload.editorial?.status === "skipped", "frozen outbox must retain editorial diagnostics");
+  assert(result.job.result.editorial?.assignment?.status === "assigned", "assignment diagnostics must survive outbox freezing");
+  assert(result.job.result.editorial?.organization?.status === "edited", "section-editor diagnostics must survive outbox freezing");
+  assert(result.outbox.payload.editorial?.assignment?.status === "assigned", "frozen outbox must retain assignment diagnostics");
+  assert(result.outbox.payload.editorial?.organization?.status === "edited", "frozen outbox must retain section-editor diagnostics");
   assert(result.outbox.payload.email.attachments[0].filename.endsWith(".epub"));
 });
 
@@ -122,4 +161,14 @@ Deno.test("explicit test sends replay recent articles without consuming recurrin
   assert(result.sends === 1, "test send should still deliver a real EPUB");
   assert(result.articleDeliveryReads === 0, "test send should not suppress articles based on recurring delivery history");
   assert(result.articleDeliveryWrites === 0, "test send should not consume articles from future recurring issues");
+});
+
+
+Deno.test("assignment happens before image hydration so omitted articles never fetch media", async () => {
+  const result = await scenario("classified");
+  assert(result.job.status === "sent", JSON.stringify(result.first));
+  assert(result.job.result.articles === 1, "only the included article should be delivered");
+  assert(result.fetched.includes("/keep.png"), "included article image should be hydrated");
+  assert(!result.fetched.includes("/drop.png"), "omitted article image must never be fetched");
+  assert(result.job.result.editorial.assignment.omitted === 1, "assignment diagnostics should record the omitted candidate");
 });
