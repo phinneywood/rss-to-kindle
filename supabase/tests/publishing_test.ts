@@ -138,7 +138,205 @@ Deno.test("builds an EPUB with navigation, images, and reflowable articles", asy
   const nav = await zip.file("OEBPS/nav.xhtml")!.async("string");
   const opf = await zip.file("OEBPS/content.opf")!.async("string");
   const page = await zip.file("OEBPS/article-1.xhtml")!.async("string");
+  assert(nav.includes('epub:type="toc"'), "EPUB 3 navigation must identify its table of contents");
+  assert(opf.includes('properties="cover-image"'), "cover image should be identified in the package");
+  assert(opf.includes('<meta name="cover" content="cover-image"/>'), "legacy cover metadata must reference the same image");
+  assert(opf.includes('href="cover.jpg" media-type="image/jpeg"'), "the cover must use the tested JPEG packaging");
+  assert(!zip.file("OEBPS/cover.xhtml") && !opf.includes('idref="cover"'), "do not add a second HTML cover page");
+  const cover = jpeg.decode(await zip.file("OEBPS/cover.jpg")!.async("uint8array"), { useTArray: true, maxResolutionInMP: 2 });
+  assert(cover.width === 1200 && cover.height === 1600, "cover must decode at the approved resolution");
+  assert(page.includes('id="reader-anchor-1"') && page.includes('href="#reader-anchor-1"'), "packaging must repair invalid cached publisher anchors and links");
+  assert(opf.includes('href="images/example.png" media-type="image/png"'), "embedded images should be listed in the manifest");
+  assert(page.includes('<img src="images/example.png" alt="Example" />'), "article images should be valid XHTML");
+  assert(Boolean(zip.file("OEBPS/toc.ncx")), "legacy Kindle navigation should be included");
+});
+
+
+Deno.test("publisher metadata overrides curator feed attribution when the linked article is fetched", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    assert(url.hostname === "8.8.8.8", "unexpected network host");
+    return new Response(`<!doctype html><html><head>
+      <title>Actual linked article | Original Journal</title>
+      <meta property="og:title" content="Actual linked article">
+      <meta property="og:site_name" content="Original Journal">
+      <meta name="author" content="Actual Writer">
+      <meta property="article:published_time" content="2026-09-23T08:00:00Z">
+      <link rel="canonical" href="https://8.8.8.8/story">
+    </head><body><article><h1>Actual linked article</h1>
+      <p>This is a deliberately substantial linked article used to verify that the publisher page wins over discovery-feed attribution.</p>
+      <p>The item was surfaced through another person's feed, but the original publication and author must appear in Morning Reader.</p>
+      <p>Enough additional prose is included to satisfy the readability threshold and exercise the same extraction path used in production.</p>
+    </article></body></html>`);
+  }) as typeof fetch;
+  try {
+    const result = await extractArticle({
+      url: "https://8.8.8.8/story",
+      title: "Shared by Mustafa Suleyman",
+      source: "Mustafa Suleyman",
+      author: "Mustafa Suleyman",
+      publishedAt: "2026-09-23T07:00:00Z",
+      feedHtml: "<p>A short feed summary that should trigger publisher-page extraction.</p>",
+      feedKind: "summary",
+      includeImages: false,
+    });
+    assert(result.title === "Actual linked article", "publisher title should replace repost/feed framing");
+    assert(result.source === "Original Journal", "publisher should replace curator feed as source");
+    assert(result.author === "Actual Writer", "actual article author should replace curator feed author");
+    assert(result.published_at === "2026-09-23T08:00:00.000Z", "publisher publication date should be authoritative");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test("renders a clean unnumbered editorial contents page while leaving source article pages untouched", async () => {
+  const bodyOne = "<p>SENTINEL-ONE original article body.</p>";
+  const bodyTwo = "<p>SENTINEL-TWO original article body.</p>";
+  const articles: EpubArticle[] = [
+    {
+      title: "Reliability for production agents",
+      url: "https://example.com/one",
+      canonical_url: "https://example.com/one",
+      source: "Engineering Journal",
+      author: "Ada Writer",
+      published_at: "2026-09-23T12:00:00Z",
+      excerpt: "",
+      body: bodyOne,
+      assets: [],
+      warnings: [],
+      article_hash: "one",
+      section_id: "ai",
+      section_name: "AI",
+      editorial_topic: "Agents move into production",
+      editorial_topic_intro: "Two articles examine the operational demands that appear when agents move from demonstrations into production systems.",
+    },
+    {
+      title: "Observability for long-running agents",
+      url: "https://example.com/two",
+      canonical_url: "https://example.com/two",
+      source: "Systems Review",
+      author: "B. Writer",
+      published_at: "2026-09-23T11:00:00Z",
+      excerpt: "",
+      body: bodyTwo,
+      assets: [],
+      warnings: [],
+      article_hash: "two",
+      section_id: "ai",
+      section_name: "AI",
+      editorial_topic: "Agents move into production",
+      editorial_topic_intro: "Two articles examine the operational demands that appear when agents move from demonstrations into production systems.",
+    },
+  ];
+
+  const bytes = await makeEpub({
+    name: "Morning Reader",
+    displayDate: "September 23, 2026",
+    date: new Date("2026-09-23T12:00:00Z"),
+    timezone: "America/Los_Angeles",
+  }, articles);
+  const zip = await JSZip.loadAsync(bytes);
+  const nav = await zip.file("OEBPS/nav.xhtml")!.async("string");
+  const contents = await zip.file("OEBPS/contents.xhtml")!.async("string");
+  const opf = await zip.file("OEBPS/content.opf")!.async("string");
+  const css = await zip.file("OEBPS/style.css")!.async("string");
+  const pageOne = await zip.file("OEBPS/article-1.xhtml")!.async("string");
+  const pageTwo = await zip.file("OEBPS/article-2.xhtml")!.async("string");
+
   assert(nav.includes('epub:type="toc"') && nav.includes("<ol>"), "machine navigation should remain a standards-compliant EPUB nav document");
+  assert(contents.includes('<h2 class="section-title">AI</h2>'), "reader contents should use editorial hierarchy");
+  assert(contents.includes('<h3 class="topic-title">Agents move into production</h3>'), "topic heading should be visually distinct");
+  assert(contents.includes('<span class="article-source">Engineering Journal</span>'), "source should render on a separate muted line");
+  assert(!/<ol\\b/i.test(contents) && !/<li\\b/i.test(contents), "reader-facing contents must not use list markup that Kindle can renumber");
+  assert(!contents.includes("Reliability for production agents — Engineering Journal"), "source should not be folded into the linked headline");
+  assert(!contents.includes("Focuses on reliability controls") && !contents.includes("Covers observability"), "per-article AI framing should not appear");
+  assert(opf.includes('<item id="contents" href="contents.xhtml" media-type="application/xhtml+xml"/>'), "reader contents must be packaged separately");
+  assert(opf.includes('<spine toc="ncx"><itemref idref="contents"/>'), "reader contents, not nav.xhtml, must be the first reading page");
+  assert(css.includes("text-align:left") && css.includes("hyphens:none"), "topic notes should avoid Kindle justification and hyphenation");
+  const firstArticle = contents.indexOf("Reliability for production agents");
+  const topicIntro = contents.indexOf("Two articles examine the operational demands");
+  assert(firstArticle >= 0 && topicIntro > firstArticle, "topic introduction should follow the article links");
+  assert(pageOne.includes('href="contents.xhtml"') && pageTwo.includes('href="contents.xhtml"'), "article back-links should return to the reader-facing contents page");
+  assert(pageOne.includes(bodyOne) && pageTwo.includes(bodyTwo), "original article bodies must remain intact");
+  assert(!pageOne.includes("Two articles examine the operational demands"), "generated topic copy must stay outside original article pages");
+  assert(!pageTwo.includes("Two articles examine the operational demands"), "generated topic copy must stay outside original article pages");
+});
+
+
+Deno.test("renders unmistakable dedicated section-front pages", async () => {
+  const articles: EpubArticle[] = [
+    {
+      title: "Reliability for production agents",
+      url: "https://example.com/one",
+      canonical_url: "https://example.com/one",
+      source: "Engineering Journal",
+      author: "Ada Writer",
+      published_at: "2026-09-23T12:00:00Z",
+      excerpt: "",
+      body: "<p>SENTINEL-ONE original article body.</p>",
+      assets: [],
+      warnings: [],
+      article_hash: "one",
+      section_id: "ai",
+      section_name: "AI",
+      editorial_topic: "Agents move into production",
+      editorial_topic_intro: "Two articles examine the operational demands that appear when agents move from demonstrations into production systems.",
+    },
+    {
+      title: "Observability for long-running agents",
+      url: "https://example.com/two",
+      canonical_url: "https://example.com/two",
+      source: "Systems Review",
+      author: "B. Writer",
+      published_at: "2026-09-23T11:00:00Z",
+      excerpt: "",
+      body: "<p>SENTINEL-TWO original article body.</p>",
+      assets: [],
+      warnings: [],
+      article_hash: "two",
+      section_id: "ai",
+      section_name: "AI",
+      editorial_topic: "Agents move into production",
+      editorial_topic_intro: "Two articles examine the operational demands that appear when agents move from demonstrations into production systems.",
+    },
+    {
+      title: "Database internals in practice",
+      url: "https://example.com/three",
+      canonical_url: "https://example.com/three",
+      source: "Systems Review",
+      author: "C. Writer",
+      published_at: "2026-09-23T10:00:00Z",
+      excerpt: "",
+      body: "<p>SENTINEL-THREE original article body.</p>",
+      assets: [],
+      warnings: [],
+      article_hash: "three",
+      section_id: "systems",
+      section_name: "Systems",
+      editorial_topic: "Database architecture",
+      editorial_topic_intro: "A systems piece on database architecture in practice.",
+    },
+  ];
+
+  const bytes = await makeEpub({
+    name: "Morning Reader",
+    displayDate: "September 23, 2026",
+    date: new Date("2026-09-23T12:00:00Z"),
+    timezone: "America/Los_Angeles",
+  }, articles);
+
+  const zip = await JSZip.loadAsync(bytes);
+  const nav = await zip.file("OEBPS/nav.xhtml")!.async("string");
+  const contents = await zip.file("OEBPS/contents.xhtml")!.async("string");
+  const sectionOne = await zip.file("OEBPS/section-1.xhtml")!.async("string");
+  const sectionTwo = await zip.file("OEBPS/section-2.xhtml")!.async("string");
+  const opf = await zip.file("OEBPS/content.opf")!.async("string");
+  const css = await zip.file("OEBPS/style.css")!.async("string");
+  const pageOne = await zip.file("OEBPS/article-1.xhtml")!.async("string");
+  const pageTwo = await zip.file("OEBPS/article-2.xhtml")!.async("string");
+
+  assert(nav.includes('epub:type="toc"') && nav.includes('href="section-1.xhtml"'), "machine navigation should link to section fronts");
   assert(contents.includes('href="section-1.xhtml">AI</a>') && contents.includes('href="section-2.xhtml">Systems</a>'), "front page should make sections explicit and navigable");
   assert(!contents.includes("Reliability for production agents"), "front page should not collapse section content into one long page");
   assert(sectionOne.includes('<header class="section-banner">') && sectionOne.includes('<h1 class="section-name">AI</h1>'), "AI should have its own unmistakable section front");
@@ -149,9 +347,6 @@ Deno.test("builds an EPUB with navigation, images, and reflowable articles", asy
   assert(opf.includes('<item id="section-1" href="section-1.xhtml" media-type="application/xhtml+xml"/>'), "section fronts must be packaged as first-class EPUB documents");
   assert(opf.includes('<spine toc="ncx"><itemref idref="contents"/><itemref idref="section-1"/><itemref idref="article-1"/>'), "spine should place each section front immediately before its articles");
   assert(css.includes("section-banner") && css.includes("background:#111") && css.includes("color:#fff"), "section fronts should use a high-contrast masthead");
-  assert(css.includes("text-align:left") && css.includes("hyphens:none"), "topic notes should avoid Kindle justification and hyphenation");
   assert(pageOne.includes('href="section-1.xhtml"') && pageTwo.includes('href="section-1.xhtml"'), "AI articles should link back to the AI section front");
-  assert(pageOne.includes(bodyOne) && pageTwo.includes(bodyTwo), "original article bodies must remain intact");
-  assert(!pageOne.includes("Two articles examine the operational demands"), "generated topic copy must stay outside original article pages");
-  assert(!pageTwo.includes("Two articles examine the operational demands"), "generated topic copy must stay outside original article pages");
+  assert(pageOne.includes("SENTINEL-ONE original article body") && pageTwo.includes("SENTINEL-TWO original article body"), "original article bodies must remain intact");
 });
