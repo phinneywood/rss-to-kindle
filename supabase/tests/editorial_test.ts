@@ -66,6 +66,9 @@ Deno.test("section editor uses GPT-6 Luna structured output for topic organizati
   });
   assert(requestBody?.model === "gpt-6-luna", "Luna should remain the section editor");
   assert(requestBody?.text?.format?.name === "morning_reader_editorial_plan", "editor should use a dedicated strict schema");
+  assert(requestBody?.text?.format?.schema?.properties?.articles?.minItems === input.length, "editor schema must require one output per accepted article");
+  assert(requestBody?.text?.format?.schema?.properties?.articles?.maxItems === input.length, "editor schema must reject short or long article arrays");
+  assert(JSON.stringify(requestBody?.text?.format?.schema?.properties?.articles?.items?.properties?.id?.enum) === JSON.stringify(["article-1"]), "editor schema must restrict ids to accepted articles");
   assert(!JSON.stringify(requestBody).includes('"include"'), "editor contract must not contain inclusion decisions");
   assert(!JSON.stringify(requestBody).includes('"section_name"'), "editor contract must not contain section routing decisions");
   assert(result.report.status === "edited", "valid topic plan should be applied");
