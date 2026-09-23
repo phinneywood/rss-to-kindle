@@ -3,6 +3,7 @@ import { XMLParser } from "npm:fast-xml-parser@5.11.1";
 import { extractArticle, extractionBudget, type ExtractionBudget, fetchPublicText, sha256, textValue } from "../_shared/article.ts";
 import { dispatchPrepared, DeliveryNeedsReview, checkAttachmentBudget } from "../_shared/delivery.ts";
 import { makeEpub, type EpubArticle } from "../_shared/epub.ts";
+import { editorializeIssue } from "../_shared/editorial.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -69,7 +70,7 @@ function entryContent(entry: any): { html: string; kind: "full" | "summary" } {
   return { html: textValue(entry.summary || ""), kind: "summary" };
 }
 
-async function readFeed(feed: any, cutoff: Date, jobId: string, budget: ExtractionBudget) {
+async function readFeed(feed: any, cutoff: Date, jobId: string, budget: ExtractionBudget, suppressDelivered = true) {
   const issues: string[] = [];
   const started = performance.now();
   try {
@@ -82,7 +83,7 @@ async function readFeed(feed: any, cutoff: Date, jobId: string, budget: Extracti
     if (!parsed?.rss?.channel && !parsed?.feed && !parsed?.["rdf:RDF"]) throw new Error("This source did not return a valid RSS or Atom feed.");
     const candidates = entries.slice(0, 20);
     const hashes = await Promise.all(candidates.map(e => sha256(stripTracking(entryHref(e.link) || textValue(e.guid || e.id)))));
-    const prior = hashes.length ? await admin.from("article_deliveries").select("article_hash").eq("user_id", feed.user_id).eq("delivery_kind", "recurring").in("article_hash", hashes) : { data: [], error: null };
+    const prior = suppressDelivered && hashes.length ? await admin.from("article_deliveries").select("article_hash").eq("user_id", feed.user_id).eq("delivery_kind", "recurring").in("article_hash", hashes) : { data: [], error: null };
     if (prior.error) throw prior.error;
     const delivered = new Set((prior.data || []).map((row: any) => row.article_hash));
     const articles: EpubArticle[] = [];
@@ -191,6 +192,9 @@ async function digestForGroup(job: any, group: { section: any; items: EpubArticl
       digest = result.data;
     }
   }
+  // Explicit test sends verify the live pipeline without consuming articles from
+  // the reader's next real issue.
+  if (job.reason === "test") return;
   const deliveries = group.items.map((article) => ({
     user_id: job.user_id,
     feed_id: article.feed_id || null,
@@ -261,20 +265,70 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
       logEvent("digest.extraction_capped", { job_id: job.id, user_id: job.user_id, articles: all.length, feeds_processed: feeds.indexOf(feed), feeds_total: feeds.length }, "warn");
       break;
     }
-    const result = await readFeed(feed, cutoff, job.id, budget);
+    const result = await readFeed(feed, cutoff, job.id, budget, job.reason !== "test");
     all.push(...result.articles);
     issues.push(...result.issues);
   }
   const hashes = [...new Set(all.map((article) => article.article_hash))];
   const delivered = new Set<string>();
-  for (let index = 0; index < hashes.length; index += 200) {
-    const { data, error } = await admin.from("article_deliveries").select("article_hash").eq("user_id", job.user_id).eq("delivery_kind", "recurring").in("article_hash", hashes.slice(index, index + 200));
-    if (error) throw error;
-    for (const row of data || []) delivered.add(row.article_hash);
+  if (job.reason !== "test") {
+    for (let index = 0; index < hashes.length; index += 200) {
+      const { data, error } = await admin.from("article_deliveries").select("article_hash").eq("user_id", job.user_id).eq("delivery_kind", "recurring").in("article_hash", hashes.slice(index, index + 200));
+      if (error) throw error;
+      for (const row of data || []) delivered.add(row.article_hash);
+    }
   }
   const seen = new Set<string>();
-  all = all.filter((article) => { const key = `${article.section_id}:${article.article_hash}`; if (delivered.has(article.article_hash) || seen.has(key)) return false; seen.add(key); return true; });
+  all = all.filter((article) => {
+    const key = article.article_hash;
+    if (delivered.has(article.article_hash) || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   all.sort((a, b) => (b.published_at ? +new Date(b.published_at) : 0) - (a.published_at ? +new Date(a.published_at) : 0));
+
+  const editorial = await editorializeIssue(
+    sections.map((section: any) => ({ id: section.id, name: section.name })),
+    all,
+    { deadline },
+  );
+  all = editorial.articles;
+  const editorialSummary = {
+    status: editorial.report.status,
+    model: editorial.report.model,
+    included: editorial.report.included,
+    omitted: editorial.report.omitted,
+    moved: editorial.report.moved,
+    topics: editorial.report.topics,
+    error: editorial.report.error || null,
+    usage: editorial.report.usage || null,
+    decisions: editorial.report.decisions || [],
+  };
+  logEvent("editorial.completed", {
+    job_id: job.id,
+    user_id: job.user_id,
+    status: editorialSummary.status,
+    model: editorialSummary.model,
+    included: editorialSummary.included,
+    omitted: editorialSummary.omitted,
+    moved: editorialSummary.moved,
+    topics: editorialSummary.topics,
+    error: editorialSummary.error,
+  }, editorialSummary.status === "fallback" ? "warn" : "info");
+  for (const decision of editorialSummary.decisions) {
+    if (!decision.include || decision.from !== decision.to) {
+      logEvent("editorial.article_decision", {
+        job_id: job.id,
+        title: decision.title,
+        source: decision.source,
+        from_section: decision.from,
+        to_section: decision.to,
+        included: decision.include,
+        reason: decision.reason,
+      });
+    }
+  }
+
   const pendingItems: EpubArticle[] = [];
   for (const pending of pendingResult.data || []) {
     if (Date.now() >= budget.deadline) { issues.push("Preparation limit reached; some saved articles were deferred."); break; }
@@ -303,7 +357,7 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
     attachments.push({ filename: `morning-reader-${filenameDate}.epub`, content: base64(bytes), content_type: "application/epub+zip" });
     checkAttachmentBudget(attachments);
   }
-  return { attachments, groups, issues, feedCount: feeds.length, subject: `Morning Reader — ${displayDate}` };
+  return { attachments, groups, issues, feedCount: feeds.length, subject: `Morning Reader — ${displayDate}`, editorial: editorialSummary };
 }
 
 export async function processJob(queuedJob: any, deadline = Date.now() + 90_000) {
@@ -345,7 +399,7 @@ export async function processJob(queuedJob: any, deadline = Date.now() + 90_000)
       record: async id => { const r = await admin.from("delivery_outbox").update({ provider_email_id: id }).eq("job_id", job.id); if (r.error) throw r.error; },
     });
     if (!providerId) {
-      const r = await admin.from("digest_jobs").update({ status: "empty", finished_at: new Date().toISOString(), result: { articles: 0, sections: 0, feeds: build.feedCount, note: build.skipReason || null } }).eq("id", job.id);
+      const r = await admin.from("digest_jobs").update({ status: "empty", finished_at: new Date().toISOString(), result: { articles: 0, sections: 0, feeds: build.feedCount, note: build.skipReason || null, editorial: (build as any).editorial || null } }).eq("id", job.id);
       if (r.error) throw r.error;
       return { job: job.id, status: "empty" };
     }
@@ -364,7 +418,7 @@ export async function processJob(queuedJob: any, deadline = Date.now() + 90_000)
     }
     const warningMessages = [...new Set<string>(build.groups.flatMap(group => group.items.flatMap((article: any) => article.warnings || [])))];
     const status = build.issues.length || warningMessages.length ? "partial" : "sent";
-    const finished = await admin.from("digest_jobs").update({ status, finished_at: new Date().toISOString(), result: { articles: total, sections: build.groups.length, feeds: build.feedCount, provider_email_id: providerId, packet_name: job.packet_name || null, warnings: warningMessages.length, issues: [...build.issues, ...warningMessages].slice(0, 30) } }).eq("id", job.id);
+    const finished = await admin.from("digest_jobs").update({ status, finished_at: new Date().toISOString(), result: { articles: total, sections: build.groups.length, feeds: build.feedCount, provider_email_id: providerId, packet_name: job.packet_name || null, warnings: warningMessages.length, issues: [...build.issues, ...warningMessages].slice(0, 30), editorial: (build as any).editorial || null } }).eq("id", job.id);
     if (finished.error) throw finished.error;
     logEvent("digest.submitted", { job_id: job.id, user_id: job.user_id, status, articles: total, duration_ms: Math.round(performance.now() - started) });
     return { job: job.id, status, articles: total, sections: build.groups.length };
