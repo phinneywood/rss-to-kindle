@@ -163,6 +163,7 @@ Deno.test("explicit test sends replay recent articles without consuming recurrin
   const result = await scenario("test");
   assert(result.job.status === "sent", JSON.stringify(result.first));
   assert(result.sends === 1, "test send should still deliver a real EPUB");
+  assert(result.job.status === "sent", JSON.stringify(result.first));
   assert(result.job.result.articles === 5, "test send should preserve full issue length instead of truncating to three articles per section");
   assert(!result.fetched.some((path: string) => /^\/test-\d+\.png$/.test(path)), "full-length test sends should not fetch inline article images");
   assert(result.articleDeliveryReads === 0, "test send should not suppress articles based on recurring delivery history");
