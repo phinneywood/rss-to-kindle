@@ -452,6 +452,17 @@ async function embedImages(html: string, baseUrl: string, budget: ExtractionBudg
   return { html: document.body.innerHTML, assets, warnings: [...new Set(warnings)] };
 }
 
+export async function hydrateArticleImages(article: Article, budget: ExtractionBudget): Promise<Article> {
+  if (article.assets?.length) return article;
+  const embedded = await embedImages(article.body, article.canonical_url || article.url, budget);
+  return {
+    ...article,
+    body: embedded.html,
+    assets: embedded.assets,
+    warnings: [...new Set([...(article.warnings || []), ...embedded.warnings])],
+  };
+}
+
 export async function extractArticle(input: ExtractArticleInput): Promise<Article> {
   const budget = input.budget || extractionBudget();
   if (Date.now() >= budget.deadline) throw new Error("Article preparation time limit reached.");
