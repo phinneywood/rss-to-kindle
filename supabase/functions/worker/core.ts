@@ -390,7 +390,10 @@ export async function processJob(queuedJob: any, deadline = Date.now() + 90_000)
         return {
           email: { from: "Morning Reader <reader@antonioskilton.com>", to: [settings.kindle_email], subject: prepared.subject, text: "Your Morning Reader edition is attached.", attachments: prepared.attachments },
           groups: prepared.groups.map(group => ({ section: group.section, items: group.items.map(({ body: _body, assets: _assets, ...article }) => article) })),
-          feedCount: prepared.feedCount, issues: prepared.issues,
+          feedCount: prepared.feedCount,
+          issues: prepared.issues,
+          editorial: (prepared as any).editorial || null,
+          pendingItems: (prepared as any).pendingItems || [],
         };
       },
       freeze: async payload => { const r = await admin.from("delivery_outbox").insert({ job_id: job.id, payload }).select("*").single(); if (r.error) throw r.error; return r.data; },
