@@ -75,6 +75,8 @@ Deno.test("worker submits partial editions and persists source omissions", async
   const result = await scenario("partial");
   assert(result.job.status === "partial", JSON.stringify(result.first));assert(result.sends === 1);
   assert(result.job.result.articles === 1);assert(result.job.result.issues.some((x: string) => x.includes("Broken source")));
+  assert(result.job.result.editorial?.status === "skipped", "editorial report must survive outbox freezing into the final job result");
+  assert(result.outbox.payload.editorial?.status === "skipped", "frozen outbox must retain editorial diagnostics");
   assert(result.outbox.payload.email.attachments[0].filename.endsWith(".epub"));
 });
 
