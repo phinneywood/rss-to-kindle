@@ -62,6 +62,10 @@ async function scenario(mode: "empty" | "failed" | "partial" | "retry" | "schedu
           <item><title>Drop me</title><link>https://8.8.8.8/drop-article</link><content:encoded><![CDATA[<p>${body}</p><img src="https://8.8.8.8/drop.png" alt="Drop">]]></content:encoded></item>
         </channel></rss>`);
       }
+      if (mode === "test" && url.pathname === "/feed") {
+        const body = "Substantial original reading text. ".repeat(24);
+        return new Response(`<rss><channel>${Array.from({length:5},(_,i)=>`<item><title>Test article ${i+1}</title><link>https://8.8.8.8/article-${i+1}</link><content:encoded><![CDATA[<p>${body}</p>]]></content:encoded></item>`).join("")}</channel></rss>`);
+      }
       return new Response(`<rss><channel><item><title>Example article</title><link>https://8.8.8.8/article</link>${mode==='scheduled'?`<pubDate>${new Date(Date.now()-5*86400_000).toUTCString()}</pubDate>`:''}<content:encoded><![CDATA[<p>${"Substantial original reading text. ".repeat(24)}</p>]]></content:encoded></item></channel></rss>`);
     }
     assert(url.hostname === "database.example.invalid", "Unexpected network call " + url.hostname);
@@ -159,6 +163,7 @@ Deno.test("explicit test sends replay recent articles without consuming recurrin
   const result = await scenario("test");
   assert(result.job.status === "sent", JSON.stringify(result.first));
   assert(result.sends === 1, "test send should still deliver a real EPUB");
+  assert(result.job.result.articles === 5, "test send should preserve full issue length instead of truncating to three articles per section");
   assert(result.articleDeliveryReads === 0, "test send should not suppress articles based on recurring delivery history");
   assert(result.articleDeliveryWrites === 0, "test send should not consume articles from future recurring issues");
 });
