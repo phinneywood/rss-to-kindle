@@ -36,12 +36,16 @@ function opmlImportModal(){
   document.querySelector("#opml-file").onchange=async e=>{
     const file=e.target.files&&e.target.files[0];
     if(!file)return;
+    const version=modalVersion;
     try{
+      if(file.size>2*1024*1024)throw new Error("Choose an OPML file smaller than 2 MB.");
       const feeds=parseOpml(await file.text());
+      if(version!==modalVersion)return;
+      if(feeds.length>100)throw new Error("Import up to 100 feeds at a time. Export a smaller selection and try again.");
       if(!feeds.length)throw new Error("No RSS or Atom subscriptions were found in this OPML file.");
       renderOpmlPreview(feeds,file.name);
     }catch(err){
-      toast(err.message);
+      if(version===modalVersion)formFeedback(modal.querySelector(".modal-card"),err.message);
     }
   };
 }
@@ -102,13 +106,13 @@ function renderOpmlPreview(feeds,fileName){
       '<div class="row wrap">'+
         '<div><strong>'+esc(group.folder||"Ungrouped")+'</strong><div class="tiny muted">'+
           group.feeds.length+' feed'+(group.feeds.length===1?"":"s")+'</div></div>'+
-        '<select class="select opml-section" data-group="'+i+'" style="width:auto;min-width:190px">'+optionHtml(group)+'</select>'+
+        '<select aria-label="Section for '+esc(group.folder||'ungrouped feeds')+'" class="select opml-section" data-group="'+i+'" style="width:auto;min-width:190px">'+optionHtml(group)+'</select>'+
       '</div>'+
       '<div style="margin-top:10px">'+feedHtml+'</div>'+
     '</div>';
   }).join("");
 
-  modal.querySelector(".modal-card").innerHTML=
+  openModal(
     '<div class="row"><div><h2>Review OPML import</h2><div class="tiny muted">'+esc(fileName)+' · '+feeds.length+
       ' feed'+(feeds.length===1?"":"s")+'</div></div><button class="btn small-btn" id="close-modal">Close</button></div>'+
     '<p class="muted small">Choose the section for each OPML folder. Morning Reader will validate every feed before adding it.</p>'+
@@ -116,11 +120,12 @@ function renderOpmlPreview(feeds,fileName){
     '<div class="row wrap" style="justify-content:flex-start;margin-top:18px">'+
       '<button class="btn primary" id="confirm-opml-import">Import '+feeds.length+' feed'+(feeds.length===1?"":"s")+'</button>'+
       '<span class="tiny muted">Feeds are checked in batches of five.</span>'+
-    '</div>';
+    '</div>');
 
   document.querySelector("#close-modal").onclick=closeModal;
   document.querySelector("#confirm-opml-import").onclick=async()=>{
-    const button=document.querySelector("#confirm-opml-import");
+    const version=modalVersion,button=document.querySelector("#confirm-opml-import");
+    if(button.disabled)return;
     button.disabled=true;
     button.textContent="Importing…";
     const payload=[];
@@ -141,6 +146,7 @@ function renderOpmlPreview(feeds,fileName){
       state=result.dashboard;
       dashboard();
 
+      if(version!==modalVersion){toast("Import finished. Your sources have been updated.");return}
       const summary=result.summary||{};
       const failed=(result.results||[]).filter(x=>x.status==="failed");
       const failureHtml=failed.length
@@ -165,7 +171,7 @@ function renderOpmlPreview(feeds,fileName){
     }catch(err){
       button.disabled=false;
       button.textContent="Import feeds";
-      toast(err.message);
+      if(version===modalVersion)formFeedback(modal.querySelector(".modal-card"),err.message);
     }
   };
 }
