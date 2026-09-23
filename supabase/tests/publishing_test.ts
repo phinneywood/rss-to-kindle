@@ -1,6 +1,6 @@
 import JSZip from "npm:jszip@3.10.1";
 import jpeg from "npm:jpeg-js@0.4.4";
-import { extractArticle, extractArticleDocument, extractMediumFeedArticle, plainText, sanitizeArticleHtml, textValue, type Article } from "../functions/_shared/article.ts";
+import { extractArticle, extractArticleDocument, extractMediumFeedArticle, extractionBudget, hydrateArticleImages, plainText, sanitizeArticleHtml, textValue, type Article } from "../functions/_shared/article.ts";
 import { makeEpub, repairArticleAnchors, type EpubArticle } from "../functions/_shared/epub.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
@@ -74,6 +74,44 @@ Deno.test("extracts visible and structured article metadata", () => {
   assert(article.author === "Ada Writer", "visible author names should take precedence over noisy bylines");
   assert(article.publishedAt === "2026-09-18T08:00:00.000Z", "JSON-LD publish dates should be retained");
   assert(article.canonicalUrl === "https://example.com/investigation", "relative canonical URLs should resolve");
+});
+
+
+
+Deno.test("hydrates article images only when explicitly requested after text extraction", async () => {
+  const originalFetch = globalThis.fetch;
+  const fetched: string[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    fetched.push(url.pathname);
+    if (url.hostname === "8.8.8.8" && url.pathname === "/diagram.png") {
+      return new Response(new Uint8Array([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]));
+    }
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+  try {
+    const article: Article = {
+      title: "Text-first article",
+      url: "https://8.8.8.8/article",
+      canonical_url: "https://8.8.8.8/article",
+      source: "Example",
+      author: null,
+      published_at: null,
+      excerpt: "",
+      body: '<p>Text remains available before media work.</p><img src="https://8.8.8.8/diagram.png" alt="Diagram">',
+      assets: [],
+      warnings: [],
+      article_hash: "text-first",
+    };
+    assert(article.assets.length === 0, "text-first article should begin without fetched assets");
+    assert(fetched.length === 0, "constructing a text-first article must not fetch images");
+    const hydrated = await hydrateArticleImages(article, extractionBudget(Date.now() + 10_000));
+    assert(fetched.includes("/diagram.png"), "explicit hydration should fetch the image");
+    assert(hydrated.assets.length === 1, "hydration should attach the fetched image asset");
+    assert(!hydrated.body.includes("https://8.8.8.8/diagram.png"), "hydrated article body should reference the packaged local image");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 Deno.test("builds an EPUB with navigation, images, and reflowable articles", async () => {

@@ -1,9 +1,10 @@
 import { createClient } from "npm:@supabase/supabase-js@2.116.0";
 import { XMLParser } from "npm:fast-xml-parser@5.11.1";
-import { extractArticle, extractionBudget, type ExtractionBudget, fetchPublicText, sha256, textValue } from "../_shared/article.ts";
+import { extractArticle, extractionBudget, hydrateArticleImages, type ExtractionBudget, fetchPublicText, sha256, textValue } from "../_shared/article.ts";
 import { dispatchPrepared, DeliveryNeedsReview, checkAttachmentBudget } from "../_shared/delivery.ts";
 import { makeEpub, type EpubArticle } from "../_shared/epub.ts";
 import { editorializeIssue } from "../_shared/editorial.ts";
+import { assignIssue } from "../_shared/assignment.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -106,7 +107,7 @@ async function readFeed(feed: any, cutoff: Date, jobId: string, budget: Extracti
           publishedAt,
           feedHtml: content.html,
           feedKind: content.kind,
-          includeImages: true, budget,
+          includeImages: false, budget,
         });
         articles.push({ ...article, feed_id: feed.id, section_id: feed.section_id });
         if (article.warnings.length) logEvent("article.extracted_with_warnings", { job_id: jobId, feed_id: feed.id, url, warnings: article.warnings });
@@ -287,47 +288,70 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
   });
   all.sort((a, b) => (b.published_at ? +new Date(b.published_at) : 0) - (a.published_at ? +new Date(a.published_at) : 0));
 
-  const editorial = await editorializeIssue(
-    sections.map((section: any) => ({ id: section.id, name: section.name })),
-    all,
-    { deadline },
-  );
-  all = editorial.articles;
-  const editorialSummary = {
-    status: editorial.report.status,
-    model: editorial.report.model,
-    included: editorial.report.included,
-    omitted: editorial.report.omitted,
-    moved: editorial.report.moved,
-    topics: editorial.report.topics,
-    error: editorial.report.error || null,
-    usage: editorial.report.usage || null,
-    decisions: editorial.report.decisions || [],
+  const sectionDescriptors = sections.map((section: any) => ({ id: section.id, name: section.name }));
+  const assignment = await assignIssue(sectionDescriptors, all, { deadline });
+  all = assignment.articles;
+  const assignmentSummary = {
+    status: assignment.report.status,
+    provider: assignment.report.provider,
+    model: assignment.report.model || null,
+    confidence_kind: assignment.report.confidence_kind || "none",
+    included: assignment.report.included,
+    omitted: assignment.report.omitted,
+    moved: assignment.report.moved,
+    error: assignment.report.error || null,
+    usage: assignment.report.usage || null,
+    decisions: assignment.report.decisions || [],
   };
-  logEvent("editorial.completed", {
+  logEvent("assignment.completed", {
     job_id: job.id,
     user_id: job.user_id,
-    status: editorialSummary.status,
-    model: editorialSummary.model,
-    included: editorialSummary.included,
-    omitted: editorialSummary.omitted,
-    moved: editorialSummary.moved,
-    topics: editorialSummary.topics,
-    error: editorialSummary.error,
-  }, editorialSummary.status === "fallback" ? "warn" : "info");
-  for (const decision of editorialSummary.decisions) {
+    status: assignmentSummary.status,
+    provider: assignmentSummary.provider,
+    model: assignmentSummary.model,
+    included: assignmentSummary.included,
+    omitted: assignmentSummary.omitted,
+    moved: assignmentSummary.moved,
+    error: assignmentSummary.error,
+  }, assignmentSummary.status === "fallback" ? "warn" : "info");
+  for (const decision of assignmentSummary.decisions) {
     if (!decision.include || decision.from !== decision.to) {
-      logEvent("editorial.article_decision", {
+      logEvent("assignment.article_decision", {
         job_id: job.id,
         title: decision.title,
         source: decision.source,
         from_section: decision.from,
         to_section: decision.to,
         included: decision.include,
+        confidence: decision.confidence,
         reason: decision.reason,
       });
     }
   }
+
+  const editorial = await editorializeIssue(all, { deadline });
+  all = editorial.articles;
+  const organizationSummary = {
+    status: editorial.report.status,
+    model: editorial.report.model,
+    topics: editorial.report.topics,
+    error: editorial.report.error || null,
+    usage: editorial.report.usage || null,
+  };
+  logEvent("editorial.completed", {
+    job_id: job.id,
+    user_id: job.user_id,
+    status: organizationSummary.status,
+    model: organizationSummary.model,
+    topics: organizationSummary.topics,
+    error: organizationSummary.error,
+  }, organizationSummary.status === "fallback" ? "warn" : "info");
+
+  const editorialSummary = {
+    status: organizationSummary.status,
+    assignment: assignmentSummary,
+    organization: organizationSummary,
+  };
 
   const pendingItems: EpubArticle[] = [];
   for (const pending of pendingResult.data || []) {
@@ -342,12 +366,44 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
   }
   const attachments: any[] = [];
   const groups: { section: any; items: EpubArticle[] }[] = [];
-  const issueItems: EpubArticle[] = [];
+  const selectedGroups: { section: any; items: EpubArticle[] }[] = [];
   for (const section of sections) {
     let items = all.filter((article) => article.section_id === section.id);
     items = items.slice(0, job.reason === "test" ? 3 : 80).map((article) => ({ ...article, section_name: section.name }));
-    if (!items.length) continue;
-    groups.push({ section, items });
+    if (items.length) selectedGroups.push({ section, items });
+  }
+
+  // Images are the expensive part. Only hydrate articles that survived assignment
+  // and will actually appear in this issue.
+  const selected = selectedGroups.flatMap((group) => group.items);
+  const hydrated = new Map<string, EpubArticle>();
+  let imageCursor = 0;
+  async function imageHydrator() {
+    while (true) {
+      const index = imageCursor++;
+      if (index >= selected.length) return;
+      const item = selected[index];
+      try {
+        hydrated.set(item.article_hash, await hydrateArticleImages(item, budget));
+      } catch (error) {
+        hydrated.set(item.article_hash, {
+          ...item,
+          warnings: [...new Set([...(item.warnings || []), "Images could not be prepared; the article text was preserved."])],
+        });
+        logEvent("article.image_hydration_failed", {
+          job_id: job.id,
+          url: item.canonical_url,
+          error: error instanceof Error ? error.message : String(error),
+        }, "warn");
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(2, selected.length) }, () => imageHydrator()));
+
+  const issueItems: EpubArticle[] = [];
+  for (const group of selectedGroups) {
+    const items = group.items.map((item) => hydrated.get(item.article_hash) || item);
+    groups.push({ section: group.section, items });
     issueItems.push(...items);
   }
   issueItems.push(...pendingItems);
