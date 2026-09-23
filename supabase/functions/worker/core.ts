@@ -369,7 +369,7 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
   const selectedGroups: { section: any; items: EpubArticle[] }[] = [];
   for (const section of sections) {
     let items = all.filter((article) => article.section_id === section.id);
-    items = items.slice(0, job.reason === "test" ? 3 : 80).map((article) => ({ ...article, section_name: section.name }));
+    items = items.slice(0, 80).map((article) => ({ ...article, section_name: section.name }));
     if (items.length) selectedGroups.push({ section, items });
   }
 
