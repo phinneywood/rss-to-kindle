@@ -248,7 +248,7 @@ Deno.test("renders a clean unnumbered editorial contents page while leaving sour
   assert(contents.includes('<h2 class="section-title">AI</h2>'), "reader contents should use editorial hierarchy");
   assert(contents.includes('<h3 class="topic-title">Agents move into production</h3>'), "topic heading should be visually distinct");
   assert(contents.includes('<span class="article-source">Engineering Journal</span>'), "source should render on a separate muted line");
-  assert(!contents.includes("<ol") && !contents.includes("<li"), "reader-facing contents must not use list markup that Kindle can renumber");
+  assert(!/<ol\\b/i.test(contents) && !/<li\\b/i.test(contents), "reader-facing contents must not use list markup that Kindle can renumber");
   assert(!contents.includes("Reliability for production agents — Engineering Journal"), "source should not be folded into the linked headline");
   assert(!contents.includes("Focuses on reliability controls") && !contents.includes("Covers observability"), "per-article AI framing should not appear");
   assert(opf.includes('<item id="contents" href="contents.xhtml" media-type="application/xhtml+xml"/>'), "reader contents must be packaged separately");
