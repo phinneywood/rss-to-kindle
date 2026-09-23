@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.116.0";
 import { XMLParser } from "npm:fast-xml-parser@5.11.1";
-import { extractArticle, extractionBudget, hydrateArticleImages, type ExtractionBudget, fetchPublicText, sha256, textValue } from "../_shared/article.ts";
+import { extractArticle, extractionBudget, hydrateArticleImages, omitArticleImages, type ExtractionBudget, fetchPublicText, sha256, textValue } from "../_shared/article.ts";
 import { dispatchPrepared, DeliveryNeedsReview, checkAttachmentBudget } from "../_shared/delivery.ts";
 import { makeEpub, type EpubArticle } from "../_shared/epub.ts";
 import { editorializeIssue } from "../_shared/editorial.ts";
@@ -384,7 +384,11 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
       if (index >= selected.length) return;
       const item = selected[index];
       try {
-        hydrated.set(item.article_hash, await hydrateArticleImages(item, budget));
+        if (job.reason === "test") {
+          hydrated.set(item.article_hash, omitArticleImages(item));
+        } else {
+          hydrated.set(item.article_hash, await hydrateArticleImages(item, budget));
+        }
       } catch (error) {
         hydrated.set(item.article_hash, {
           ...item,

@@ -463,6 +463,12 @@ export async function hydrateArticleImages(article: Article, budget: ExtractionB
   };
 }
 
+export function omitArticleImages(article: Article): Article {
+  const document = (parseHTML(`<!doctype html><html><body>${article.body}</body></html>`) as any).document;
+  for (const image of Array.from(document.querySelectorAll("img")) as any[]) replaceImageWithNote(document, image);
+  return { ...article, body: document.body.innerHTML, assets: [] };
+}
+
 export async function extractArticle(input: ExtractArticleInput): Promise<Article> {
   const budget = input.budget || extractionBudget();
   if (Date.now() >= budget.deadline) throw new Error("Article preparation time limit reached.");
