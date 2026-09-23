@@ -1,6 +1,7 @@
 import { Readability } from "npm:@mozilla/readability@0.6.0";
 import { parseHTML } from "npm:linkedom@0.18.13";
 import sanitizeHtml from "npm:sanitize-html@2.17.7";
+import { XMLParser } from "npm:fast-xml-parser@5.11.1";
 import { fetchPublic } from "./network.ts";
 export { fetchPublicText } from "./network.ts";
 
@@ -258,6 +259,81 @@ function isoDate(value: string | null | undefined): string | null {
   return Number.isNaN(+date) ? null : date.toISOString();
 }
 
+function arrayValue<T = any>(value: T | T[] | null | undefined): T[] {
+  return value == null ? [] : Array.isArray(value) ? value : [value];
+}
+
+function feedLink(value: any): string {
+  if (typeof value === "string") return value;
+  for (const candidate of arrayValue(value)) {
+    if (typeof candidate === "string") return candidate;
+    if (candidate && typeof candidate === "object" && candidate["@_href"] && (!candidate["@_rel"] || candidate["@_rel"] === "alternate")) {
+      return String(candidate["@_href"]);
+    }
+  }
+  return "";
+}
+
+export function extractMediumFeedArticle(feedXml: string, requestedUrl: string): ReturnType<typeof extractArticleDocument> | null {
+  const requested = new URL(requestedUrl);
+  if (!requested.hostname.toLowerCase().endsWith(".medium.com")) return null;
+  const articleId = requested.pathname.match(/-([0-9a-f]{10,16})\/?$/i)?.[1]?.toLowerCase();
+  if (!articleId) return null;
+
+  const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_", textNodeName: "#text", cdataPropName: "__cdata" });
+  const parsed: any = parser.parse(feedXml);
+  const channel = parsed?.rss?.channel;
+  const entries = arrayValue(channel?.item);
+  const item = entries.find((entry: any) => {
+    const candidates = [feedLink(entry?.link), textValue(entry?.guid), textValue(entry?.id)].filter(Boolean);
+    return candidates.some((candidate) => candidate.toLowerCase().includes(articleId));
+  });
+  if (!item) return null;
+
+  const rawCanonical = feedLink(item.link) || textValue(item.guid) || requestedUrl;
+  let canonicalUrl = resolveHttpUrl(rawCanonical, requestedUrl) || requestedUrl;
+  try {
+    const canonical = new URL(canonicalUrl);
+    canonical.search = "";
+    canonical.hash = "";
+    canonicalUrl = canonical.toString();
+  } catch {
+    canonicalUrl = requestedUrl;
+  }
+
+  const rawBody = textValue(item["content:encoded"] ?? item.content ?? item.description ?? item.summary ?? "");
+  const html = sanitizeArticleHtml(rawBody, canonicalUrl);
+  if (plainText(html).length < 180) return null;
+
+  const title = normalizeTitle(textValue(item.title) || "Untitled") || "Untitled";
+  const author = normalizeTitle(textValue(item["dc:creator"] || item.author?.name || item.author || "")) || null;
+  const source = normalizeTitle(textValue(channel?.title) || requested.hostname.replace(/^www\./, ""));
+  const publishedAt = isoDate(textValue(item.pubDate || item.published || item.updated || item["dc:date"]));
+  const excerptSource = textValue(item.description || item.summary || rawBody);
+
+  return {
+    title,
+    author,
+    source,
+    publishedAt,
+    excerpt: plainText(excerptSource).slice(0, 320),
+    canonicalUrl,
+    html,
+  };
+}
+
+async function fetchMediumFeedArticle(requestedUrl: string, budget: ExtractionBudget) {
+  const url = new URL(requestedUrl);
+  if (!url.hostname.toLowerCase().endsWith(".medium.com")) return null;
+  const feedUrl = new URL("/feed/", url.origin).toString();
+  const fetched = await fetchPublic(feedUrl, {
+    accept: "application/rss+xml,application/xml,text/xml,*/*",
+    maxBytes: 2_000_000,
+    deadline: budget.deadline,
+  });
+  return extractMediumFeedArticle(new TextDecoder().decode(fetched.bytes), requestedUrl);
+}
+
 export function extractArticleDocument(pageHtml: string, pageUrl: string) {
   const document = (parseHTML(pageHtml) as any).document;
   const canonicalRaw = document.querySelector('link[rel="canonical"]')?.getAttribute("href") || pageUrl;
@@ -395,6 +471,19 @@ export async function extractArticle(input: ExtractArticleInput): Promise<Articl
       page = extractArticleDocument(new TextDecoder().decode(fetched.bytes), fetched.url);
     } catch (error) {
       pageError = error instanceof Error ? error : new Error(String(error));
+      if (!feedBody) {
+        try {
+          const fallback = await fetchMediumFeedArticle(requestedUrl, budget);
+          if (fallback) {
+            page = fallback;
+            finalUrl = fallback.canonicalUrl;
+            pageError = null;
+            warnings.push("The publisher page was unavailable, so Morning Reader used the publication feed.");
+          }
+        } catch {
+          // Preserve the original publisher-page error if the fallback is unavailable.
+        }
+      }
     }
   }
 
