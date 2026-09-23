@@ -496,12 +496,15 @@ export async function extractArticle(input: ExtractArticleInput): Promise<Articl
   if (body.length > 250_000) throw new Error("This article is too large to prepare safely. Open the original article instead.");
   if (pageError && feedBody) warnings.push("The publisher page was unavailable, so Morning Reader used the feed version.");
 
-  const title = normalizeTitle(input.title || page?.title || "Untitled") || "Untitled";
+  const title = normalizeTitle(page?.title || input.title || "Untitled") || "Untitled";
   body = stripDuplicateTitle(body, title);
   const canonicalUrl = page?.canonicalUrl || finalUrl;
-  const source = normalizeTitle(input.source || page?.source || new URL(canonicalUrl).hostname.replace(/^www\./, ""));
-  const author = normalizeTitle(input.author || page?.author || "") || null;
-  const publishedAt = isoDate(input.publishedAt) || page?.publishedAt || null;
+  // Publisher-page metadata is authoritative when we fetched the linked article.
+  // Feed metadata describes how Morning Reader discovered the article and may name
+  // the curator/reposter rather than the actual author or publication.
+  const source = normalizeTitle(page?.source || input.source || new URL(canonicalUrl).hostname.replace(/^www\./, ""));
+  const author = normalizeTitle(page?.author || input.author || "") || null;
+  const publishedAt = page?.publishedAt || isoDate(input.publishedAt) || null;
   const excerpt = (page?.excerpt || plainText(body)).slice(0, 320);
   let assets: ArticleAsset[] = [];
   if (input.includeImages !== false) {

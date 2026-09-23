@@ -1,7 +1,7 @@
 import JSZip from "npm:jszip@3.10.1";
 import jpeg from "npm:jpeg-js@0.4.4";
-import { extractArticleDocument, extractMediumFeedArticle, plainText, sanitizeArticleHtml, textValue, type Article } from "../functions/_shared/article.ts";
-import { makeEpub, repairArticleAnchors } from "../functions/_shared/epub.ts";
+import { extractArticle, extractArticleDocument, extractMediumFeedArticle, plainText, sanitizeArticleHtml, textValue, type Article } from "../functions/_shared/article.ts";
+import { makeEpub, repairArticleAnchors, type EpubArticle } from "../functions/_shared/epub.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -111,4 +111,106 @@ Deno.test("builds an EPUB with navigation, images, and reflowable articles", asy
   assert(opf.includes('href="images/example.png" media-type="image/png"'), "embedded images should be listed in the manifest");
   assert(page.includes('<img src="images/example.png" alt="Example" />'), "article images should be valid XHTML");
   assert(Boolean(zip.file("OEBPS/toc.ncx")), "legacy Kindle navigation should be included");
+});
+
+
+Deno.test("publisher metadata overrides curator feed attribution when the linked article is fetched", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    assert(url.hostname === "8.8.8.8", "unexpected network host");
+    return new Response(`<!doctype html><html><head>
+      <title>Actual linked article | Original Journal</title>
+      <meta property="og:title" content="Actual linked article">
+      <meta property="og:site_name" content="Original Journal">
+      <meta name="author" content="Actual Writer">
+      <meta property="article:published_time" content="2026-09-23T08:00:00Z">
+      <link rel="canonical" href="https://8.8.8.8/story">
+    </head><body><article><h1>Actual linked article</h1>
+      <p>This is a deliberately substantial linked article used to verify that the publisher page wins over discovery-feed attribution.</p>
+      <p>The item was surfaced through another person's feed, but the original publication and author must appear in Morning Reader.</p>
+      <p>Enough additional prose is included to satisfy the readability threshold and exercise the same extraction path used in production.</p>
+    </article></body></html>`);
+  }) as typeof fetch;
+  try {
+    const result = await extractArticle({
+      url: "https://8.8.8.8/story",
+      title: "Shared by Mustafa Suleyman",
+      source: "Mustafa Suleyman",
+      author: "Mustafa Suleyman",
+      publishedAt: "2026-09-23T07:00:00Z",
+      feedHtml: "<p>A short feed summary that should trigger publisher-page extraction.</p>",
+      feedKind: "summary",
+      includeImages: false,
+    });
+    assert(result.title === "Actual linked article", "publisher title should replace repost/feed framing");
+    assert(result.source === "Original Journal", "publisher should replace curator feed as source");
+    assert(result.author === "Actual Writer", "actual article author should replace curator feed author");
+    assert(result.published_at === "2026-09-23T08:00:00.000Z", "publisher publication date should be authoritative");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test("renders Luna topics and article notes on contents while leaving source article pages untouched", async () => {
+  const bodyOne = "<p>SENTINEL-ONE original article body.</p>";
+  const bodyTwo = "<p>SENTINEL-TWO original article body.</p>";
+  const articles: EpubArticle[] = [
+    {
+      title: "Reliability for production agents",
+      url: "https://example.com/one",
+      canonical_url: "https://example.com/one",
+      source: "Engineering Journal",
+      author: "Ada Writer",
+      published_at: "2026-09-23T12:00:00Z",
+      excerpt: "",
+      body: bodyOne,
+      assets: [],
+      warnings: [],
+      article_hash: "one",
+      section_id: "ai",
+      section_name: "AI",
+      editorial_topic: "Agents move into production",
+      editorial_topic_intro: "Two articles examine the operational demands that appear when agents move from demonstrations into production systems.",
+      editorial_note: "Focuses on reliability controls and failure handling.",
+    },
+    {
+      title: "Observability for long-running agents",
+      url: "https://example.com/two",
+      canonical_url: "https://example.com/two",
+      source: "Systems Review",
+      author: "B. Writer",
+      published_at: "2026-09-23T11:00:00Z",
+      excerpt: "",
+      body: bodyTwo,
+      assets: [],
+      warnings: [],
+      article_hash: "two",
+      section_id: "ai",
+      section_name: "AI",
+      editorial_topic: "Agents move into production",
+      editorial_topic_intro: "Two articles examine the operational demands that appear when agents move from demonstrations into production systems.",
+      editorial_note: "Covers observability for long-running agent workflows.",
+    },
+  ];
+
+  const bytes = await makeEpub({
+    name: "Morning Reader",
+    displayDate: "September 23, 2026",
+    date: new Date("2026-09-23T12:00:00Z"),
+    timezone: "America/Los_Angeles",
+  }, articles);
+  const zip = await JSZip.loadAsync(bytes);
+  const nav = await zip.file("OEBPS/nav.xhtml")!.async("string");
+  const pageOne = await zip.file("OEBPS/article-1.xhtml")!.async("string");
+  const pageTwo = await zip.file("OEBPS/article-2.xhtml")!.async("string");
+
+  assert(nav.includes("AI"), "section heading should appear in contents");
+  assert(nav.includes("Agents move into production"), "topic heading should appear in contents");
+  assert(nav.includes("Two articles examine the operational demands"), "topic introduction should appear in contents");
+  assert(nav.includes("Focuses on reliability controls"), "article framing should appear in contents");
+  assert(nav.includes("Covers observability for long-running agent workflows"), "each article should get its own framing note");
+  assert(pageOne.includes(bodyOne) && pageTwo.includes(bodyTwo), "original article bodies must remain intact");
+  assert(!pageOne.includes("Two articles examine the operational demands") && !pageOne.includes("Focuses on reliability controls"), "generated editorial copy must stay outside original article pages");
+  assert(!pageTwo.includes("Covers observability for long-running agent workflows"), "generated article notes must stay outside original article pages");
 });

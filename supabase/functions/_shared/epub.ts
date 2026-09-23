@@ -13,6 +13,11 @@ export type EpubArticle = Article & {
   section_id?: string | null;
   section_name?: string | null;
   pending_id?: string | null;
+  editorial_topic?: string | null;
+  editorial_topic_intro?: string | null;
+  editorial_note?: string | null;
+  editorial_decision_reason?: string | null;
+  editorial_position?: number | null;
 };
 
 export type EpubOptions = {
@@ -213,21 +218,40 @@ export async function makeEpub(options: EpubOptions, articles: EpubArticle[]) {
     return { ...article, body: xmlBody(body) };
   });
 
-  const css = `body{font-family:serif;line-height:1.55;margin:5%;color:#171717}h1{font-size:1.7em;line-height:1.12;margin-bottom:.25em}h2,h3,h4,h5,h6{line-height:1.2;margin:1.4em 0 .45em}.date,.source,.meta,.caption,figcaption{color:#595959;font-size:.88em}.source{display:block;margin:.2em 0 1em}.article-nav{font-size:.82em;margin-bottom:1.8em}a{color:#111}pre{white-space:pre-wrap;font-family:monospace;font-size:.86em;background:#f2f2f2;padding:.8em}code{font-family:monospace}blockquote{margin-left:.6em;border-left:2px solid #888;padding-left:1em}figure{margin:1.4em 0}img{display:block;max-width:100%;height:auto;margin:1em auto}figcaption{line-height:1.35;margin-top:.4em}table{border-collapse:collapse;width:100%;font-size:.82em;margin:1.2em 0}th,td{border:1px solid #888;padding:.38em;vertical-align:top}th{font-weight:bold}dl{margin:1em 0}dt{font-weight:bold;margin-top:.7em}dd{margin-left:1em}.toc li{margin-bottom:.9em}.toc .section{margin-top:1.35em}.toc .section>ol{margin-top:.7em}.original{margin-top:2em;padding-top:1em;border-top:1px solid #999;font-size:.85em}`;
+  const css = `body{font-family:serif;line-height:1.55;margin:5%;color:#171717}h1{font-size:1.7em;line-height:1.12;margin-bottom:.25em}h2,h3,h4,h5,h6{line-height:1.2;margin:1.4em 0 .45em}.date,.source,.meta,.caption,figcaption{color:#595959;font-size:.88em}.source{display:block;margin:.2em 0 1em}.article-nav{font-size:.82em;margin-bottom:1.8em}a{color:#111}pre{white-space:pre-wrap;font-family:monospace;font-size:.86em;background:#f2f2f2;padding:.8em}code{font-family:monospace}blockquote{margin-left:.6em;border-left:2px solid #888;padding-left:1em}figure{margin:1.4em 0}img{display:block;max-width:100%;height:auto;margin:1em auto}figcaption{line-height:1.35;margin-top:.4em}table{border-collapse:collapse;width:100%;font-size:.82em;margin:1.2em 0}th,td{border:1px solid #888;padding:.38em;vertical-align:top}th{font-weight:bold}dl{margin:1em 0}dt{font-weight:bold;margin-top:.7em}dd{margin-left:1em}.toc li{margin-bottom:.9em}.toc .section{margin-top:1.35em}.toc .section>ol{margin-top:.7em}.toc .topic{margin-top:1em}.topic-intro{margin:.35em 0 .75em;line-height:1.45}.article-note{margin:.2em 0 .8em;color:#494949;font-size:.9em}.original{margin-top:2em;padding-top:1em;border-top:1px solid #999;font-size:.85em}`;
   output.file("style.css", css);
   // Use the manifest image without an extra HTML cover page, matching the
   // successful Send-to-Kindle diagnostic and Amazon's cover guidance.
 
-  const navGroups: { name: string; items: { article: EpubArticle; index: number }[] }[] = [];
+  const navGroups: {
+    name: string;
+    topics: { name: string; intro: string; items: { article: EpubArticle; index: number }[] }[];
+  }[] = [];
   for (const [index, article] of prepared.entries()) {
-    const name = article.section_name || "";
-    let group = navGroups.find((entry) => entry.name === name);
-    if (!group) { group = { name, items: [] }; navGroups.push(group); }
-    group.items.push({ article, index });
+    const sectionName = article.section_name || "";
+    let group = navGroups.find((entry) => entry.name === sectionName);
+    if (!group) { group = { name: sectionName, topics: [] }; navGroups.push(group); }
+    const topicName = article.editorial_topic || "";
+    let topic = group.topics.find((entry) => entry.name === topicName);
+    if (!topic) {
+      topic = { name: topicName, intro: article.editorial_topic_intro || "", items: [] };
+      group.topics.push(topic);
+    } else if (!topic.intro && article.editorial_topic_intro) {
+      topic.intro = article.editorial_topic_intro;
+    }
+    topic.items.push({ article, index });
   }
   const navItems = navGroups.map((group) => {
-    const items = group.items.map(({ article, index }) => `<li><a href="article-${index + 1}.xhtml">${esc(article.title)} — ${esc(article.source)}</a></li>`).join("");
-    return group.name ? `<li class="section"><strong>${esc(group.name)}</strong><ol>${items}</ol></li>` : items;
+    const topics = group.topics.map((topic) => {
+      const items = topic.items.map(({ article, index }) => {
+        const note = article.editorial_note ? `<p class="article-note">${esc(article.editorial_note)}</p>` : "";
+        return `<li><a href="article-${index + 1}.xhtml">${esc(article.title)} — ${esc(article.source)}</a>${note}</li>`;
+      }).join("");
+      if (!topic.name) return items;
+      const intro = topic.intro ? `<p class="topic-intro">${esc(topic.intro)}</p>` : "";
+      return `<li class="topic"><strong>${esc(topic.name)}</strong>${intro}<ol>${items}</ol></li>`;
+    }).join("");
+    return group.name ? `<li class="section"><strong>${esc(group.name)}</strong><ol>${topics}</ol></li>` : topics;
   }).join("");
   output.file("nav.xhtml", `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>${esc(options.name)}</title><link rel="stylesheet" type="text/css" href="style.css"/></head><body><p class="date">${esc(options.displayDate)}</p><nav epub:type="toc" id="toc"><h1>${esc(options.name)}</h1><ol class="toc">${navItems}</ol></nav></body></html>`);
 
