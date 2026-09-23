@@ -15,7 +15,6 @@ export type EpubArticle = Article & {
   pending_id?: string | null;
   editorial_topic?: string | null;
   editorial_topic_intro?: string | null;
-  editorial_note?: string | null;
   editorial_decision_reason?: string | null;
   editorial_position?: number | null;
 };
@@ -218,7 +217,7 @@ export async function makeEpub(options: EpubOptions, articles: EpubArticle[]) {
     return { ...article, body: xmlBody(body) };
   });
 
-  const css = `body{font-family:serif;line-height:1.55;margin:5%;color:#171717}h1{font-size:1.7em;line-height:1.12;margin-bottom:.25em}h2,h3,h4,h5,h6{line-height:1.2;margin:1.4em 0 .45em}.date,.source,.meta,.caption,figcaption{color:#595959;font-size:.88em}.source{display:block;margin:.2em 0 1em}.article-nav{font-size:.82em;margin-bottom:1.8em}a{color:#111}pre{white-space:pre-wrap;font-family:monospace;font-size:.86em;background:#f2f2f2;padding:.8em}code{font-family:monospace}blockquote{margin-left:.6em;border-left:2px solid #888;padding-left:1em}figure{margin:1.4em 0}img{display:block;max-width:100%;height:auto;margin:1em auto}figcaption{line-height:1.35;margin-top:.4em}table{border-collapse:collapse;width:100%;font-size:.82em;margin:1.2em 0}th,td{border:1px solid #888;padding:.38em;vertical-align:top}th{font-weight:bold}dl{margin:1em 0}dt{font-weight:bold;margin-top:.7em}dd{margin-left:1em}.toc li{margin-bottom:.9em}.toc .section{margin-top:1.35em}.toc .section>ol{margin-top:.7em}.toc .topic{margin-top:1em}.topic-intro{margin:.35em 0 .75em;line-height:1.45}.article-note{margin:.2em 0 .8em;color:#494949;font-size:.9em}.original{margin-top:2em;padding-top:1em;border-top:1px solid #999;font-size:.85em}`;
+  const css = `body{font-family:serif;line-height:1.55;margin:5%;color:#171717}h1{font-size:1.7em;line-height:1.12;margin-bottom:.25em}h2,h3,h4,h5,h6{line-height:1.2;margin:1.4em 0 .45em}.date,.source,.meta,.caption,figcaption{color:#595959;font-size:.88em}.source{display:block;margin:.2em 0 1em}.article-nav{font-size:.82em;margin-bottom:1.8em}a{color:#111}pre{white-space:pre-wrap;font-family:monospace;font-size:.86em;background:#f2f2f2;padding:.8em}code{font-family:monospace}blockquote{margin-left:.6em;border-left:2px solid #888;padding-left:1em}figure{margin:1.4em 0}img{display:block;max-width:100%;height:auto;margin:1em auto}figcaption{line-height:1.35;margin-top:.4em}table{border-collapse:collapse;width:100%;font-size:.82em;margin:1.2em 0}th,td{border:1px solid #888;padding:.38em;vertical-align:top}th{font-weight:bold}dl{margin:1em 0}dt{font-weight:bold;margin-top:.7em}dd{margin-left:1em}.toc,.toc ol{list-style-type:none;margin-left:0;padding-left:0}.toc li{list-style-type:none}.toc .section{margin-top:1.55em}.section-title{font-size:1.22em;font-weight:bold;margin:0 0 .85em}.toc .topic{margin:1.15em 0 1.6em}.topic-title{font-size:.98em;font-weight:bold;text-transform:uppercase;letter-spacing:.035em;margin:0 0 .7em}.article-list{margin:0;padding:0}.article-entry{margin:0 0 .9em}.article-title{font-weight:bold;line-height:1.25}.article-source{display:block;color:#595959;font-size:.82em;margin-top:.12em}.topic-intro{margin:.25em 0 0;color:#494949;font-size:.88em;line-height:1.35;text-align:left;-webkit-hyphens:none;hyphens:none}.original{margin-top:2em;padding-top:1em;border-top:1px solid #999;font-size:.85em}`;
   output.file("style.css", css);
   // Use the manifest image without an extra HTML cover page, matching the
   // successful Send-to-Kindle diagnostic and Amazon's cover guidance.
@@ -243,17 +242,18 @@ export async function makeEpub(options: EpubOptions, articles: EpubArticle[]) {
   }
   const navItems = navGroups.map((group) => {
     const topics = group.topics.map((topic) => {
-      const items = topic.items.map(({ article, index }) => {
-        const note = article.editorial_note ? `<p class="article-note">${esc(article.editorial_note)}</p>` : "";
-        return `<li><a href="article-${index + 1}.xhtml">${esc(article.title)} — ${esc(article.source)}</a>${note}</li>`;
-      }).join("");
+      const items = topic.items.map(({ article, index }) =>
+        `<li class="article-entry" style="list-style-type:none"><a class="article-title" href="article-${index + 1}.xhtml">${esc(article.title)}</a><span class="article-source">${esc(article.source)}</span></li>`
+      ).join("");
       if (!topic.name) return items;
       const intro = topic.intro ? `<p class="topic-intro">${esc(topic.intro)}</p>` : "";
-      return `<li class="topic"><strong>${esc(topic.name)}</strong>${intro}<ol>${items}</ol></li>`;
+      return `<li class="topic" style="list-style-type:none"><h3 class="topic-title">${esc(topic.name)}</h3><ol class="article-list" style="list-style-type:none;margin-left:0;padding-left:0">${items}</ol>${intro}</li>`;
     }).join("");
-    return group.name ? `<li class="section"><strong>${esc(group.name)}</strong><ol>${topics}</ol></li>` : topics;
+    return group.name
+      ? `<li class="section" style="list-style-type:none"><h2 class="section-title">${esc(group.name)}</h2><ol style="list-style-type:none;margin-left:0;padding-left:0">${topics}</ol></li>`
+      : topics;
   }).join("");
-  output.file("nav.xhtml", `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>${esc(options.name)}</title><link rel="stylesheet" type="text/css" href="style.css"/></head><body><p class="date">${esc(options.displayDate)}</p><nav epub:type="toc" id="toc"><h1>${esc(options.name)}</h1><ol class="toc">${navItems}</ol></nav></body></html>`);
+  output.file("nav.xhtml", `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>${esc(options.name)}</title><link rel="stylesheet" type="text/css" href="style.css"/></head><body><p class="date">${esc(options.displayDate)}</p><nav epub:type="toc" id="toc"><h1>${esc(options.name)}</h1><ol class="toc" style="list-style-type:none;margin-left:0;padding-left:0">${navItems}</ol></nav></body></html>`);
 
   const manifest = [
     `<item id="cover-image" href="cover.jpg" media-type="image/jpeg" properties="cover-image"/>`,

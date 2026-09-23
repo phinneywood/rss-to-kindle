@@ -190,7 +190,7 @@ Deno.test("publisher metadata overrides curator feed attribution when the linked
   }
 });
 
-Deno.test("renders Luna topics and article notes on contents while leaving source article pages untouched", async () => {
+Deno.test("renders a clean unnumbered editorial contents page while leaving source article pages untouched", async () => {
   const bodyOne = "<p>SENTINEL-ONE original article body.</p>";
   const bodyTwo = "<p>SENTINEL-TWO original article body.</p>";
   const articles: EpubArticle[] = [
@@ -210,7 +210,6 @@ Deno.test("renders Luna topics and article notes on contents while leaving sourc
       section_name: "AI",
       editorial_topic: "Agents move into production",
       editorial_topic_intro: "Two articles examine the operational demands that appear when agents move from demonstrations into production systems.",
-      editorial_note: "Focuses on reliability controls and failure handling.",
     },
     {
       title: "Observability for long-running agents",
@@ -228,7 +227,6 @@ Deno.test("renders Luna topics and article notes on contents while leaving sourc
       section_name: "AI",
       editorial_topic: "Agents move into production",
       editorial_topic_intro: "Two articles examine the operational demands that appear when agents move from demonstrations into production systems.",
-      editorial_note: "Covers observability for long-running agent workflows.",
     },
   ];
 
@@ -240,15 +238,21 @@ Deno.test("renders Luna topics and article notes on contents while leaving sourc
   }, articles);
   const zip = await JSZip.loadAsync(bytes);
   const nav = await zip.file("OEBPS/nav.xhtml")!.async("string");
+  const css = await zip.file("OEBPS/style.css")!.async("string");
   const pageOne = await zip.file("OEBPS/article-1.xhtml")!.async("string");
   const pageTwo = await zip.file("OEBPS/article-2.xhtml")!.async("string");
 
-  assert(nav.includes("AI"), "section heading should appear in contents");
-  assert(nav.includes("Agents move into production"), "topic heading should appear in contents");
-  assert(nav.includes("Two articles examine the operational demands"), "topic introduction should appear in contents");
-  assert(nav.includes("Focuses on reliability controls"), "article framing should appear in contents");
-  assert(nav.includes("Covers observability for long-running agent workflows"), "each article should get its own framing note");
+  assert(nav.includes('<h2 class="section-title">AI</h2>'), "section heading should use editorial hierarchy rather than a numbered outline");
+  assert(nav.includes('<h3 class="topic-title">Agents move into production</h3>'), "topic heading should be visually distinct");
+  assert(nav.includes('<span class="article-source">Engineering Journal</span>'), "source should render on a separate muted line");
+  assert(!nav.includes("Reliability for production agents — Engineering Journal"), "source should not be folded into the linked headline");
+  assert(!nav.includes("Focuses on reliability controls") && !nav.includes("Covers observability"), "per-article AI framing should not appear");
+  assert(css.includes("list-style-type:none"), "contents lists should suppress visible numbering");
+  assert(css.includes("text-align:left") && css.includes("hyphens:none"), "topic notes should avoid Kindle justification and hyphenation");
+  const firstArticle = nav.indexOf("Reliability for production agents");
+  const topicIntro = nav.indexOf("Two articles examine the operational demands");
+  assert(firstArticle >= 0 && topicIntro > firstArticle, "topic introduction should follow the article links");
   assert(pageOne.includes(bodyOne) && pageTwo.includes(bodyTwo), "original article bodies must remain intact");
-  assert(!pageOne.includes("Two articles examine the operational demands") && !pageOne.includes("Focuses on reliability controls"), "generated editorial copy must stay outside original article pages");
-  assert(!pageTwo.includes("Covers observability for long-running agent workflows"), "generated article notes must stay outside original article pages");
+  assert(!pageOne.includes("Two articles examine the operational demands"), "generated topic copy must stay outside original article pages");
+  assert(!pageTwo.includes("Two articles examine the operational demands"), "generated topic copy must stay outside original article pages");
 });
