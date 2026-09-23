@@ -1,4 +1,4 @@
-export type PreparedDelivery = { email: { from: string; to: string[]; subject: string; text: string; attachments: any[] }; groups: any[]; feedCount: number; issues: string[]; skipReason?: string };
+export type PreparedDelivery = { email: { from: string; to: string[]; subject: string; text: string; attachments: any[] }; groups: any[]; feedCount: number; issues: string[]; skipReason?: string; editorial?: any; pendingItems?: any[] };
 export type Outbox = { payload: PreparedDelivery | null; first_send_at: string | null; provider_email_id: string | null };
 export class DeliveryNeedsReview extends Error {}
 
