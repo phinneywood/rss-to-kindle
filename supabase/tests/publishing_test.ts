@@ -243,22 +243,114 @@ Deno.test("renders a clean unnumbered editorial contents page while leaving sour
   const css = await zip.file("OEBPS/style.css")!.async("string");
   const pageOne = await zip.file("OEBPS/article-1.xhtml")!.async("string");
   const pageTwo = await zip.file("OEBPS/article-2.xhtml")!.async("string");
+  const sectionOne = await zip.file("OEBPS/section-1.xhtml")!.async("string");
 
   assert(nav.includes('epub:type="toc"') && nav.includes("<ol>"), "machine navigation should remain a standards-compliant EPUB nav document");
-  assert(contents.includes('<h2 class="section-title">AI</h2>'), "reader contents should use editorial hierarchy");
-  assert(contents.includes('<h3 class="topic-title">Agents move into production</h3>'), "topic heading should be visually distinct");
-  assert(contents.includes('<span class="article-source">Engineering Journal</span>'), "source should render on a separate muted line");
-  assert(!/<ol\\b/i.test(contents) && !/<li\\b/i.test(contents), "reader-facing contents must not use list markup that Kindle can renumber");
-  assert(!contents.includes("Reliability for production agents — Engineering Journal"), "source should not be folded into the linked headline");
-  assert(!contents.includes("Focuses on reliability controls") && !contents.includes("Covers observability"), "per-article AI framing should not appear");
+  assert(contents.includes('href="section-1.xhtml">AI</a>'), "reader contents should link to the AI section front");
+  assert(!contents.includes("Reliability for production agents"), "reader contents should remain a section index rather than inline article listings");
+  assert(sectionOne.includes('<h1 class="section-name">AI</h1>'), "AI section front should carry the section masthead");
+  assert(sectionOne.includes('<h2 class="topic-title">Agents move into production</h2>'), "topic heading should live on the section front");
+  assert(sectionOne.includes('<span class="article-source">Engineering Journal</span>'), "source should render on a separate muted line");
+  assert(!/<ol\\b/i.test(sectionOne) && !/<li\\b/i.test(sectionOne), "reader-facing section front must not use list markup that Kindle can renumber");
+  assert(!sectionOne.includes("Reliability for production agents — Engineering Journal"), "source should not be folded into the linked headline");
+  assert(!sectionOne.includes("Focuses on reliability controls") && !sectionOne.includes("Covers observability"), "per-article AI framing should not appear");
   assert(opf.includes('<item id="contents" href="contents.xhtml" media-type="application/xhtml+xml"/>'), "reader contents must be packaged separately");
-  assert(opf.includes('<spine toc="ncx"><itemref idref="contents"/>'), "reader contents, not nav.xhtml, must be the first reading page");
+  assert(opf.includes('<item id="section-1" href="section-1.xhtml" media-type="application/xhtml+xml"/>'), "section front must be a first-class EPUB document");
+  assert(opf.includes('<spine toc="ncx"><itemref idref="contents"/><itemref idref="section-1"/><itemref idref="article-1"/>'), "section front should precede its articles in the reading spine");
   assert(css.includes("text-align:left") && css.includes("hyphens:none"), "topic notes should avoid Kindle justification and hyphenation");
-  const firstArticle = contents.indexOf("Reliability for production agents");
-  const topicIntro = contents.indexOf("Two articles examine the operational demands");
+  const firstArticle = sectionOne.indexOf("Reliability for production agents");
+  const topicIntro = sectionOne.indexOf("Two articles examine the operational demands");
   assert(firstArticle >= 0 && topicIntro > firstArticle, "topic introduction should follow the article links");
-  assert(pageOne.includes('href="contents.xhtml"') && pageTwo.includes('href="contents.xhtml"'), "article back-links should return to the reader-facing contents page");
+  assert(pageOne.includes('href="section-1.xhtml"') && pageTwo.includes('href="section-1.xhtml"'), "article back-links should return to the section front");
   assert(pageOne.includes(bodyOne) && pageTwo.includes(bodyTwo), "original article bodies must remain intact");
   assert(!pageOne.includes("Two articles examine the operational demands"), "generated topic copy must stay outside original article pages");
   assert(!pageTwo.includes("Two articles examine the operational demands"), "generated topic copy must stay outside original article pages");
+});
+
+
+Deno.test("renders unmistakable dedicated section-front pages", async () => {
+  const articles: EpubArticle[] = [
+    {
+      title: "Reliability for production agents",
+      url: "https://example.com/one",
+      canonical_url: "https://example.com/one",
+      source: "Engineering Journal",
+      author: "Ada Writer",
+      published_at: "2026-09-23T12:00:00Z",
+      excerpt: "",
+      body: "<p>SENTINEL-ONE original article body.</p>",
+      assets: [],
+      warnings: [],
+      article_hash: "one",
+      section_id: "ai",
+      section_name: "AI",
+      editorial_topic: "Agents move into production",
+      editorial_topic_intro: "Two articles examine the operational demands that appear when agents move from demonstrations into production systems.",
+    },
+    {
+      title: "Observability for long-running agents",
+      url: "https://example.com/two",
+      canonical_url: "https://example.com/two",
+      source: "Systems Review",
+      author: "B. Writer",
+      published_at: "2026-09-23T11:00:00Z",
+      excerpt: "",
+      body: "<p>SENTINEL-TWO original article body.</p>",
+      assets: [],
+      warnings: [],
+      article_hash: "two",
+      section_id: "ai",
+      section_name: "AI",
+      editorial_topic: "Agents move into production",
+      editorial_topic_intro: "Two articles examine the operational demands that appear when agents move from demonstrations into production systems.",
+    },
+    {
+      title: "Database internals in practice",
+      url: "https://example.com/three",
+      canonical_url: "https://example.com/three",
+      source: "Systems Review",
+      author: "C. Writer",
+      published_at: "2026-09-23T10:00:00Z",
+      excerpt: "",
+      body: "<p>SENTINEL-THREE original article body.</p>",
+      assets: [],
+      warnings: [],
+      article_hash: "three",
+      section_id: "systems",
+      section_name: "Systems",
+      editorial_topic: "Database architecture",
+      editorial_topic_intro: "A systems piece on database architecture in practice.",
+    },
+  ];
+
+  const bytes = await makeEpub({
+    name: "Morning Reader",
+    displayDate: "September 23, 2026",
+    date: new Date("2026-09-23T12:00:00Z"),
+    timezone: "America/Los_Angeles",
+  }, articles);
+
+  const zip = await JSZip.loadAsync(bytes);
+  const nav = await zip.file("OEBPS/nav.xhtml")!.async("string");
+  const contents = await zip.file("OEBPS/contents.xhtml")!.async("string");
+  const sectionOne = await zip.file("OEBPS/section-1.xhtml")!.async("string");
+  const sectionTwo = await zip.file("OEBPS/section-2.xhtml")!.async("string");
+  const opf = await zip.file("OEBPS/content.opf")!.async("string");
+  const css = await zip.file("OEBPS/style.css")!.async("string");
+  const pageOne = await zip.file("OEBPS/article-1.xhtml")!.async("string");
+  const pageTwo = await zip.file("OEBPS/article-2.xhtml")!.async("string");
+
+  assert(nav.includes('epub:type="toc"') && nav.includes('href="section-1.xhtml"'), "machine navigation should link to section fronts");
+  assert(contents.includes('href="section-1.xhtml">AI</a>') && contents.includes('href="section-2.xhtml">Systems</a>'), "front page should make sections explicit and navigable");
+  assert(!contents.includes("Reliability for production agents"), "front page should not collapse section content into one long page");
+  assert(sectionOne.includes('<header class="section-banner">') && sectionOne.includes('<h1 class="section-name">AI</h1>'), "AI should have its own unmistakable section front");
+  assert(sectionTwo.includes('<header class="section-banner">') && sectionTwo.includes('<h1 class="section-name">Systems</h1>'), "Systems should have its own unmistakable section front");
+  assert(sectionOne.includes("Reliability for production agents") && !sectionOne.includes("Database internals in practice"), "section fronts must not leak articles across sections");
+  assert(sectionTwo.includes("Database internals in practice") && !sectionTwo.includes("Reliability for production agents"), "each section front should contain only its assigned articles");
+  assert(!/<ol\\b/i.test(sectionOne) && !/<li\\b/i.test(sectionOne), "reader-facing section fronts must avoid Kindle-renumberable list markup");
+  assert(opf.includes('<item id="section-1" href="section-1.xhtml" media-type="application/xhtml+xml"/>'), "section fronts must be packaged as first-class EPUB documents");
+  assert(opf.includes('<spine toc="ncx"><itemref idref="contents"/><itemref idref="section-1"/><itemref idref="article-1"/>'), "spine should place each section front immediately before its articles");
+  assert(css.includes("section-banner") && css.includes("background:#111") && css.includes("color:#fff"), "section fronts should use a high-contrast masthead");
+  assert(pageOne.includes('href="section-1.xhtml"') && pageTwo.includes('href="section-1.xhtml"'), "AI articles should link back to the AI section front");
+  assert(pageOne.includes("SENTINEL-ONE original article body") && pageTwo.includes("SENTINEL-TWO original article body"), "original article bodies must remain intact");
 });
