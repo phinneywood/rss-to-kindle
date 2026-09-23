@@ -384,7 +384,10 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
       if (index >= selected.length) return;
       const item = selected[index];
       try {
-        hydrated.set(item.article_hash, await hydrateArticleImages(item, budget));
+        const imageBudget = job.reason === "test"
+          ? { imageBytes: 0, deadline: budget.deadline }
+          : budget;
+        hydrated.set(item.article_hash, await hydrateArticleImages(item, imageBudget));
       } catch (error) {
         hydrated.set(item.article_hash, {
           ...item,
