@@ -282,10 +282,8 @@ Deno.test("renders a book-native linear edition with hierarchical native navigat
   assert(sectionOne.includes('<h1 class="section-name">AI</h1>') && sectionOne.includes("3 stories"), "section divider should name the section and story count");
   assert(!sectionOne.includes("Reliability for production agents") && !sectionOne.includes("Production agents"), "section divider should not list articles or topics");
   assert(sectionTwo.includes('<h1 class="section-name">Systems</h1>'), "next section should have its own divider");
-  assert(pageOne.includes('<p class="topic-kicker">Production agents</p>'), "first article of a topic should carry the topic transition label");
-  assert(!pageTwo.includes('<p class="topic-kicker">Production agents</p>'), "continuing articles in the same topic should not repeat the label");
-  assert(pageThree.includes('<p class="topic-kicker">Designing with AI</p>'), "new topic should get a transition label");
-  assert(pageFour.includes('<p class="topic-kicker">Database architecture</p>'), "first article in the next section topic should get its label");
+  assert(!pageOne.includes("Production agents") && !pageTwo.includes("Production agents"), "topic labels should not appear in visible article pages");
+  assert(!pageThree.includes("Designing with AI") && !pageFour.includes("Database architecture"), "topic labels should remain native-navigation-only");
   assert(pageOne.includes("SENTINEL-ONE original article body") && pageFour.includes("SENTINEL-FOUR original article body"), "original article bodies must remain unchanged");
   assert(!pageOne.includes("topic-intro") && !sectionOne.includes("topic-intro"), "no generated topic prose should appear in visible reading pages");
 
