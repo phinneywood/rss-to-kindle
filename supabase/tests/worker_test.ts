@@ -1,5 +1,6 @@
 // Full worker orchestration with real extraction/EPUB generation. All HTTP is
 // replaced in-process: no credentials, production records or emails are used.
+import JSZip from "npm:jszip@3.10.1";
 Deno.env.set("SUPABASE_URL", "https://database.example.invalid");
 Deno.env.set("SUPABASE_SERVICE_ROLE_KEY", "test-only-key");
 Deno.env.set("RESEND_API_KEY", "test-only-key");
@@ -159,15 +160,26 @@ Deno.test("stale recovery terminalizes exhausted jobs and requeues retryable job
 });
 
 
-Deno.test("explicit test sends replay recent articles without consuming recurring delivery history", async () => {
+Deno.test("explicit test sends are uniquely reviewable on Kindle without consuming recurring delivery history", async () => {
   const result = await scenario("test");
   assert(result.job.status === "sent", JSON.stringify(result.first));
   assert(result.sends === 1, "test send should still deliver a real EPUB");
-  assert(result.job.status === "sent", JSON.stringify(result.first));
   assert(result.job.result.articles === 5, "test send should preserve full issue length instead of truncating to three articles per section");
   assert(!result.fetched.some((path: string) => /^\/test-\d+\.png$/.test(path)), "full-length test sends should not fetch inline article images");
   assert(result.articleDeliveryReads === 0, "test send should not suppress articles based on recurring delivery history");
   assert(result.articleDeliveryWrites === 0, "test send should not consume articles from future recurring issues");
+
+  const email = result.outbox.payload.email;
+  assert(/^Morning Reader · TEST \d{2}:\d{2}:\d{2} · JOB1 · /.test(email.subject), "test email subject should carry a timestamped review identity");
+  assert(/^morning-reader-test-\d{4}-\d{2}-\d{2}-\d{6}-job1\.epub$/.test(email.attachments[0].filename), "test attachment filename should be unique and sortable");
+
+  const bytes = Uint8Array.from(atob(email.attachments[0].content), (char) => char.charCodeAt(0));
+  const zip = await JSZip.loadAsync(bytes);
+  const opf = await zip.file("OEBPS/content.opf")!.async("string");
+  const contents = await zip.file("OEBPS/contents.xhtml")!.async("string");
+  assert(/<dc:title>Morning Reader · TEST \d{2}:\d{2}:\d{2} · JOB1<\/dc:title>/.test(opf), "Kindle library metadata should distinguish every test run");
+  assert(contents.includes("<h1 class=\"publication-title\">Morning Reader</h1>"), "test interior should keep the production publication title");
+  assert(!contents.includes("TEST "), "test identity should not pollute the production-like reading interior");
 });
 
 

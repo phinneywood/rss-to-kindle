@@ -140,6 +140,29 @@ function localDateKey(timezone: string, date = new Date()) {
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
+function testArtifactIdentity(job: any, now: Date, timezone: string, displayDate: string, filenameDate: string) {
+  if (job.reason !== "test") return null;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(now);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value || "00";
+  const clock = `${get("hour")}:${get("minute")}:${get("second")}`;
+  const clockSlug = `${get("hour")}${get("minute")}${get("second")}`;
+  const code = String(job.id || "test").replace(/[^a-z0-9]/gi, "").slice(0, 6).toUpperCase() || "TEST";
+  const reviewLabel = `TEST ${clock} · ${code}`;
+  return {
+    reviewLabel,
+    libraryTitle: `Morning Reader · ${reviewLabel}`,
+    coverLabel: reviewLabel,
+    subject: `Morning Reader · ${reviewLabel} · ${displayDate}`,
+    filename: `morning-reader-test-${filenameDate}-${clockSlug}-${code.toLowerCase()}.epub`,
+  };
+}
+
 function base64(bytes: Uint8Array) {
   let output = "";
   for (let index = 0; index < bytes.length; index += 0x8000) output += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
@@ -412,12 +435,32 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
   }
   issueItems.push(...pendingItems);
   if (pendingItems.length) groups.push({ section: { id: null, name: "Saved articles" }, items: pendingItems });
+  const testIdentity = testArtifactIdentity(job, now, timezone, displayDate, filenameDate);
   if (issueItems.length) {
-    const bytes = await makeEpub({ name: "Morning Reader", displayDate, date: now, timezone: settings.timezone || "UTC", label: "Daily issue" }, issueItems);
-    attachments.push({ filename: `morning-reader-${filenameDate}.epub`, content: base64(bytes), content_type: "application/epub+zip" });
+    const bytes = await makeEpub({
+      name: "Morning Reader",
+      displayDate,
+      date: now,
+      timezone,
+      label: testIdentity?.coverLabel || "Daily issue",
+      libraryTitle: testIdentity?.libraryTitle,
+    }, issueItems);
+    attachments.push({
+      filename: testIdentity?.filename || `morning-reader-${filenameDate}.epub`,
+      content: base64(bytes),
+      content_type: "application/epub+zip",
+    });
     checkAttachmentBudget(attachments);
+    if (testIdentity) logEvent("test.artifact_prepared", { job_id: job.id, review_label: testIdentity.reviewLabel, filename: testIdentity.filename });
   }
-  return { attachments, groups, issues, feedCount: feeds.length, subject: `Morning Reader — ${displayDate}`, editorial: editorialSummary };
+  return {
+    attachments,
+    groups,
+    issues,
+    feedCount: feeds.length,
+    subject: testIdentity?.subject || `Morning Reader — ${displayDate}`,
+    editorial: editorialSummary,
+  };
 }
 
 export async function processJob(queuedJob: any, deadline = Date.now() + 90_000) {
