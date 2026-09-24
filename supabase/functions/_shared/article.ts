@@ -85,6 +85,21 @@ function resolveHttpUrl(value: string, baseUrl: string): string {
   }
 }
 
+export function resolveLinkPostTarget(feedHtml: string | undefined, requestedUrl: string): { url: string; isLinkPostWrapper: boolean } {
+  const raw = feedHtml || "";
+  const text = plainText(raw);
+  const isLinkPostWrapper = /\bArticle\s+URL\s*:/i.test(text) && /\bComments\s+URL\s*:/i.test(text);
+  if (!isLinkPostWrapper) return { url: requestedUrl, isLinkPostWrapper: false };
+
+  const hrefMatch = raw.match(/Article\s+URL\s*:\s*(?:<[^>]+>\s*)*<a\b[^>]*href=["']([^"']+)["']/i);
+  const textMatch = text.match(/Article\s+URL\s*:\s*(https?:\/\/\S+)/i);
+  const rawCandidate = String(hrefMatch?.[1] || textMatch?.[1] || "")
+    .replace(/&amp;/gi, "&")
+    .replace(/[),.;]+$/, "");
+  const resolved = rawCandidate ? resolveHttpUrl(rawCandidate, requestedUrl) : "";
+  return { url: resolved || requestedUrl, isLinkPostWrapper: true };
+}
+
 function imageCandidate(element: any): string {
   const direct = element.getAttribute("data-src") || element.getAttribute("data-original") || element.getAttribute("data-lazy-src") || element.getAttribute("src") || "";
   const picture = element.closest("picture");
@@ -472,15 +487,23 @@ export function omitArticleImages(article: Article): Article {
 export async function extractArticle(input: ExtractArticleInput): Promise<Article> {
   const budget = input.budget || extractionBudget();
   if (Date.now() >= budget.deadline) throw new Error("Article preparation time limit reached.");
-  const requestedUrl = new URL(input.url).toString();
+  const inputUrl = new URL(input.url).toString();
+  const linkPost = resolveLinkPostTarget(input.feedHtml, inputUrl);
+  const requestedUrl = linkPost.url;
   const warnings: string[] = [];
   let page: ReturnType<typeof extractArticleDocument> | null = null;
   let finalUrl = requestedUrl;
   let pageError: Error | null = null;
 
-  const feedBody = input.feedHtml ? sanitizeArticleHtml(input.feedHtml, requestedUrl) : "";
+  // Link-post feed descriptions (for example HNRSS) are discovery metadata,
+  // not article content. Never package those wrappers as a fallback reading copy.
+  const feedBody = linkPost.isLinkPostWrapper
+    ? ""
+    : input.feedHtml
+    ? sanitizeArticleHtml(input.feedHtml, requestedUrl)
+    : "";
   const feedLength = plainText(feedBody).length;
-  const shouldFetchPage = !feedBody || input.feedKind !== "full" || feedLength < 400;
+  const shouldFetchPage = linkPost.isLinkPostWrapper || !feedBody || input.feedKind !== "full" || feedLength < 400;
   if (shouldFetchPage) {
     try {
       const fetched = await fetchPublic(requestedUrl, { accept: "text/html,application/xhtml+xml", maxBytes: 2_000_000, deadline: budget.deadline });

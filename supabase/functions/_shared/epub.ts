@@ -217,7 +217,7 @@ export async function makeEpub(options: EpubOptions, articles: EpubArticle[]) {
     return { ...article, body: xmlBody(body) };
   });
 
-  const css = `body{font-family:serif;line-height:1.55;margin:5%;color:#171717}h1{font-size:1.7em;line-height:1.12;margin-bottom:.3em}h2,h3,h4,h5,h6{line-height:1.2;margin:1.35em 0 .45em}.date,.source,.meta,.caption,figcaption{color:#595959;font-size:.88em}.meta{margin:.25em 0 1.5em}.article-nav{font-size:.78em;margin-bottom:1.4em}.article-nav a,.contents a,.section-divider a{color:#171717}a{color:#111}pre{white-space:pre-wrap;font-family:monospace;font-size:.86em;background:#f2f2f2;padding:.8em}code{font-family:monospace}blockquote{margin-left:.6em;border-left:2px solid #888;padding-left:1em}figure{margin:1.4em 0}img{display:block;max-width:100%;height:auto;margin:1em auto}figcaption{line-height:1.35;margin-top:.4em}table{border-collapse:collapse;width:100%;font-size:.82em;margin:1.2em 0}th,td{border:1px solid #888;padding:.38em;vertical-align:top}th{font-weight:bold}dl{margin:1em 0}dt{font-weight:bold;margin-top:.7em}dd{margin-left:1em}.contents{margin-top:1.4em}.publication-title{font-size:1.85em;margin-bottom:.12em}.contents-kicker{font-size:.74em;letter-spacing:.08em;text-transform:uppercase;color:#595959;margin:1.7em 0 .7em}.section-index-item{border-top:1px solid #777;padding:.7em 0 .8em}.section-index-item a{display:block;font-weight:bold;font-size:1.18em;text-decoration:none}.section-index-count{display:block;color:#595959;font-size:.82em;margin-top:.2em}.section-divider{padding-top:12%}.divider-rule{border-top:2px solid #111;margin:0 0 1.2em}.section-kicker{font-size:.72em;letter-spacing:.1em;text-transform:uppercase;color:#595959}.section-name{font-size:2.55em;line-height:1;margin:.2em 0 .2em}.section-count{font-size:.88em;color:#595959;margin-bottom:1.25em}.section-start{font-size:.88em;margin-top:1.15em}.topic-kicker{font-size:.78em;font-weight:bold;letter-spacing:.08em;text-transform:uppercase;margin:0 0 1.1em}.original{margin-top:2em;padding-top:1em;border-top:1px solid #999;font-size:.85em}`;
+  const css = `body{font-family:serif;line-height:1.55;margin:5%;color:#171717}h1{font-size:1.7em;line-height:1.12;margin-bottom:.3em}h2,h3,h4,h5,h6{line-height:1.2;margin:1.35em 0 .45em}.date,.source,.meta,.caption,figcaption{color:#595959;font-size:.88em}.meta{margin:.25em 0 1.5em}.article-nav{font-size:.78em;margin-bottom:1.4em}.article-nav a,.contents a,.section-divider a{color:#171717}a{color:#111}pre{white-space:pre-wrap;font-family:monospace;font-size:.86em;background:#f2f2f2;padding:.8em}code{font-family:monospace}blockquote{margin-left:.6em;border-left:2px solid #888;padding-left:1em}figure{margin:1.4em 0}img{display:block;max-width:100%;height:auto;margin:1em auto}figcaption{line-height:1.35;margin-top:.4em}table{border-collapse:collapse;width:100%;font-size:.82em;margin:1.2em 0}th,td{border:1px solid #888;padding:.38em;vertical-align:top}th{font-weight:bold}dl{margin:1em 0}dt{font-weight:bold;margin-top:.7em}dd{margin-left:1em}.contents{margin-top:1.4em}.publication-title{font-size:1.85em;margin-bottom:.12em}.contents-kicker{font-size:.74em;letter-spacing:.08em;text-transform:uppercase;color:#595959;margin:1.7em 0 .7em}.section-index-item{border-top:1px solid #777;padding:.7em 0 .8em}.section-index-item a{display:block;font-weight:bold;font-size:1.18em;text-decoration:none}.section-index-count{display:block;color:#595959;font-size:.82em;margin-top:.2em}.section-divider{padding-top:12%}.divider-rule{border-top:2px solid #111;margin:0 0 1.2em}.section-kicker{font-size:.72em;letter-spacing:.1em;text-transform:uppercase;color:#595959}.section-name{font-size:2.55em;line-height:1;margin:.2em 0 .2em}.section-count{font-size:.88em;color:#595959;margin-bottom:1.25em}.section-start{font-size:.88em;margin-top:1.15em}.original{margin-top:2em;padding-top:1em;border-top:1px solid #999;font-size:.85em}`;
   output.file("style.css", css);
 
   const navGroups: {
@@ -288,19 +288,14 @@ export async function makeEpub(options: EpubOptions, articles: EpubArticle[]) {
   const spine = [`<itemref idref="contents"/>`];
   const sectionHrefByArticleIndex = new Map<number, string>();
   const sectionNameByArticleIndex = new Map<number, string>();
-  const topicNameByArticleIndex = new Map<number, string>();
-  const topicStartIndices = new Set<number>();
   for (const section of sectionPages) {
     spine.push(`<itemref idref="${section.id}"/>`);
     const label = section.group.name || "Saved articles";
     for (const topic of section.group.topics) {
-      const first = topic.items[0];
-      if (first && topic.name) topicStartIndices.add(first.index);
       for (const { index } of topic.items) {
         spine.push(`<itemref idref="article-${index + 1}"/>`);
         sectionHrefByArticleIndex.set(index, section.href);
         sectionNameByArticleIndex.set(index, label);
-        topicNameByArticleIndex.set(index, topic.name);
       }
     }
   }
@@ -311,11 +306,7 @@ export async function makeEpub(options: EpubOptions, articles: EpubArticle[]) {
     const creator = article.author || article.source;
     const sectionHref = sectionHrefByArticleIndex.get(index) || "contents.xhtml";
     const sectionName = sectionNameByArticleIndex.get(index) || "Morning Reader";
-    const topicName = topicNameByArticleIndex.get(index) || "";
-    const topicKicker = topicStartIndices.has(index) && topicName
-      ? `<p class="topic-kicker">${esc(topicName)}</p>`
-      : "";
-    output.file(`${id}.xhtml`, `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${esc(article.title)}</title><link rel="stylesheet" type="text/css" href="style.css"/></head><body><p class="article-nav"><a href="${sectionHref}">${esc(sectionName)}</a> · <a href="contents.xhtml">Sections</a></p>${topicKicker}<h1>${esc(article.title)}</h1><p class="meta">${esc(creator)}${creator !== article.source ? ` · ${esc(article.source)}` : ""}${date ? ` · ${esc(date)}` : ""}</p>${article.body}<p class="original"><a href="${esc(article.canonical_url || article.url)}">Read the original article</a></p></body></html>`);
+    output.file(`${id}.xhtml`, `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${esc(article.title)}</title><link rel="stylesheet" type="text/css" href="style.css"/></head><body><p class="article-nav"><a href="${sectionHref}">${esc(sectionName)}</a> · <a href="contents.xhtml">Sections</a></p><h1>${esc(article.title)}</h1><p class="meta">${esc(creator)}${creator !== article.source ? ` · ${esc(article.source)}` : ""}${date ? ` · ${esc(date)}` : ""}</p>${article.body}<p class="original"><a href="${esc(article.canonical_url || article.url)}">Read the original article</a></p></body></html>`);
   });
 
   let assetIndex = 0;
