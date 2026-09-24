@@ -287,195 +287,219 @@ async function buildOneTime(job: any, settings: any, now: Date, displayDate: str
 }
 
 async function buildRecurring(job: any, settings: any, now: Date, displayDate: string, filenameDate: string, deadline: number) {
-  const [sectionResult, feedResult, pendingResult] = await Promise.all([
-    admin.from("sections").select("*").eq("user_id", job.user_id).eq("enabled", true).is("archived_at", null).order("position"),
-    admin.from("feeds").select("*").eq("user_id", job.user_id).eq("enabled", true).is("archived_at", null),
-    admin.from("pending_issue_articles").select("*").eq("user_id", job.user_id).order("created_at").limit(20),
-  ]);
-  if (sectionResult.error) throw sectionResult.error;
-  if (feedResult.error) throw feedResult.error;
-  if (pendingResult.error) throw pendingResult.error;
   const timezone = settings.timezone || "UTC";
-  const weekdayName = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" }).format(now);
-  const weekdayNumber = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].indexOf(weekdayName);
-  const sections = (sectionResult.data || []).filter((section: any) =>
-    job.reason !== "scheduled" || !Array.isArray(section.delivery_days) || section.delivery_days.includes(weekdayNumber));
-  const feeds = (feedResult.data || []).filter((feed: any) => sections.some((section: any) => section.id === feed.section_id));
-  const cutoff = new Date(now.getTime() - job.lookback_hours * 3_600_000);
-  let all: EpubArticle[] = [];
+  let selectedGroups: { section: any; items: EpubArticle[] }[] = [];
+  let pendingItems: EpubArticle[] = [];
+  let issues: string[] = [];
+  let feedCount = 0;
+  let editorialSummary: any = null;
+
+  const frozen = job.result?.preparation_manifest;
+  if (frozen?.version === 1 && Array.isArray(frozen.groups)) {
+    selectedGroups = frozen.groups;
+    pendingItems = Array.isArray(frozen.pendingItems) ? frozen.pendingItems : [];
+    issues = Array.isArray(frozen.issues) ? frozen.issues : [];
+    feedCount = Number(frozen.feedCount || 0);
+    editorialSummary = frozen.editorial || null;
+    logEvent("digest.manifest_reused", {
+      job_id: job.id,
+      user_id: job.user_id,
+      groups: selectedGroups.length,
+      articles: selectedGroups.reduce((count, group) => count + group.items.length, 0) + pendingItems.length,
+    });
+  } else {
+    const preparationStarted = performance.now();
+    const [sectionResult, feedResult, pendingResult] = await Promise.all([
+      admin.from("sections").select("*").eq("user_id", job.user_id).eq("enabled", true).is("archived_at", null).order("position"),
+      admin.from("feeds").select("*").eq("user_id", job.user_id).eq("enabled", true).is("archived_at", null),
+      admin.from("pending_issue_articles").select("*").eq("user_id", job.user_id).order("created_at").limit(20),
+    ]);
+    if (sectionResult.error) throw sectionResult.error;
+    if (feedResult.error) throw feedResult.error;
+    if (pendingResult.error) throw pendingResult.error;
+
+    const weekdayName = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" }).format(now);
+    const weekdayNumber = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].indexOf(weekdayName);
+    const sections = (sectionResult.data || []).filter((section: any) =>
+      job.reason !== "scheduled" || !Array.isArray(section.delivery_days) || section.delivery_days.includes(weekdayNumber));
+    const feeds = (feedResult.data || []).filter((feed: any) => sections.some((section: any) => section.id === feed.section_id));
+    feedCount = feeds.length;
+    const cutoff = new Date(now.getTime() - job.lookback_hours * 3_600_000);
+    let all: EpubArticle[] = [];
+    const budget = extractionBudget(deadline);
+
+    for (const feed of feeds.slice(0, 100)) {
+      if (all.length >= 60 || Date.now() >= budget.deadline) {
+        issues.push("Preparation limit reached; some sources were not included.");
+        logEvent("digest.extraction_capped", { job_id: job.id, user_id: job.user_id, articles: all.length, feeds_processed: feeds.indexOf(feed), feeds_total: feeds.length }, "warn");
+        break;
+      }
+      const result = await readFeed(feed, cutoff, job.id, budget, job.reason !== "test");
+      all.push(...result.articles);
+      issues.push(...result.issues);
+    }
+
+    const hashes = [...new Set(all.map((article) => article.article_hash))];
+    const delivered = new Set<string>();
+    if (job.reason !== "test") {
+      for (let index = 0; index < hashes.length; index += 200) {
+        const { data, error } = await admin.from("article_deliveries").select("article_hash").eq("user_id", job.user_id).eq("delivery_kind", "recurring").in("article_hash", hashes.slice(index, index + 200));
+        if (error) throw error;
+        for (const row of data || []) delivered.add(row.article_hash);
+      }
+    }
+    const seen = new Set<string>();
+    all = all.filter((article) => {
+      const key = article.article_hash;
+      if (delivered.has(article.article_hash) || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    all.sort((a, b) => (b.published_at ? +new Date(b.published_at) : 0) - (a.published_at ? +new Date(a.published_at) : 0));
+
+    const sectionDescriptors = sections.map((section: any) => ({ id: section.id, name: section.name }));
+    const assignment = await assignIssue(sectionDescriptors, all, { deadline });
+    all = assignment.articles;
+    const assignmentSummary = {
+      status: assignment.report.status,
+      provider: assignment.report.provider,
+      model: assignment.report.model || null,
+      confidence_kind: assignment.report.confidence_kind || "none",
+      included: assignment.report.included,
+      omitted: assignment.report.omitted,
+      moved: assignment.report.moved,
+      other: assignment.report.other,
+      error: assignment.report.error || null,
+      usage: assignment.report.usage || null,
+      decisions: assignment.report.decisions || [],
+    };
+    logEvent("assignment.completed", {
+      job_id: job.id, user_id: job.user_id, status: assignmentSummary.status, provider: assignmentSummary.provider,
+      model: assignmentSummary.model, included: assignmentSummary.included, omitted: assignmentSummary.omitted,
+      moved: assignmentSummary.moved, other: assignmentSummary.other, error: assignmentSummary.error,
+    }, assignmentSummary.status === "fallback" ? "warn" : "info");
+    for (const decision of assignmentSummary.decisions) {
+      if (!decision.include || decision.from !== decision.to) {
+        logEvent("assignment.article_decision", {
+          job_id: job.id, title: decision.title, source: decision.source, from_section: decision.from,
+          to_section: decision.to, included: decision.include, confidence: decision.confidence, reason: decision.reason,
+        });
+      }
+    }
+
+    const editorial = await editorializeIssue(all, { deadline });
+    all = editorial.articles;
+    const organizationSummary = {
+      status: editorial.report.status,
+      model: editorial.report.model,
+      topics: editorial.report.topics,
+      error: editorial.report.error || null,
+      usage: editorial.report.usage || null,
+    };
+    logEvent("editorial.completed", {
+      job_id: job.id, user_id: job.user_id, status: organizationSummary.status, model: organizationSummary.model,
+      topics: organizationSummary.topics, error: organizationSummary.error,
+    }, organizationSummary.status === "fallback" ? "warn" : "info");
+    editorialSummary = { status: organizationSummary.status, assignment: assignmentSummary, organization: organizationSummary };
+
+    for (const pending of pendingResult.data || []) {
+      if (Date.now() >= budget.deadline) { issues.push("Preparation limit reached; some saved articles were deferred."); break; }
+      try {
+        const article = await extractArticle({ url: pending.url, includeImages: false, budget });
+        pendingItems.push({ ...article, section_name: pending.section_name || "Saved articles", pending_id: pending.id });
+      } catch (error) {
+        issues.push(`Saved article could not be prepared: ${pending.url}`);
+        logEvent("pending_article.extract_failed", { job_id: job.id, pending_id: pending.id, error: error instanceof Error ? error.message : String(error) }, "warn");
+      }
+    }
+
+    for (const section of sections) {
+      let items = all.filter((article) => article.section_id === section.id);
+      items = items.slice(0, 80).map((article) => ({ ...article, section_name: section.name }));
+      if (items.length) selectedGroups.push({ section: { id: section.id, name: section.name }, items });
+    }
+    const otherItems = all
+      .filter((article) => !article.section_id && article.section_name === "Other")
+      .slice(0, 80)
+      .map((article) => ({ ...article, section_id: null, section_name: "Other" }));
+    if (otherItems.length) selectedGroups.push({ section: { id: null, name: "Other" }, items: otherItems });
+
+    const manifest = {
+      version: 1,
+      groups: selectedGroups.map((group) => ({
+        section: { id: group.section.id || null, name: group.section.name },
+        items: group.items.map((item) => ({ ...item, assets: [] })),
+      })),
+      pendingItems: pendingItems.map((item) => ({ ...item, assets: [] })),
+      issues,
+      feedCount,
+      editorial: editorialSummary,
+    };
+    const manifestWrite = await admin.from("digest_jobs").update({
+      result: { ...(job.result || {}), preparation_manifest: manifest },
+    }).eq("id", job.id);
+    if (manifestWrite.error) throw manifestWrite.error;
+    logEvent("digest.manifest_frozen", {
+      job_id: job.id,
+      user_id: job.user_id,
+      articles: selectedGroups.reduce((count, group) => count + group.items.length, 0) + pendingItems.length,
+      duration_ms: Math.round(performance.now() - preparationStarted),
+    });
+  }
+
   const budget = extractionBudget(deadline);
-  const issues: string[] = [];
-  for (const feed of feeds.slice(0, 100)) {
-    if (all.length >= 60 || Date.now() >= budget.deadline) {
-      issues.push("Preparation limit reached; some sources were not included.");
-      logEvent("digest.extraction_capped", { job_id: job.id, user_id: job.user_id, articles: all.length, feeds_processed: feeds.indexOf(feed), feeds_total: feeds.length }, "warn");
-      break;
-    }
-    const result = await readFeed(feed, cutoff, job.id, budget, job.reason !== "test");
-    all.push(...result.articles);
-    issues.push(...result.issues);
-  }
-  const hashes = [...new Set(all.map((article) => article.article_hash))];
-  const delivered = new Set<string>();
-  if (job.reason !== "test") {
-    for (let index = 0; index < hashes.length; index += 200) {
-      const { data, error } = await admin.from("article_deliveries").select("article_hash").eq("user_id", job.user_id).eq("delivery_kind", "recurring").in("article_hash", hashes.slice(index, index + 200));
-      if (error) throw error;
-      for (const row of data || []) delivered.add(row.article_hash);
-    }
-  }
-  const seen = new Set<string>();
-  all = all.filter((article) => {
-    const key = article.article_hash;
-    if (delivered.has(article.article_hash) || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-  all.sort((a, b) => (b.published_at ? +new Date(b.published_at) : 0) - (a.published_at ? +new Date(a.published_at) : 0));
-
-  const sectionDescriptors = sections.map((section: any) => ({ id: section.id, name: section.name }));
-  const assignment = await assignIssue(sectionDescriptors, all, { deadline });
-  all = assignment.articles;
-  const assignmentSummary = {
-    status: assignment.report.status,
-    provider: assignment.report.provider,
-    model: assignment.report.model || null,
-    confidence_kind: assignment.report.confidence_kind || "none",
-    included: assignment.report.included,
-    omitted: assignment.report.omitted,
-    moved: assignment.report.moved,
-    other: assignment.report.other,
-    error: assignment.report.error || null,
-    usage: assignment.report.usage || null,
-    decisions: assignment.report.decisions || [],
-  };
-  logEvent("assignment.completed", {
-    job_id: job.id,
-    user_id: job.user_id,
-    status: assignmentSummary.status,
-    provider: assignmentSummary.provider,
-    model: assignmentSummary.model,
-    included: assignmentSummary.included,
-    omitted: assignmentSummary.omitted,
-    moved: assignmentSummary.moved,
-    other: assignmentSummary.other,
-    error: assignmentSummary.error,
-  }, assignmentSummary.status === "fallback" ? "warn" : "info");
-  for (const decision of assignmentSummary.decisions) {
-    if (!decision.include || decision.from !== decision.to) {
-      logEvent("assignment.article_decision", {
-        job_id: job.id,
-        title: decision.title,
-        source: decision.source,
-        from_section: decision.from,
-        to_section: decision.to,
-        included: decision.include,
-        confidence: decision.confidence,
-        reason: decision.reason,
-      });
-    }
-  }
-
-  const editorial = await editorializeIssue(all, { deadline });
-  all = editorial.articles;
-  const organizationSummary = {
-    status: editorial.report.status,
-    model: editorial.report.model,
-    topics: editorial.report.topics,
-    error: editorial.report.error || null,
-    usage: editorial.report.usage || null,
-  };
-  logEvent("editorial.completed", {
-    job_id: job.id,
-    user_id: job.user_id,
-    status: organizationSummary.status,
-    model: organizationSummary.model,
-    topics: organizationSummary.topics,
-    error: organizationSummary.error,
-  }, organizationSummary.status === "fallback" ? "warn" : "info");
-
-  const editorialSummary = {
-    status: organizationSummary.status,
-    assignment: assignmentSummary,
-    organization: organizationSummary,
-  };
-
-  const pendingItems: EpubArticle[] = [];
-  for (const pending of pendingResult.data || []) {
-    if (Date.now() >= budget.deadline) { issues.push("Preparation limit reached; some saved articles were deferred."); break; }
-    try {
-      const article = await extractArticle({ url: pending.url, includeImages: true, budget });
-      pendingItems.push({ ...article, section_name: pending.section_name || "Saved articles", pending_id: pending.id });
-    } catch (error) {
-      issues.push(`Saved article could not be prepared: ${pending.url}`);
-      logEvent("pending_article.extract_failed", { job_id: job.id, pending_id: pending.id, error: error instanceof Error ? error.message : String(error) }, "warn");
-    }
-  }
-  const attachments: any[] = [];
-  const groups: { section: any; items: EpubArticle[] }[] = [];
-  const selectedGroups: { section: any; items: EpubArticle[] }[] = [];
-  for (const section of sections) {
-    let items = all.filter((article) => article.section_id === section.id);
-    items = items.slice(0, 80).map((article) => ({ ...article, section_name: section.name }));
-    if (items.length) selectedGroups.push({ section, items });
-  }
-  const otherItems = all
-    .filter((article) => !article.section_id && article.section_name === "Other")
-    .slice(0, 80)
-    .map((article) => ({ ...article, section_id: null, section_name: "Other" }));
-  if (otherItems.length) selectedGroups.push({ section: { id: null, name: "Other" }, items: otherItems });
-
-  // Images are the expensive part. Only hydrate articles that survived assignment
-  // and will actually appear in this issue.
-  const selected = selectedGroups.flatMap((group) => group.items);
+  const selected = [...selectedGroups.flatMap((group) => group.items), ...pendingItems];
   const hydrated = new Map<string, EpubArticle>();
   let imageCursor = 0;
+  const hydrationStarted = performance.now();
+  logEvent("digest.stage_started", { job_id: job.id, stage: "image_hydration", articles: selected.length });
   async function imageHydrator() {
     while (true) {
       const index = imageCursor++;
       if (index >= selected.length) return;
       const item = selected[index];
       try {
-        if (job.reason === "test") {
-          hydrated.set(item.article_hash, omitArticleImages(item));
-        } else {
-          hydrated.set(item.article_hash, await hydrateArticleImages(item, budget));
-        }
+        if (job.reason === "test") hydrated.set(item.article_hash, omitArticleImages(item));
+        else hydrated.set(item.article_hash, await hydrateArticleImages(item, budget));
       } catch (error) {
         hydrated.set(item.article_hash, {
           ...item,
           warnings: [...new Set([...(item.warnings || []), "Images could not be prepared; the article text was preserved."])],
         });
         logEvent("article.image_hydration_failed", {
-          job_id: job.id,
-          url: item.canonical_url,
+          job_id: job.id, url: item.canonical_url,
           error: error instanceof Error ? error.message : String(error),
         }, "warn");
       }
     }
   }
   await Promise.all(Array.from({ length: Math.min(2, selected.length) }, () => imageHydrator()));
+  logEvent("digest.stage_completed", { job_id: job.id, stage: "image_hydration", duration_ms: Math.round(performance.now() - hydrationStarted), articles: selected.length });
 
+  const groups: { section: any; items: EpubArticle[] }[] = [];
   const issueItems: EpubArticle[] = [];
   for (const group of selectedGroups) {
     const items = group.items.map((item) => hydrated.get(item.article_hash) || item);
     groups.push({ section: group.section, items });
     issueItems.push(...items);
   }
-  issueItems.push(...pendingItems);
-  if (pendingItems.length) groups.push({ section: { id: null, name: "Saved articles" }, items: pendingItems });
+  const hydratedPending = pendingItems.map((item) => hydrated.get(item.article_hash) || item);
+  issueItems.push(...hydratedPending);
+  if (hydratedPending.length) groups.push({ section: { id: null, name: "Saved articles" }, items: hydratedPending });
+
   const testIdentity = testArtifactIdentity(job, now, timezone, displayDate, filenameDate);
+  const attachments: any[] = [];
   if (issueItems.length) {
+    const packagingStarted = performance.now();
+    logEvent("digest.stage_started", { job_id: job.id, stage: "epub_packaging", articles: issueItems.length });
     const bytes = await makeEpub({
-      name: "Morning Reader",
-      displayDate,
-      date: now,
-      timezone,
+      name: "Morning Reader", displayDate, date: now, timezone,
       label: testIdentity?.coverLabel || "Daily issue",
       libraryTitle: testIdentity?.libraryTitle,
     }, issueItems);
     const qa = await validateEpub(bytes, issueItems);
     const media = summarizeMedia(issueItems);
+    logEvent("digest.stage_completed", { job_id: job.id, stage: "epub_packaging", duration_ms: Math.round(performance.now() - packagingStarted), bytes: bytes.byteLength, articles: issueItems.length });
     logEvent("epub.qa_completed", { job_id: job.id, ...qa, media_discovered: media.discovered, media_embedded: media.embedded, media_failed: media.failed, media_omitted: media.omitted });
     attachments.push({
       filename: testIdentity?.filename || `morning-reader-${filenameDate}.epub`,
@@ -485,25 +509,16 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
     checkAttachmentBudget(attachments);
     if (testIdentity) logEvent("test.artifact_prepared", { job_id: job.id, review_label: testIdentity.reviewLabel, filename: testIdentity.filename });
     return {
-      attachments,
-      groups,
-      issues,
-      feedCount: feeds.length,
+      attachments, groups, issues, feedCount,
       subject: testIdentity?.subject || `Morning Reader — ${displayDate}`,
-      editorial: editorialSummary,
-      qa,
-      media,
+      editorial: editorialSummary, qa, media, pendingItems: hydratedPending,
     };
   }
+
   return {
-    attachments,
-    groups,
-    issues,
-    feedCount: feeds.length,
+    attachments, groups, issues, feedCount,
     subject: testIdentity?.subject || `Morning Reader — ${displayDate}`,
-    editorial: editorialSummary,
-    qa: null,
-    media: summarizeMedia(issueItems),
+    editorial: editorialSummary, qa: null, media: summarizeMedia(issueItems), pendingItems: hydratedPending,
   };
 }
 
