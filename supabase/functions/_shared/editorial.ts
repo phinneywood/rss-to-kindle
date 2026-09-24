@@ -4,7 +4,6 @@ import type { EpubArticle } from "./epub.ts";
 export type EditorialDecision = {
   id: string;
   topic_name: string;
-  topic_intro: string;
 };
 
 export type EditorialPlan = { articles: EditorialDecision[] };
@@ -19,7 +18,6 @@ export type EditorialReport = {
 
 export type EditorializedArticle = EpubArticle & {
   editorial_topic?: string | null;
-  editorial_topic_intro?: string | null;
   editorial_position?: number | null;
 };
 
@@ -52,9 +50,8 @@ function schemaFor(articleIds: string[]) {
           properties: {
             id: { type: "string", enum: articleIds },
             topic_name: { type: "string" },
-            topic_intro: { type: "string" },
           },
-          required: ["id", "topic_name", "topic_intro"],
+          required: ["id", "topic_name"],
           additionalProperties: false,
         },
       },
@@ -87,18 +84,12 @@ export function applyEditorialPlan(
     if (!article) throw new Error("Editorial plan referenced an invalid article.");
 
     const topic = String(decision.topic_name || "").trim();
-    const rawIntro = String(decision.topic_intro || "").trim();
-    if (!topic || !rawIntro) throw new Error("Editorial plan omitted required reader-facing copy.");
-    const firstSentence = rawIntro.match(/^.*?[.!?](?:\s|$)/)?.[0]?.trim() || rawIntro;
-    const intro = firstSentence.length <= 180
-      ? firstSentence
-      : firstSentence.slice(0, 177).replace(/\s+\S*$/, "").trimEnd() + "…";
+    if (!topic) throw new Error("Editorial plan omitted a topic name.");
 
     topics.add(`${article.section_id || article.section_name || ""}:${topic}`);
     output.push({
       ...article,
       editorial_topic: topic,
-      editorial_topic_intro: intro,
       editorial_position: output.length,
     });
   }
@@ -141,15 +132,14 @@ export async function editorializeIssue(
   }));
 
   const system = [
-    "You are the section editor for Morning Reader, a personal daily newspaper.",
+    "You are the section editor for Morning Reader, a personal daily publication.",
     "The assignment desk has already decided which articles belong and which section each belongs in.",
     "Do not omit articles and do not move articles between sections.",
     "Within each section, group related coverage into specific topical clusters and choose a useful reading order.",
     "Singleton topics are valid. Never force unrelated articles together.",
-    "Use concise editorial packaging: topic names should usually be 3-7 words.",
-    "Write exactly one compact topic introduction, no more than 28 words, explaining what connects the articles and how their coverage differs. Use the exact same topic_intro for every article in the same topic.",
-    "Do not write per-article summaries or framing notes.",
-    "Do not synthesize the sources into a replacement article. Do not rewrite article bodies. Do not add facts unsupported by the supplied text.",
+    "Topic names should be short, concrete editorial labels, usually 2-6 words.",
+    "Do not write summaries, introductions, blurbs, or any other reader-facing prose.",
+    "Do not rewrite article titles or article bodies.",
     "Return every input id exactly once, ordered in the reading order you recommend while keeping articles within their assigned sections.",
   ].join("\n");
 
@@ -166,7 +156,7 @@ export async function editorializeIssue(
         model,
         store: false,
         reasoning: { effort: "low" },
-        max_output_tokens: 8_000,
+        max_output_tokens: 5_000,
         input: [
           { role: "system", content: system },
           { role: "user", content: JSON.stringify({ candidates }) },
