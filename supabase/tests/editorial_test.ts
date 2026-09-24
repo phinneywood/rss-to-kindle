@@ -40,19 +40,20 @@ Deno.test("section editor groups and orders accepted articles without generating
   };
   const result = applyEditorialPlan(input, plan);
   assert(result.articles.length === input.length, "section editor must return every accepted article");
-  assert(result.topics === 2, "topics should be counted by section and title");
+  assert(result.topics === 1, "only genuine multi-article clusters should count as topics");
   assert(result.articles[2].section_id === "systems", "section editor must not reroute articles");
+  assert(result.articles[2].editorial_topic == null, "singleton topic labels should be removed so the article sits directly under its section");
   assert(result.articles.every((item) => !("editorial_topic_intro" in item) || !item.editorial_topic_intro), "section editor must not attach visible summary prose");
   for (const item of result.articles) assert(item.body === bodies.get(item.article_hash), "section editor must not rewrite article bodies");
 });
 
-Deno.test("section editor uses GPT-6 Luna structured output for topic labels only", async () => {
+Deno.test("section editor uses GPT-6 Luna structured output with nullable cluster labels", async () => {
   const input = [article(1, "ai", "AI", "Agent reliability")];
   let requestBody: any = null;
   const fetchImpl = (async (_input: RequestInfo | URL, init?: RequestInit) => {
     requestBody = JSON.parse(String(init?.body || "{}"));
     const plan: EditorialPlan = {
-      articles: [{ id: "article-1", topic_name: "Production agents" }],
+      articles: [{ id: "article-1", topic_name: null }],
     };
     return Response.json({
       output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: JSON.stringify(plan) }] }],
@@ -70,15 +71,17 @@ Deno.test("section editor uses GPT-6 Luna structured output for topic labels onl
   assert(requestBody?.text?.format?.schema?.properties?.articles?.minItems === input.length, "editor schema must require one output per accepted article");
   assert(requestBody?.text?.format?.schema?.properties?.articles?.maxItems === input.length, "editor schema must reject short or long article arrays");
   assert(requestBody?.text?.format?.schema?.properties?.articles?.items?.properties?.topic_name?.maxLength === 60, "topic labels should be structurally bounded");
+  assert(requestBody?.text?.format?.schema?.properties?.articles?.items?.properties?.topic_name?.type?.includes("null"), "schema must allow an unclustered article to have no topic");
   const props = requestBody?.text?.format?.schema?.properties?.articles?.items?.properties || {};
   assert(Object.keys(props).sort().join(",") === "id,topic_name", "editor schema should expose only id and topic_name");
   assert(!JSON.stringify(requestBody).includes('"topic_intro"'), "editor contract must not generate topic introductions");
   assert(!JSON.stringify(requestBody).includes('"article_note"'), "editor contract must not generate per-article notes");
   assert(JSON.stringify(requestBody).includes("substantially smaller than the article count"), "editor prompt should explicitly discourage one-topic-per-article output");
+  assert(JSON.stringify(requestBody).includes("Never create singleton topics"), "editor prompt should reserve topic labels for genuine clusters");
   assert(JSON.stringify(requestBody).includes("Copilot Sandboxing"), "the sandboxing/code-review misgrouping should remain an explicit editorial regression example");
   assert(JSON.stringify(requestBody).includes("GitHub Copilot"), "the regression example should teach a truthful broader shared label");
   assert(result.report.status === "edited", "valid topic plan should be applied");
-  assert(result.articles[0].editorial_topic === "Production agents", "topic metadata should be attached");
+  assert(result.articles[0].editorial_topic == null, "a singleton article should remain directly under its section");
 });
 
 Deno.test("section editor failure preserves assigned articles as a flat conventional issue", async () => {
