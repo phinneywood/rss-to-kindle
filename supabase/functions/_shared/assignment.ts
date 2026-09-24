@@ -179,10 +179,6 @@ export function applyAssignmentPlan(
     }
 
     if (decision.label === "NO_STRONG_FIT") {
-      if (confidence == null || confidence < MOVE_CONFIDENCE_MIN) {
-        retainOriginal(`Retained in ${from} because moving to Other requires confidence >= ${MOVE_CONFIDENCE_MIN.toFixed(2)}.`);
-        continue;
-      }
       other++;
       if (article.section_id) moved++;
       output.push({
