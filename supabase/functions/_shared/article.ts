@@ -7,6 +7,7 @@ import { fetchPublic } from "./network.ts";
 export { fetchPublicText } from "./network.ts";
 
 export type ExtractionBudget = { imageBytes: number; deadline: number };
+const MAX_IMAGE_DOWNLOAD_BYTES = 3_000_000;
 export function extractionBudget(deadline = Infinity): ExtractionBudget { return { imageBytes: 6_000_000, deadline: Math.min(Date.now() + 80_000, deadline) }; }
 
 export type ArticleAsset = {
@@ -493,7 +494,7 @@ async function embedImages(html: string, baseUrl: string, budget: ExtractionBudg
       const sourceUrl = urls[index];
       try {
         if (budget.imageBytes <= 0 || Date.now() >= budget.deadline) throw new Error("image budget exceeded");
-        const reservation = Math.min(1_500_000, budget.imageBytes);
+        const reservation = Math.min(MAX_IMAGE_DOWNLOAD_BYTES, budget.imageBytes);
         budget.imageBytes -= reservation;
         let received = 0;
         try {

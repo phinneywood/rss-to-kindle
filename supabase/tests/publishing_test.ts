@@ -126,6 +126,33 @@ Deno.test("hydrates article images only when explicitly requested after text ext
   }
 });
 
+Deno.test("embeds a valid image larger than the previous 1.5 MB ceiling", async () => {
+  const originalFetch = globalThis.fetch;
+  const bytes = new Uint8Array(1_600_000);
+  bytes.set([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a], 0);
+  globalThis.fetch = (async () => new Response(bytes)) as typeof fetch;
+  try {
+    const article: Article = {
+      title: "Large but bounded image",
+      url: "https://8.8.8.8/article",
+      canonical_url: "https://8.8.8.8/article",
+      source: "Example",
+      author: null,
+      published_at: null,
+      excerpt: "",
+      body: '<p>Article text survives.</p><img src="https://8.8.8.8/large.png" alt="Large image">',
+      assets: [],
+      warnings: [],
+      article_hash: "large-image",
+    };
+    const hydrated = await hydrateArticleImages(article, extractionBudget(Date.now() + 10_000));
+    assert(hydrated.assets.length === 1, "a 1.6 MB supported image should fit within the per-image ceiling");
+    assert(hydrated.media?.embedded === 1 && hydrated.media?.failed === 0, "large but bounded media should embed cleanly");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 Deno.test("prefers Kindle-safe picture fallbacks over WebP sources", async () => {
   const originalFetch = globalThis.fetch;
   const fetched: string[] = [];
