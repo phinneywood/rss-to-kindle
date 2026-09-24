@@ -69,11 +69,14 @@ Deno.test("section editor uses GPT-6 Luna structured output for topic labels onl
   assert(requestBody?.text?.format?.name === "morning_reader_editorial_plan", "editor should use a dedicated strict schema");
   assert(requestBody?.text?.format?.schema?.properties?.articles?.minItems === input.length, "editor schema must require one output per accepted article");
   assert(requestBody?.text?.format?.schema?.properties?.articles?.maxItems === input.length, "editor schema must reject short or long article arrays");
+  assert(requestBody?.text?.format?.schema?.properties?.articles?.items?.properties?.topic_name?.maxLength === 60, "topic labels should be structurally bounded");
   const props = requestBody?.text?.format?.schema?.properties?.articles?.items?.properties || {};
   assert(Object.keys(props).sort().join(",") === "id,topic_name", "editor schema should expose only id and topic_name");
   assert(!JSON.stringify(requestBody).includes('"topic_intro"'), "editor contract must not generate topic introductions");
   assert(!JSON.stringify(requestBody).includes('"article_note"'), "editor contract must not generate per-article notes");
   assert(JSON.stringify(requestBody).includes("substantially smaller than the article count"), "editor prompt should explicitly discourage one-topic-per-article output");
+  assert(JSON.stringify(requestBody).includes("Copilot Sandboxing"), "the sandboxing/code-review misgrouping should remain an explicit editorial regression example");
+  assert(JSON.stringify(requestBody).includes("GitHub Copilot"), "the regression example should teach a truthful broader shared label");
   assert(result.report.status === "edited", "valid topic plan should be applied");
   assert(result.articles[0].editorial_topic === "Production agents", "topic metadata should be attached");
 });
@@ -89,6 +92,16 @@ Deno.test("section editor failure preserves assigned articles as a flat conventi
   assert(result.report.status === "fallback", "editor failure should be explicit");
   assert(result.articles.length === input.length, "editor failure must not drop articles");
   assert(result.articles[0].section_id === "ai", "editor failure must not undo assignment");
+});
+
+Deno.test("overlong topic labels are rejected instead of leaking into the publication", () => {
+  const input = [article(1, "ai", "AI", "One")];
+  const invalid: EditorialPlan = {
+    articles: [{ id: "article-1", topic_name: "This topic label is deliberately much too long and contains far more than eight separate words" }],
+  };
+  let threw = false;
+  try { applyEditorialPlan(input, invalid); } catch { threw = true; }
+  assert(threw, "overlong topic labels should invalidate the editorial plan");
 });
 
 Deno.test("invalid topic plans cannot silently duplicate or lose accepted articles", () => {
