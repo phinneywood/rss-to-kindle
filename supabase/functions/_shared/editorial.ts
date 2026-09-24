@@ -3,7 +3,7 @@ import type { EpubArticle } from "./epub.ts";
 
 export type EditorialDecision = {
   id: string;
-  topic_name: string;
+  topic_name: string | null;
 };
 
 export type EditorialPlan = { articles: EditorialDecision[] };
@@ -49,7 +49,7 @@ function schemaFor(articleIds: string[]) {
           type: "object",
           properties: {
             id: { type: "string", enum: articleIds },
-            topic_name: { type: "string", minLength: 2, maxLength: 60 },
+            topic_name: { type: ["string", "null"], minLength: 2, maxLength: 60 },
           },
           required: ["id", "topic_name"],
           additionalProperties: false,
@@ -69,6 +69,7 @@ export function applyEditorialPlan(
   const seen = new Set<string>();
   const output: EditorializedArticle[] = [];
   const topics = new Set<string>();
+  const prepared: Array<{ article: EpubArticle; topic: string | null }> = [];
 
   if (!plan || !Array.isArray(plan.articles) || plan.articles.length !== articles.length) {
     throw new Error("Editorial plan did not return exactly one decision for every accepted article.");
@@ -83,21 +84,34 @@ export function applyEditorialPlan(
     const article = articles[index];
     if (!article) throw new Error("Editorial plan referenced an invalid article.");
 
-    const topic = String(decision.topic_name || "").trim();
-    if (!topic) throw new Error("Editorial plan omitted a topic name.");
-    if (topic.length > 60 || topic.split(/\s+/).length > 8) {
+    const topic = decision.topic_name == null ? null : String(decision.topic_name).trim();
+    if (decision.topic_name != null && !topic) throw new Error("Editorial plan returned an empty topic name.");
+    if (topic && (topic.length > 60 || topic.split(/\s+/).length > 8)) {
       throw new Error("Editorial plan returned an overlong topic name.");
     }
+    prepared.push({ article, topic });
+  }
 
-    topics.add(`${article.section_id || article.section_name || ""}:${topic}`);
+  if (seen.size !== expected.size) throw new Error("Editorial plan omitted one or more accepted articles.");
+
+  const topicCounts = new Map<string, number>();
+  for (const { article, topic } of prepared) {
+    if (!topic) continue;
+    const key = `${article.section_id || article.section_name || ""}:${topic}`;
+    topicCounts.set(key, (topicCounts.get(key) || 0) + 1);
+  }
+
+  for (const { article, topic } of prepared) {
+    const key = topic ? `${article.section_id || article.section_name || ""}:${topic}` : "";
+    const retainedTopic = topic && (topicCounts.get(key) || 0) >= 2 ? topic : null;
+    if (retainedTopic) topics.add(key);
     output.push({
       ...article,
-      editorial_topic: topic,
+      editorial_topic: retainedTopic,
       editorial_position: output.length,
     });
   }
 
-  if (seen.size !== expected.size) throw new Error("Editorial plan omitted one or more accepted articles.");
   return { articles: output, topics: topics.size };
 }
 
@@ -140,7 +154,9 @@ export async function editorializeIssue(
     "Do not omit articles and do not move articles between sections.",
     "Within each section, group related coverage into specific topical clusters and choose a useful reading order.",
     "Prefer a small number of coherent topics over one label per article. When a section has four or more articles, normally use about 2-5 topics total.",
-    "Use a singleton topic only when an article genuinely has no coherent home with another article. The topic count should usually be substantially smaller than the article count.",
+    "Create a topic only for a genuine cluster of two or more articles in the same section.",
+    "Set topic_name to null when an article has no genuine cluster. Never create singleton topics just to label an individual article.",
+    "The topic count should usually be substantially smaller than the article count.",
     "Topic names should be short, concrete editorial labels, usually 2-6 words.",
     "Every topic label must accurately describe every article assigned to it. Prefer a broader shared label over a narrow label that only fits one member of the cluster.",
     "Regression example: if one article is about Copilot sandboxing and another is about Copilot code-review configuration, a shared topic may be GitHub Copilot; do not call the shared topic Copilot Sandboxing.",
