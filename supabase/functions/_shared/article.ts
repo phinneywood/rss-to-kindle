@@ -457,13 +457,14 @@ async function decodeSupportedImage(bytes: Uint8Array): Promise<{ bytes: Uint8Ar
   if (!isWebp(bytes)) throw new Error("unsupported image format");
 
   await ensureImageMagick();
-  let png: Uint8Array | null = null;
+  const outputs: Uint8Array[] = [];
   await ImageMagick.read(bytes, async image => {
     await image.write(MagickFormat.Png, data => {
-      png = Uint8Array.from(data);
+      outputs.push(Uint8Array.from(data));
     });
   });
-  if (!png?.length) throw new Error("WebP transcoding returned no image data");
+  const png = outputs[0];
+  if (!png || png.length === 0) throw new Error("WebP transcoding returned no image data");
   return { bytes: png, mediaType: "image/png", extension: "png" };
 }
 
