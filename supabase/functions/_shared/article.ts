@@ -525,14 +525,16 @@ export async function hydrateArticleImages(article: Article, budget: ExtractionB
 }
 
 export function omitArticleImages(article: Article): Article {
-  const document = (parseHTML(`<!doctype html><html><body>${article.body}</body></html>`) as any).document;
-  const images = Array.from(document.querySelectorAll("img")) as any[];
-  for (const image of images) replaceImageWithNote(document, image);
+  let discovered = 0;
+  const body = article.body.replace(/<img\b[^>]*>/gi, () => {
+    discovered++;
+    return "<p>[Image omitted in test edition.]</p>";
+  });
   return {
     ...article,
-    body: document.body.innerHTML,
+    body,
     assets: [],
-    media: { discovered: images.length, embedded: 0, failed: 0, omitted: images.length, failures: [] },
+    media: { discovered, embedded: 0, failed: 0, omitted: discovered, failures: [] },
   };
 }
 
