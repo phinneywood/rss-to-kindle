@@ -2,7 +2,7 @@
 
 Morning Reader turns websites, RSS, and Atom feeds into one daily Kindle issue (an EPUB file), organized into sections. Readers can also add 1–20 article URLs to the next issue under a reading-list name.
 
-Article pages are reduced to their readable body while preserving headings, lists, links, tables, code, quotations, captions, and supported images. Every EPUB includes reflowable styling, EPUB 3 and legacy Kindle navigation, publisher metadata, and a dated cover designed to remain recognizable as a Kindle home-screen thumbnail.
+Article pages are reduced to their readable body while preserving headings, lists, links, tables, code, quotations, captions, and supported images. The opening contents page shows Section → Topic → Article title, with each article title linking directly to the article; EPUB 3 and legacy Kindle navigation expose the same hierarchy. Every EPUB also includes reflowable styling, publisher metadata, and a dated cover designed to remain recognizable as a Kindle home-screen thumbnail.
 
 Covers use a 1200×1600 JPEG with both EPUB 3 and legacy cover metadata, without an additional HTML cover page. This packaging was confirmed in Kindle iOS on September 19, 2026. Article anchors that EPUB rejects are repaired with their local links preserved. Existing delivered documents are not updated; the change applies when a new EPUB is built.
 
@@ -97,7 +97,7 @@ The Vercel `morning-reader` project is connected to this GitHub repository. Push
 
 ## Verification
 
-CI type-checks the API and worker, parses the browser scripts, and tests extraction, metadata, sanitization, EPUB output, network limits, private-address rejection, delivery fault recovery, and interface regressions. Run `deno test --allow-env --allow-read supabase/tests` and `node --test tests/*.test.mjs` after `npm ci`. HTTP in worker tests is mocked; no emails or production records are created by the suite.
+CI type-checks the API and worker, parses the browser scripts, and tests extraction, metadata, sanitization, EPUB output, article-title contents completeness, media fallbacks/diagnostics, editorial regression fixtures, network limits, private-address rejection, delivery fault recovery, and interface regressions. Run `deno test --allow-env --allow-read supabase/tests` and `node --test tests/*.test.mjs` after `npm ci`. HTTP in worker tests is mocked; no emails or production records are created by the suite.
 
 ## Delivery reliability and limits
 
@@ -105,7 +105,7 @@ CI type-checks the API and worker, parses the browser scripts, and tests extract
 - Prepared payloads are backend-only and removed by daily cleanup seven days after terminal jobs finish. Metadata remains for history. Account deletion cascades through jobs to the outbox.
 - `sent` means accepted by the email provider, **not** confirmed by Amazon. `partial` means submitted with source or image omissions; `empty` is reserved for successful checks with no new articles. Source failures cannot silently become an empty success.
 - Downloads have streaming byte caps and a deadline covering DNS, redirects, headers, and body. Extraction uses a shared 6 MB image budget, 80-second job / 90-second invocation preparation deadline, and a combined 16 MB base64 attachment cap. Very large articles are rejected rather than silently truncated.
-- JPEG, PNG and GIF are embedded. Lazy image attributes and JPEG/PNG `picture` fallbacks are supported. Unsupported WebP, AVIF and SVG are deliberately omitted with a warning and original-article link; there is no image transcoder in the edge worker.
+- JPEG, PNG and GIF are embedded. Lazy image attributes and Kindle-safe JPEG/PNG/GIF `picture` fallbacks are preferred before modern-only image sources. Direct WebP, AVIF and SVG assets are omitted non-blockingly when no supported fallback exists; diagnostics retain the exact image URL and failure reason. There is no native image transcoder in the edge worker.
 - The preview is a headline browser, not an EPUB rendering. One-time review shows text excerpts and extraction warnings; images are checked during sending, and publisher content can change between review and preparation.
 
 ## Security
