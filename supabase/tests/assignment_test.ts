@@ -79,7 +79,11 @@ Deno.test("Luna implements the provider-neutral assignment contract with structu
   assert(requestBody?.text?.format?.name === "morning_reader_assignment_plan", "assignment output should use its own strict schema");
   const labels = requestBody?.text?.format?.schema?.properties?.articles?.items?.properties?.label?.enum || [];
   assert(labels.includes("NO_STRONG_FIT"), "assignment contract should let worthwhile articles declare no natural section fit");
-  assert(JSON.stringify(requestBody).includes("Apple charging-hardware guide"), "today's weak-fit failure should remain an explicit assignment regression example");
+  const prompt = JSON.stringify(requestBody);
+  assert(prompt.includes("not a catch-all"), "Other must be explicitly constrained as an exceptional outcome");
+  assert(prompt.includes("trail-planning tools") && prompt.includes("job-search trackers"), "live smoke-test junk categories should remain regression examples");
+  assert(prompt.includes("Source identity or subscription alone is never sufficient"), "subscribed-source identity must not rescue an irrelevant article");
+  assert(prompt.includes("practical consumer-technology article"), "adjacent technology should still have an explicit no-strong-fit path");
   assert(requestBody?.store === false, "assignment responses should not be stored");
   assert(result.report.status === "assigned", "valid classification should be applied");
   assert(result.report.provider === "luna", "provider identity should be explicit");
