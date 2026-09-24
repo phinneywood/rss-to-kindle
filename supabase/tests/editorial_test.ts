@@ -73,6 +73,7 @@ Deno.test("section editor uses GPT-6 Luna structured output for topic labels onl
   assert(Object.keys(props).sort().join(",") === "id,topic_name", "editor schema should expose only id and topic_name");
   assert(!JSON.stringify(requestBody).includes('"topic_intro"'), "editor contract must not generate topic introductions");
   assert(!JSON.stringify(requestBody).includes('"article_note"'), "editor contract must not generate per-article notes");
+  assert(JSON.stringify(requestBody).includes("substantially smaller than the article count"), "editor prompt should explicitly discourage one-topic-per-article output");
   assert(result.report.status === "edited", "valid topic plan should be applied");
   assert(result.articles[0].editorial_topic === "Production agents", "topic metadata should be attached");
 });
