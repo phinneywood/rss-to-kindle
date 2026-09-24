@@ -349,13 +349,17 @@ Deno.test("renders a book-native linear edition with hierarchical native navigat
   const pageThree = await zip.file("OEBPS/article-3.xhtml")!.async("string");
   const pageFour = await zip.file("OEBPS/article-4.xhtml")!.async("string");
 
-  assert(contents.includes('href="section-1.xhtml">AI</a>') && contents.includes('href="section-2.xhtml">Systems</a>'), "visible contents should be a simple section index");
+  assert(contents.includes('<span class="section-index-name">AI</span>') && contents.includes('<span class="section-index-name">Systems</span>'), "visible contents should be a simple static section index");
+  assert(!contents.includes("<a "), "visible contents should not expose hyperlink chrome");
   assert(!contents.includes("Reliability for production agents") && !contents.includes("Production agents"), "visible contents should not become an article directory");
   assert(sectionOne.includes('<h1 class="section-name">AI</h1>') && sectionOne.includes("3 stories"), "section divider should name the section and story count");
+  assert(!sectionOne.includes("<a ") && !sectionOne.includes("Begin section"), "section divider should contain no navigation chrome");
   assert(!sectionOne.includes("Reliability for production agents") && !sectionOne.includes("Production agents"), "section divider should not list articles or topics");
   assert(sectionTwo.includes('<h1 class="section-name">Systems</h1>'), "next section should have its own divider");
   assert(!pageOne.includes("Production agents") && !pageTwo.includes("Production agents"), "topic labels should not appear in visible article pages");
   assert(!pageThree.includes("Designing with AI") && !pageFour.includes("Database architecture"), "topic labels should remain native-navigation-only");
+  assert(!pageOne.includes("article-nav") && !pageOne.includes('href="contents.xhtml"') && !pageOne.includes('href="section-1.xhtml"'), "article pages should contain no visible internal navigation chrome");
+  assert(pageOne.includes('<hr class="article-rule" />'), "article metadata should be separated from the body by a restrained rule");
   assert(pageOne.includes("SENTINEL-ONE original article body") && pageFour.includes("SENTINEL-FOUR original article body"), "original article bodies must remain unchanged");
   assert(!pageOne.includes("topic-intro") && !sectionOne.includes("topic-intro"), "no generated topic prose should appear in visible reading pages");
 
