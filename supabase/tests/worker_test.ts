@@ -122,6 +122,8 @@ Deno.test("worker submits partial editions and persists source omissions", async
   assert(result.outbox.payload.editorial?.assignment?.status === "assigned", "frozen outbox must retain assignment diagnostics");
   assert(result.outbox.payload.editorial?.organization?.status === "edited", "frozen outbox must retain section-editor diagnostics");
   assert(result.outbox.payload.email.attachments[0].filename.endsWith(".epub"));
+  assert(result.job.result.qa?.contentsEntries === 1, "pre-send QA must survive outbox freezing and final job diagnostics");
+  assert(result.outbox.payload.qa?.contentsEntries === 1, "frozen payload should retain EPUB QA evidence");
 });
 
 Deno.test("worker reconciles accepted delivery without resending after final status failure", async () => {
@@ -180,6 +182,11 @@ Deno.test("explicit test sends are uniquely reviewable on Kindle without consumi
   assert(/<dc:title>Morning Reader · TEST \d{2}:\d{2}:\d{2} · JOB1<\/dc:title>/.test(opf), "Kindle library metadata should distinguish every test run");
   assert(contents.includes("<h1 class=\"publication-title\">Morning Reader</h1>"), "test interior should keep the production publication title");
   assert(!contents.includes("TEST "), "test identity should not pollute the production-like reading interior");
+  for (let index = 1; index <= 5; index++) {
+    assert(contents.includes(`href="article-${index}.xhtml">Test article ${index}</a>`), "every test article should appear as a linked title in the opening contents");
+  }
+  assert(result.job.result.qa?.contentsEntries === 5, "end-to-end QA should count every article-title contents entry");
+  assert(result.job.result.media?.omitted === 5, "test-send media diagnostics should record intentionally omitted inline images without fetching them");
 });
 
 
@@ -190,4 +197,6 @@ Deno.test("assignment happens before image hydration so omitted articles never f
   assert(result.fetched.includes("/keep.png"), "included article image should be hydrated");
   assert(!result.fetched.includes("/drop.png"), "omitted article image must never be fetched");
   assert(result.job.result.editorial.assignment.omitted === 1, "assignment diagnostics should record the omitted candidate");
+  assert(result.job.result.qa?.contentsEntries === 1, "classified delivery should pass article-title contents QA");
+  assert(result.job.result.media?.discovered === 1 && result.job.result.media?.embedded === 1, "production media diagnostics should record the retained article image");
 });

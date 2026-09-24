@@ -77,6 +77,9 @@ Deno.test("Luna implements the provider-neutral assignment contract with structu
   });
   assert(requestBody?.model === "gpt-6-luna", "Luna should be the default assignment provider");
   assert(requestBody?.text?.format?.name === "morning_reader_assignment_plan", "assignment output should use its own strict schema");
+  const labels = requestBody?.text?.format?.schema?.properties?.articles?.items?.properties?.label?.enum || [];
+  assert(labels.includes("NO_STRONG_FIT"), "assignment contract should let worthwhile articles declare no natural section fit");
+  assert(JSON.stringify(requestBody).includes("Apple charging-hardware guide"), "today's weak-fit failure should remain an explicit assignment regression example");
   assert(requestBody?.store === false, "assignment responses should not be stored");
   assert(result.report.status === "assigned", "valid classification should be applied");
   assert(result.report.provider === "luna", "provider identity should be explicit");
@@ -96,7 +99,7 @@ Deno.test("assignment provider can be swapped without changing the pipeline cont
           articles: articles.map((_article, index) => ({
             id: `article-${index + 1}`,
             label: index === 0 ? "Systems" : "OMIT",
-            confidence: 0.88,
+            confidence: 0.95,
             reason: "Fixture decision.",
           })),
         },
@@ -111,6 +114,30 @@ Deno.test("assignment provider can be swapped without changing the pipeline cont
   assert(result.report.provider === "fake-jev", "worker-facing report should not care which classifier implementation was used");
   assert(result.report.confidence_kind === "provider_probability", "provider probability semantics should be preserved");
   assert(result.articles.length === 1 && result.articles[0].section_name === "Systems", "custom classifier decisions should apply through the same path");
+});
+
+Deno.test("assignment policy sends strong no-fit cases to Other and rejects low-confidence destructive decisions", () => {
+  const policySections = [...sections, { id: "tpm", name: "TPM" }];
+  const input = [
+    article(1, "tpm", "Apple Charging Guide", "Rands in Repose"),
+    article(2, "ai", "Design Engineering with Maggie Appleton", "Pragmatic Engineer"),
+    article(3, "systems", "Borderline systems essay"),
+  ];
+  const plan: AssignmentPlan = {
+    articles: [
+      { id: "article-1", label: "NO_STRONG_FIT", confidence: 0.95, reason: "Useful consumer technology, but not a natural fit for the configured sections." },
+      { id: "article-2", label: "TPM", confidence: 0.78, reason: "Professional practice overlaps with program management." },
+      { id: "article-3", label: "OMIT", confidence: 0.70, reason: "Borderline relevance." },
+    ],
+  };
+  const result = applyAssignmentPlan(policySections, input, plan, "luna");
+  assert(result.articles.length === 3, "low-confidence omission must not silently delete an article");
+  assert(result.articles[0].section_id === null && result.articles[0].section_name === "Other", "strong no-fit decisions should render under Other");
+  assert(result.articles[1].section_id === "ai" && result.articles[1].section_name === "AI", "a 0.78 cross-section move should be conservatively retained");
+  assert(result.articles[2].section_id === "systems", "low-confidence omission should preserve the original section");
+  assert(result.report.other === 1, "Other placements should be counted");
+  assert(result.report.omitted === 0, "the low-confidence omission should not count as applied");
+  assert(result.report.moved === 1, "moving a strong no-fit case to Other should count as one applied move");
 });
 
 Deno.test("assignment provider failure falls back to feed placement instead of dropping the issue", async () => {

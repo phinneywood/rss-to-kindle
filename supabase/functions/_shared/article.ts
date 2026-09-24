@@ -15,6 +15,14 @@ export type ArticleAsset = {
   sourceUrl: string;
 };
 
+export type ArticleMediaDiagnostics = {
+  discovered: number;
+  embedded: number;
+  failed: number;
+  omitted: number;
+  failures: Array<{ url: string; reason: string }>;
+};
+
 export type Article = {
   title: string;
   url: string;
@@ -26,6 +34,7 @@ export type Article = {
   body: string;
   assets: ArticleAsset[];
   warnings: string[];
+  media?: ArticleMediaDiagnostics;
   article_hash: string;
 };
 
@@ -103,7 +112,13 @@ export function resolveLinkPostTarget(feedHtml: string | undefined, requestedUrl
 function imageCandidate(element: any): string {
   const direct = element.getAttribute("data-src") || element.getAttribute("data-original") || element.getAttribute("data-lazy-src") || element.getAttribute("src") || "";
   const picture = element.closest("picture");
-  const fallback = picture?.querySelector('source[type="image/jpeg"],source[type="image/png"]');
+  const pictureSources = picture ? Array.from(picture.querySelectorAll("source[srcset]")) as any[] : [];
+  const fallback = pictureSources.find((source) => {
+    const type = String(source.getAttribute("type") || "").toLowerCase();
+    const srcset = String(source.getAttribute("srcset") || "");
+    return ["image/jpeg", "image/png", "image/gif"].includes(type) ||
+      (!type && !/\.(?:webp|avif)(?:[?#]|\s|$)/i.test(srcset));
+  });
   const srcset = fallback?.getAttribute("srcset") || element.getAttribute("data-srcset") || element.getAttribute("srcset") || "";
   if (!srcset) return direct;
   const candidates = srcset.split(",").map((part: string) => {
@@ -403,11 +418,15 @@ function detectedImage(bytes: Uint8Array): { mediaType: ArticleAsset["mediaType"
   return null;
 }
 
-async function embedImages(html: string, baseUrl: string, budget: ExtractionBudget): Promise<{ html: string; assets: ArticleAsset[]; warnings: string[] }> {
+async function embedImages(html: string, baseUrl: string, budget: ExtractionBudget): Promise<{ html: string; assets: ArticleAsset[]; warnings: string[]; media: ArticleMediaDiagnostics }> {
   const document = (parseHTML(`<!doctype html><html><body>${html}</body></html>`) as any).document;
   const images = Array.from(document.querySelectorAll("img[src]")) as any[];
   const assets: ArticleAsset[] = [];
   const warnings: string[] = [];
+  const failures: ArticleMediaDiagnostics["failures"] = [];
+  let embeddedCount = 0;
+  let failedCount = 0;
+  let omittedCount = 0;
   const byUrl = new Map<string, any[]>();
   for (const image of images) {
     const sourceUrl = String(image.getAttribute("src") || "");
@@ -429,7 +448,7 @@ async function embedImages(html: string, baseUrl: string, budget: ExtractionBudg
         let received = 0;
         try {
         const result = await fetchPublic(sourceUrl, {
-          accept: "image/jpeg,image/png,image/gif;q=0.9,*/*;q=0.1",
+          accept: "image/jpeg,image/png,image/gif;q=0.9",
           maxBytes: reservation,
           timeoutMs: 8_000,
           deadline: budget.deadline,
@@ -449,22 +468,48 @@ async function embedImages(html: string, baseUrl: string, budget: ExtractionBudg
   for (const [index, sourceUrl] of urls.entries()) {
     const group = byUrl.get(sourceUrl) || [];
     const result = fetched.get(sourceUrl);
-    if (index >= 8 || !result || result instanceof Error) {
-      warnings.push(index >= 8 ? "Some images were omitted to keep the Kindle document compact." : "An image was unavailable, exceeded the size limit, or was not JPEG, PNG or GIF. View the original article for omitted media.");
+    if (index >= 8) {
+      const reason = "article image count limit exceeded";
+      omittedCount += group.length;
+      failures.push({ url: sourceUrl, reason });
+      warnings.push(`Image omitted (${reason}): ${sourceUrl}`);
+      for (const image of group) replaceImageWithNote(document, image);
+      continue;
+    }
+    if (!result || result instanceof Error) {
+      const reason = result instanceof Error ? result.message : "image fetch returned no result";
+      failedCount += group.length;
+      failures.push({ url: sourceUrl, reason });
+      warnings.push(`Image omitted (${reason}): ${sourceUrl}`);
       for (const image of group) replaceImageWithNote(document, image);
       continue;
     }
     if (totalBytes + result.bytes.byteLength > 8_000_000) {
-      warnings.push("Some images were omitted to keep the Kindle document compact.");
+      const reason = "article image byte budget exceeded";
+      omittedCount += group.length;
+      failures.push({ url: sourceUrl, reason });
+      warnings.push(`Image omitted (${reason}): ${sourceUrl}`);
       for (const image of group) replaceImageWithNote(document, image);
       continue;
     }
     const digest = (await sha256(sourceUrl)).slice(0, 20);
     const asset: ArticleAsset = { href: `images/${digest}.${result.extension}`, mediaType: result.mediaType, bytes: result.bytes, sourceUrl };
     assets.push(asset);totalBytes += result.bytes.byteLength;
+    embeddedCount += group.length;
     for (const image of group) image.setAttribute("src", asset.href);
   }
-  return { html: document.body.innerHTML, assets, warnings: [...new Set(warnings)] };
+  return {
+    html: document.body.innerHTML,
+    assets,
+    warnings: [...new Set(warnings)],
+    media: {
+      discovered: images.length,
+      embedded: embeddedCount,
+      failed: failedCount,
+      omitted: omittedCount,
+      failures,
+    },
+  };
 }
 
 export async function hydrateArticleImages(article: Article, budget: ExtractionBudget): Promise<Article> {
@@ -475,13 +520,20 @@ export async function hydrateArticleImages(article: Article, budget: ExtractionB
     body: embedded.html,
     assets: embedded.assets,
     warnings: [...new Set([...(article.warnings || []), ...embedded.warnings])],
+    media: embedded.media,
   };
 }
 
 export function omitArticleImages(article: Article): Article {
   const document = (parseHTML(`<!doctype html><html><body>${article.body}</body></html>`) as any).document;
-  for (const image of Array.from(document.querySelectorAll("img")) as any[]) replaceImageWithNote(document, image);
-  return { ...article, body: document.body.innerHTML, assets: [] };
+  const images = Array.from(document.querySelectorAll("img")) as any[];
+  for (const image of images) replaceImageWithNote(document, image);
+  return {
+    ...article,
+    body: document.body.innerHTML,
+    assets: [],
+    media: { discovered: images.length, embedded: 0, failed: 0, omitted: images.length, failures: [] },
+  };
 }
 
 export async function extractArticle(input: ExtractArticleInput): Promise<Article> {
@@ -552,6 +604,20 @@ export async function extractArticle(input: ExtractArticleInput): Promise<Articl
     body = embedded.html;
     assets = embedded.assets;
     warnings.push(...embedded.warnings);
+    return {
+      title,
+      url: requestedUrl,
+      canonical_url: canonicalUrl,
+      source,
+      author,
+      published_at: publishedAt,
+      excerpt,
+      body,
+      assets,
+      warnings: [...new Set(warnings)],
+      media: embedded.media,
+      article_hash: await sha256(canonicalUrl),
+    };
   }
   return {
     title,

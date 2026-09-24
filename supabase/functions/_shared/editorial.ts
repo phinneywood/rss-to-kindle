@@ -49,7 +49,7 @@ function schemaFor(articleIds: string[]) {
           type: "object",
           properties: {
             id: { type: "string", enum: articleIds },
-            topic_name: { type: "string" },
+            topic_name: { type: "string", minLength: 2, maxLength: 60 },
           },
           required: ["id", "topic_name"],
           additionalProperties: false,
@@ -85,6 +85,9 @@ export function applyEditorialPlan(
 
     const topic = String(decision.topic_name || "").trim();
     if (!topic) throw new Error("Editorial plan omitted a topic name.");
+    if (topic.length > 60 || topic.split(/\s+/).length > 8) {
+      throw new Error("Editorial plan returned an overlong topic name.");
+    }
 
     topics.add(`${article.section_id || article.section_name || ""}:${topic}`);
     output.push({
@@ -139,6 +142,9 @@ export async function editorializeIssue(
     "Prefer a small number of coherent topics over one label per article. When a section has four or more articles, normally use about 2-5 topics total.",
     "Use a singleton topic only when an article genuinely has no coherent home with another article. The topic count should usually be substantially smaller than the article count.",
     "Topic names should be short, concrete editorial labels, usually 2-6 words.",
+    "Every topic label must accurately describe every article assigned to it. Prefer a broader shared label over a narrow label that only fits one member of the cluster.",
+    "Regression example: if one article is about Copilot sandboxing and another is about Copilot code-review configuration, a shared topic may be GitHub Copilot; do not call the shared topic Copilot Sandboxing.",
+    "If no truthful shared label exists, split the articles rather than forcing them under a misleading topic.",
     "Do not write summaries, introductions, blurbs, or any other reader-facing prose.",
     "Do not rewrite article titles or article bodies.",
     "Return every input id exactly once, ordered in the reading order you recommend while keeping articles within their assigned sections.",
