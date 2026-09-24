@@ -190,6 +190,78 @@ Deno.test("publisher metadata overrides curator feed attribution when the linked
   }
 });
 
+
+Deno.test("resolves HNRSS link-post wrappers to the linked publisher article", async () => {
+  const originalFetch = globalThis.fetch;
+  const fetched: string[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    fetched.push(url.toString());
+    assert(url.hostname === "8.8.8.8" && url.pathname === "/story", "link-post extraction should fetch the Article URL, not the wrapper/comments page");
+    return new Response(`<!doctype html><html><head>
+      <title>Actual linked story | Original Journal</title>
+      <meta property="og:title" content="Actual linked story">
+      <meta property="og:site_name" content="Original Journal">
+      <meta name="author" content="Actual Writer">
+      <link rel="canonical" href="https://8.8.8.8/story">
+    </head><body><article><h1>Actual linked story</h1>
+      <p>This is the opening paragraph of the real linked publisher article and is deliberately substantial enough for readable extraction.</p>
+      <p>It proves that Morning Reader follows the Article URL carried inside a link-post feed instead of packaging the discovery wrapper metadata as reading content.</p>
+      <p>A final paragraph provides enough additional prose to behave like an ordinary article page and pass the extraction threshold reliably.</p>
+    </article></body></html>`);
+  }) as typeof fetch;
+
+  try {
+    const wrapper = `<p>Article URL: <a href="https://8.8.8.8/story">https://8.8.8.8/story</a></p>
+      <p>Comments URL: <a href="https://news.ycombinator.com/item?id=123">https://news.ycombinator.com/item?id=123</a></p>
+      <p>Points: 212</p><p># Comments: 89</p>`;
+    const result = await extractArticle({
+      url: "https://news.ycombinator.com/item?id=123",
+      title: "Actual linked story",
+      source: "Mustafa Suleyman — via Hacker News",
+      feedHtml: wrapper,
+      feedKind: "full",
+      includeImages: false,
+    });
+
+    assert(fetched.length === 1, "link-post extraction should make exactly one publisher-page request");
+    assert(result.canonical_url === "https://8.8.8.8/story", "canonical URL should be the linked publisher article");
+    assert(result.source === "Original Journal", "publisher metadata should replace the discovery feed as source");
+    assert(result.author === "Actual Writer", "publisher author should replace discovery metadata");
+    assert(plainText(result.body).includes("real linked publisher article"), "the publisher article body should become the reading copy");
+    assert(!plainText(result.body).includes("Comments URL") && !plainText(result.body).includes("Points: 212"), "HNRSS wrapper metadata must never become article content");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test("does not fall back to HNRSS wrapper metadata when the publisher article is unavailable", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response("publisher unavailable", { status: 503 })) as typeof fetch;
+  try {
+    const wrapper = `<p>Article URL: <a href="https://8.8.8.8/unavailable">https://8.8.8.8/unavailable</a></p>
+      <p>Comments URL: <a href="https://news.ycombinator.com/item?id=456">https://news.ycombinator.com/item?id=456</a></p>
+      <p>Points: 99</p><p># Comments: 12</p>`;
+
+    let threw = false;
+    try {
+      await extractArticle({
+        url: "https://news.ycombinator.com/item?id=456",
+        title: "Unavailable publisher story",
+        source: "Mustafa Suleyman — via Hacker News",
+        feedHtml: wrapper,
+        feedKind: "full",
+        includeImages: false,
+      });
+    } catch {
+      threw = true;
+    }
+    assert(threw, "link-post wrappers should be omitted when the real publisher article cannot be extracted");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 Deno.test("renders a book-native linear edition with hierarchical native navigation", async () => {
   const articles: EpubArticle[] = [
     {
