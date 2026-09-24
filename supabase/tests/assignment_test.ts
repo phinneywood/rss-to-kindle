@@ -120,28 +120,31 @@ Deno.test("assignment provider can be swapped without changing the pipeline cont
   assert(result.articles.length === 1 && result.articles[0].section_name === "Systems", "custom classifier decisions should apply through the same path");
 });
 
-Deno.test("assignment policy sends strong no-fit cases to Other and rejects low-confidence destructive decisions", () => {
+Deno.test("assignment policy honors explicit no-fit placement and rejects low-confidence destructive decisions", () => {
   const policySections = [...sections, { id: "tpm", name: "TPM" }];
   const input = [
     article(1, "tpm", "Apple Charging Guide", "Rands in Repose"),
     article(2, "ai", "Design Engineering with Maggie Appleton", "Pragmatic Engineer"),
     article(3, "systems", "Borderline systems essay"),
+    article(4, "ai", "Measure An Asteroid’s Shadow With a Small Telescope and Some DIY Gear", "IEEE Spectrum"),
   ];
   const plan: AssignmentPlan = {
     articles: [
       { id: "article-1", label: "NO_STRONG_FIT", confidence: 0.95, reason: "Useful consumer technology, but not a natural fit for the configured sections." },
       { id: "article-2", label: "TPM", confidence: 0.78, reason: "Professional practice overlaps with program management." },
       { id: "article-3", label: "OMIT", confidence: 0.70, reason: "Borderline relevance." },
+      { id: "article-4", label: "NO_STRONG_FIT", confidence: 0.77, reason: "Relevant adjacent technology, but not AI, TPM, or Systems." },
     ],
   };
   const result = applyAssignmentPlan(policySections, input, plan, "luna");
-  assert(result.articles.length === 3, "low-confidence omission must not silently delete an article");
+  assert(result.articles.length === 4, "low-confidence omission must not silently delete an article");
   assert(result.articles[0].section_id === null && result.articles[0].section_name === "Other", "strong no-fit decisions should render under Other");
   assert(result.articles[1].section_id === "ai" && result.articles[1].section_name === "AI", "a 0.78 cross-section move should be conservatively retained");
   assert(result.articles[2].section_id === "systems", "low-confidence omission should preserve the original section");
-  assert(result.report.other === 1, "Other placements should be counted");
+  assert(result.articles[3].section_id === null && result.articles[3].section_name === "Other", "an explicit no-fit decision should never be forced back into its original section solely because confidence is low");
+  assert(result.report.other === 2, "Other placements should be counted");
   assert(result.report.omitted === 0, "the low-confidence omission should not count as applied");
-  assert(result.report.moved === 1, "moving a strong no-fit case to Other should count as one applied move");
+  assert(result.report.moved === 2, "both explicit no-fit placements should count as applied moves");
 });
 
 Deno.test("assignment provider failure falls back to feed placement instead of dropping the issue", async () => {
