@@ -8,12 +8,12 @@ Deno.env.set("OPENAI_API_KEY", "test-only-key");
 const { processJob, handleWorkerRequest } = await import("../functions/worker/core.ts");
 function assert(value: unknown, message = "Assertion failed"): asserts value { if (!value) throw new Error(message); }
 
-async function scenario(mode: "empty" | "failed" | "partial" | "retry" | "scheduled" | "rescheduled" | "test" | "classified") {
+async function scenario(mode: "empty" | "failed" | "partial" | "retry" | "prepare_retry" | "scheduled" | "rescheduled" | "test" | "classified") {
   const original = globalThis.fetch;
   const job: any = { id: "job-1", user_id: "user-1", status: "queued", attempts: mode === "failed" ? 2 : 0, reason: "manual", created_at: new Date().toISOString(), lookback_hours: 168 };
   if(mode === "scheduled" || mode === "rescheduled")Object.assign(job,{reason:"scheduled",section_id:"section-1",schedule_version:1,lookback_hours:192});
   if(mode === "test")Object.assign(job,{reason:"test",lookback_hours:168});
-  let outbox: any = null, sends = 0, failFinalUpdate = mode === "retry";
+  let outbox: any = null, sends = 0, failFinalUpdate = mode === "retry", failOutboxInsert = mode === "prepare_retry";
   const feedUpdates: any[] = [];
   const good = { id: "feed-1", user_id: job.user_id, section_id: "section-1", name: "Example", url: "https://8.8.8.8/feed" };
   const bad = { ...good, id: "feed-2", name: "Broken source", url: "https://8.8.8.8/broken" };
@@ -21,6 +21,7 @@ async function scenario(mode: "empty" | "failed" | "partial" | "retry" | "schedu
   const fetched: string[]=[];
   let articleDeliveryReads = 0, articleDeliveryWrites = 0;
   const snapshots: string[] = [];
+  const manifestWrites: any[] = [];
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const req = new Request(input, init), url = new URL(req.url);
     if (url.hostname === "api.resend.com") { sends++;snapshots.push(await req.text());return Response.json({ id: "email-1" }); }
@@ -75,9 +76,11 @@ async function scenario(mode: "empty" | "failed" | "partial" | "retry" | "schedu
     let rows: any[] = [];
     if (table === "digest_jobs") {
       if (body?.status === "sent" && failFinalUpdate) { failFinalUpdate = false;return Response.json({ message: "Final status database failure" }, { status: 500 }); }
+      if (body?.result?.preparation_manifest) manifestWrites.push(structuredClone(body.result.preparation_manifest));
       if (body) Object.assign(job, body);
       rows = [structuredClone(job)];
     } else if (table === "delivery_outbox") {
+      if (req.method === "POST" && failOutboxInsert) { failOutboxInsert = false;return Response.json({ message: "Outbox unavailable after manifest freeze" }, { status: 500 }); }
       if (req.method === "POST") outbox = { ...body, first_send_at: null, provider_email_id: null };
       if (req.method === "PATCH") Object.assign(outbox, body);
       rows = outbox ? [outbox] : [];
@@ -99,11 +102,11 @@ async function scenario(mode: "empty" | "failed" | "partial" | "retry" | "schedu
   }) as typeof fetch;
   try {
     const first = await processJob(structuredClone(job));
-    if (mode === "retry") {
+    if (mode === "retry" || mode === "prepare_retry") {
       assert(first?.status === "queued", JSON.stringify(first));
       await processJob(structuredClone(job));
     }
-    return { first, job, outbox, sends, feedUpdates, snapshots, fetched, articleDeliveryReads, articleDeliveryWrites };
+    return { first, job, outbox, sends, feedUpdates, snapshots, fetched, articleDeliveryReads, articleDeliveryWrites, manifestWrites };
   } finally { globalThis.fetch = original; }
 }
 
@@ -129,6 +132,15 @@ Deno.test("worker submits partial editions and persists source omissions", async
 Deno.test("worker reconciles accepted delivery without resending after final status failure", async () => {
   const result = await scenario("retry");
   assert(result.job.status === "sent", JSON.stringify(result.first));assert(result.sends === 1, "A reconciliation retry must not resubmit accepted mail");
+});
+
+Deno.test("retry reuses the frozen preparation manifest instead of rediscovering live feeds", async () => {
+  const result = await scenario("prepare_retry");
+  assert(result.job.status === "sent", JSON.stringify(result.first));
+  assert(result.sends === 1, "the successful retry should submit exactly one email");
+  assert(result.fetched.filter((path: string) => path === "/feed").length === 1, "feed discovery must not rerun after the manifest has been frozen");
+  assert(result.manifestWrites.length === 1, "the selected issue should be frozen exactly once across retries");
+  assert(result.manifestWrites[0].groups[0].items.length === 1, "the frozen manifest should preserve the selected article set");
 });
 
 Deno.test("a scheduled daily issue combines eligible sections into one EPUB",async()=>{
