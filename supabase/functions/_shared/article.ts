@@ -7,6 +7,7 @@ import { fetchPublic } from "./network.ts";
 export { fetchPublicText } from "./network.ts";
 
 export type ExtractionBudget = { imageBytes: number; deadline: number };
+const INITIAL_IMAGE_DOWNLOAD_BYTES = 1_500_000;
 const MAX_IMAGE_DOWNLOAD_BYTES = 3_000_000;
 export function extractionBudget(deadline = Infinity): ExtractionBudget { return { imageBytes: 6_000_000, deadline: Math.min(Date.now() + 80_000, deadline) }; }
 
@@ -493,21 +494,35 @@ async function embedImages(html: string, baseUrl: string, budget: ExtractionBudg
       const index = cursor++;if (index >= Math.min(8, urls.length)) return;
       const sourceUrl = urls[index];
       try {
-        if (budget.imageBytes <= 0 || Date.now() >= budget.deadline) throw new Error("image budget exceeded");
-        const reservation = Math.min(MAX_IMAGE_DOWNLOAD_BYTES, budget.imageBytes);
-        budget.imageBytes -= reservation;
-        let received = 0;
+        const fetchImage = async (limit: number) => {
+          if (budget.imageBytes <= 0 || Date.now() >= budget.deadline) throw new Error("image budget exceeded");
+          const reservation = Math.min(limit, budget.imageBytes);
+          budget.imageBytes -= reservation;
+          let received = 0;
+          try {
+            const result = await fetchPublic(sourceUrl, {
+              accept: "image/jpeg,image/png,image/gif;q=0.9",
+              maxBytes: reservation,
+              timeoutMs: 8_000,
+              deadline: budget.deadline,
+            });
+            const image = await decodeSupportedImage(result.bytes);
+            received = result.bytes.length;
+            return image;
+          } finally {
+            budget.imageBytes += reservation - received;
+          }
+        };
+
+        let image;
         try {
-        const result = await fetchPublic(sourceUrl, {
-          accept: "image/jpeg,image/png,image/gif;q=0.9",
-          maxBytes: reservation,
-          timeoutMs: 8_000,
-          deadline: budget.deadline,
-        });
-        const image = await decodeSupportedImage(result.bytes);
-        received = result.bytes.length;
+          image = await fetchImage(INITIAL_IMAGE_DOWNLOAD_BYTES);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (!/response is too large/i.test(message)) throw error;
+          image = await fetchImage(MAX_IMAGE_DOWNLOAD_BYTES);
+        }
         fetched.set(sourceUrl, image);
-        } finally { budget.imageBytes += reservation - received; }
       } catch (error) {
         fetched.set(sourceUrl, error instanceof Error ? error : new Error(String(error)));
       }
