@@ -109,6 +109,7 @@
     .modal{position:fixed;inset:0;display:none;place-items:center;padding:18px;background:rgba(35,28,20,.38);backdrop-filter:blur(4px);z-index:30}
     .modal.open{display:grid}
     .modal-card{width:min(660px,100%);max-height:88vh;overflow:auto;background:var(--paper);border:1px solid var(--line);border-radius:22px;box-shadow:0 30px 100px rgba(36,27,15,.24);padding:22px}
+    .modal.flow .modal-card{width:min(960px,100%);max-height:94vh;border-radius:8px}
     .preview-list{display:flex;flex-direction:column;gap:0}
     .preview-item{padding:14px 0;border-top:1px solid var(--line-soft)}
     .preview-item:first-child{border-top:none}
@@ -122,7 +123,7 @@
     .one-time-item-url{margin-top:5px;font:10px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);overflow-wrap:anywhere}
     .one-time-item-error{margin-top:6px;font-size:12px;line-height:1.4;color:var(--red)}
     .one-time-item-actions{display:flex;gap:5px;align-items:flex-start}
-    .one-time-item-actions .btn{min-width:34px;padding:6px 8px}
+    .one-time-item-actions .btn{min-width:44px;min-height:44px;padding:8px 10px}
     .one-time-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px}
     .one-time-summary .muted{margin:0}
     textarea.article-urls{min-height:154px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.5}
@@ -204,12 +205,12 @@
     .card{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);box-shadow:none}
     .btn{border-radius:2px;padding:9px 13px;background:transparent;border:1px solid var(--line);font-weight:700}
     .btn:hover{transform:none;border-color:var(--ink);background:#fff}
-    .btn.primary{background:var(--red);border-color:var(--red);color:#fff}
-    .btn.primary:hover{background:#920d14;border-color:#920d14}
+    .btn.primary{background:var(--green);border-color:var(--green);color:#fff}
+    .btn.primary:hover{background:var(--green-2);border-color:var(--green-2)}
     .btn.small-btn{padding:7px 10px;font-size:12px}
     .input,.select{border-radius:2px;border-color:var(--line);padding:11px 12px;background:#fff}
     .input:focus,.select:focus{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
-    .eyebrow,.side-title,.editorial-label{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--ink)}
+    .eyebrow,.side-title,.editorial-label{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:800;color:var(--ink)}
     .editorial-section{padding:26px 0;border-bottom:1px solid var(--ink)}
     .editorial-section:first-child{padding-top:6px}
     .editorial-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:16px}
@@ -360,7 +361,8 @@
     .new-edition-row{padding-top:10px}
     .new-edition-row .btn{border:0;padding:7px 0;background:transparent}
     .new-edition-row .btn:hover{color:var(--red);background:transparent}
-    .dashboard-side{display:flex;flex-direction:column;gap:0}
+    .dashboard-main{grid-column:1;grid-row:1}
+    .dashboard-side{grid-column:2;grid-row:1;display:flex;flex-direction:column;gap:0}
     .side-card.compact-panel{padding:16px 0;margin:0;border-top:1px solid var(--ink)}
     .compact-panel + .compact-panel{margin-top:16px}
     .delivery-main.compact-delivery{display:block}
@@ -370,8 +372,15 @@
       margin-top:14px;display:flex;gap:7px;justify-content:flex-start;align-items:center
     }
     .delivery-actions.compact-delivery-actions .overflow-btn{
-      width:34px;height:34px;padding:0!important;font-size:17px;display:grid;place-items:center
+      min-width:44px;height:44px;padding:0 12px!important;font-size:12px;display:grid;place-items:center
     }
+    .reading-list-action{
+      width:100%;margin-top:15px;padding:13px 0 12px;border:0;border-top:1px solid var(--line-soft);
+      background:transparent;color:var(--ink);text-align:left;cursor:pointer
+    }
+    .reading-list-action:hover .reading-list-title{color:var(--green)}
+    .reading-list-title{display:block;margin-top:4px;font-family:Georgia,"Times New Roman",serif;font-size:18px;font-weight:600}
+    .reading-list-meta{display:block;margin-top:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;color:var(--muted)}
     .latest-run.human-run{
       margin-top:13px;padding-top:11px;border-top:1px solid var(--line-soft);
       font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;
@@ -383,10 +392,10 @@
     .kindle-manage{border:0!important;background:transparent!important;padding:4px 0!important;white-space:nowrap}
     .kindle-manage:hover{color:var(--red)}
     .account-menu-btn{
-      width:34px;height:30px;padding:0!important;border:0!important;background:transparent!important;
-      font-size:18px;letter-spacing:.08em
+      min-width:44px;height:44px;padding:0 11px!important;border:1px solid var(--line)!important;background:transparent!important;
+      font-size:12px;letter-spacing:0
     }
-    .account-menu-btn:hover{color:var(--red)}
+    .account-menu-btn:hover{color:var(--ink);border-color:var(--ink)!important}
     .menu-list{display:flex;flex-direction:column;border-top:1px solid var(--line);margin-top:14px}
     .menu-action{
       border:0;border-bottom:1px solid var(--line);background:transparent;padding:13px 0;
@@ -404,12 +413,20 @@
       .section-head{padding:12px 0}
       .section-name h3{font-size:23px}
       .editions-heading{display:block}
-      .editions-heading .edition-total{font-size:9px;margin-top:7px;padding-bottom:0}
+      .editions-heading .edition-total{font-size:10px;margin-top:7px;padding-bottom:0}
+      .dashboard-main,.dashboard-side{grid-column:auto;grid-row:auto}
       .dashboard-side{margin-top:2px}
       .side-card.compact-panel{padding:17px 0}
       .delivery-time{font-size:43px}
       .delivery-actions.compact-delivery-actions .btn{width:auto}
       .kindle-status-row{align-items:center}
+      .btn.small-btn{min-height:44px;padding:9px 12px}
+      .disclosure-btn{width:44px;height:44px}
+      .feed-manage{min-width:44px;min-height:44px}
+      .section-days-link{min-height:44px;padding:10px 0}
+      .source-index-meta,.delivery-meta,.kindle-address,.latest-run.human-run{font-size:11px}
+      .modal.flow{padding:0;place-items:stretch}
+      .modal.flow .modal-card{width:100%;height:100%;max-height:none;border:0;border-radius:0;padding:20px 16px 32px}
     }
 
     /* Editorial auth + source-action refinement */
@@ -468,7 +485,7 @@
     }
     .source-index-meta{
       display:block;margin-top:3px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-      font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)
+      font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)
     }
     .source-index-arrow{
       flex:0 0 auto;font-family:Georgia,"Times New Roman",serif;font-size:22px;color:var(--ink)
@@ -636,11 +653,11 @@ function toast(message){
   toastEl.classList.add('show');
   toastTimer=setTimeout(()=>toastEl.classList.remove('show'),3200);
 }
-function openModal(content){
+function openModal(content,variant='dialog'){
   if(!modal.classList.contains('open'))modalReturnFocus=document.activeElement;
   modalVersion++;modalDirty=false;
   modal.innerHTML=`<div class="modal-card" role="dialog" aria-modal="true" aria-label="Morning Reader dialog" tabindex="-1">${content}</div>`;
-  modal.classList.add('open');modal.setAttribute('aria-hidden','false');app.inert=true;
+  modal.classList.add('open');modal.classList.toggle('flow',variant==='flow');modal.setAttribute('aria-hidden','false');app.inert=true;
   const card=modal.querySelector('.modal-card'),heading=card.querySelector('h2');
   if(heading){heading.id='dialog-heading';card.setAttribute('aria-labelledby',heading.id)}
   card.addEventListener('input',()=>{modalDirty=!card.querySelector('#one-time-form')});
@@ -659,7 +676,7 @@ function openModal(content){
 }
 function closeModal(force=false){
   if(force!==true&&modalDirty&&!confirm('Discard unsaved changes?'))return;
-  modalVersion++;modalDirty=false;modal.classList.remove('open');modal.setAttribute('aria-hidden','true');modal.innerHTML='';app.inert=false;
+  modalVersion++;modalDirty=false;modal.classList.remove('open','flow');modal.setAttribute('aria-hidden','true');modal.innerHTML='';app.inert=false;
   const target=modalReturnFocus?.isConnected?modalReturnFocus:document.getElementById(modalReturnFocus?.id||'');
   target?.focus();
 }
@@ -1031,59 +1048,27 @@ function dashboard(){
 
   app.innerHTML=shell(`
     <div class="grid editorial-grid">
-      <main class="dashboard-main">
-        ${problemFeeds.length?`<div class="problem-banner" aria-label="Sources needing attention"><strong>${problemFeeds.length} source${problemFeeds.length===1?' needs':'s need'} attention.</strong><ul class="source-problems">${problemFeeds.map(feed=>`<li>${sourceProblemLink(feed.id)}</li>`).join('')}</ul></div>`:''}
-
-        <section class="editorial-section">
-          <div class="editorial-head add-sources-head">
-            <div>
-              <div class="editorial-label">Build your morning paper</div>
-              <h2>Add sources</h2>
-            </div>
-          </div>
-          <div class="source-index-list"><button class="source-index-action" id="one-time-send"><span class="source-index-number" aria-hidden="true">1×</span><span class="source-index-copy"><span class="source-index-title">Add articles to next issue</span><span class="source-index-meta">One-off reading · no subscription</span></span><span class="source-index-arrow">›</span></button>
-            <a href="#" class="source-index-action" id="add-single-feed">
-              <span class="source-index-number" aria-hidden="true">+</span>
-              <span class="source-index-copy"><span class="source-index-title">Add a single feed</span><span class="source-index-meta">Website or RSS address</span></span>
-              <span class="source-index-arrow">›</span>
-            </a>
-            <a href="#" class="source-index-action" id="import-opml">
-              <span class="source-index-number" aria-hidden="true">++</span>
-              <span class="source-index-copy"><span class="source-index-title">Bulk upload</span><span class="source-index-meta">Import an OPML file</span></span>
-              <span class="source-index-arrow">›</span>
-            </a>
-          </div>
-        </section>
-
-        <section class="editorial-section">
-          <div class="editorial-head editions-heading">
-            <div>
-              <div class="editorial-label">Issue sections</div>
-              <h2>Your sections</h2>
-            </div>
-            <div class="edition-total">${editionCount} section${editionCount===1?'':'s'} · ${allFeeds.length} sources</div>
-          </div>
-          <div class="editions-list">${state.sections.map((section,index)=>sectionCard(section,index)).join('')}</div>
-          <div class="new-edition-row"><button class="btn" id="add-section">+ New section</button></div>
-        </section>
-      </main>
-
       <aside class="dashboard-side">
-        <section class="side-card compact-panel">
-          <div class="editorial-label">Delivery</div>
+        <section class="side-card compact-panel delivery-panel">
+          <div class="editorial-label">Next issue</div>
           <div class="delivery-main compact-delivery" style="margin-top:10px">
             <div class="edition-next-label">Next delivery</div>
             <div class="edition-next">${esc(nextIssueDelivery())}</div>
             <div class="delivery-meta">One daily issue · ${esc((settings.delivery_time||'06:00').slice(0,5))} · ${esc(settings.timezone)}</div>
             <div class="delivery-actions compact-delivery-actions">
-              <button class="btn small-btn" id="preview">Browse latest articles</button>
+              <button class="btn small-btn" id="preview">Browse articles</button>
               ${settings.onboarding_complete?`
                 <button class="btn primary small-btn" id="send-now" ${(state.jobs||[]).some(j=>j.reason!=='one_time'&&['queued','running'].includes(j.status))?'disabled':''}>Send now</button>
-                <button class="btn small-btn overflow-btn" id="delivery-menu" aria-label="More delivery options">•••</button>
+                <button class="btn small-btn overflow-btn" id="delivery-menu" aria-label="More delivery options">More</button>
               `:`<button class="btn primary small-btn" id="connect-kindle">Connect Kindle →</button>`}
             </div>
           </div>
           ${latestJob?`<div class="latest-run human-run">${esc(latestRunText(latestJob))}</div>`:''}
+          <button class="reading-list-action" id="one-time-send">
+            <span class="editorial-label">Reading list</span>
+            <span class="reading-list-title">+ Add articles to the next issue</span>
+            <span class="reading-list-meta">One-off reading · no recurring subscription</span>
+          </button>
           <button class="one-time-action" id="delivery-history">Delivery history →</button>
         </section>
 
@@ -1100,8 +1085,45 @@ function dashboard(){
           </div>
         </section>
       </aside>
+
+      <main class="dashboard-main">
+        ${problemFeeds.length?`<div class="problem-banner" aria-label="Sources needing attention"><strong>${problemFeeds.length} source${problemFeeds.length===1?' needs':'s need'} attention.</strong><ul class="source-problems">${problemFeeds.map(feed=>`<li>${sourceProblemLink(feed.id)}</li>`).join('')}</ul></div>`:''}
+
+        <section class="editorial-section">
+          <div class="editorial-head editions-heading">
+            <div>
+              <div class="editorial-label">Issue sections</div>
+              <h2>Your sections</h2>
+            </div>
+            <div class="edition-total">${editionCount} section${editionCount===1?'':'s'} · ${allFeeds.length} sources</div>
+          </div>
+          <div class="editions-list">${state.sections.map((section,index)=>sectionCard(section,index)).join('')}</div>
+          <div class="new-edition-row"><button class="btn" id="add-section">+ New section</button></div>
+        </section>
+
+        <section class="editorial-section source-management">
+          <div class="editorial-head add-sources-head">
+            <div>
+              <div class="editorial-label">Manage your paper</div>
+              <h2>Add sources</h2>
+            </div>
+          </div>
+          <div class="source-index-list">
+            <a href="#" class="source-index-action" id="add-single-feed">
+              <span class="source-index-number" aria-hidden="true">+</span>
+              <span class="source-index-copy"><span class="source-index-title">Add a single feed</span><span class="source-index-meta">Website or RSS address</span></span>
+              <span class="source-index-arrow">›</span>
+            </a>
+            <a href="#" class="source-index-action" id="import-opml">
+              <span class="source-index-number" aria-hidden="true">++</span>
+              <span class="source-index-copy"><span class="source-index-title">Bulk upload</span><span class="source-index-meta">Import an OPML file</span></span>
+              <span class="source-index-arrow">›</span>
+            </a>
+          </div>
+        </section>
+      </main>
     </div>`,
-    '<button class="btn account-menu-btn" id="account-menu" aria-label="Account menu">•••</button>');
+    '<button class="btn account-menu-btn" id="account-menu" aria-label="Account menu">Account</button>');
   wireDashboard();
 }
 
@@ -1419,7 +1441,7 @@ function oneTimeReview(name,items){
       <div class="one-time-item-actions"><button class="btn small-btn one-time-up" data-index="${index}" ${index===0?'disabled':''} aria-label="Move article up">↑</button><button class="btn small-btn one-time-down" data-index="${index}" ${index===items.length-1?'disabled':''} aria-label="Move article down">↓</button><button class="btn small-btn one-time-remove" data-index="${index}" aria-label="Remove article">Remove</button></div>
     </div>`).join('')}</div>
     ${failed?`<div class="notice error" style="margin-top:14px">${failed} article${failed===1?' could':'s could'} not be prepared. Remove ${failed===1?'it':'them'} or go back and correct the URL${failed===1?'':'s'}.</div>`:''}
-    <div class="one-time-summary"><p class="muted small">${items.length} article${items.length===1?'':'s'} · added once</p><div class="row wrap"><button class="btn" id="edit-one-time">Edit URLs</button><button class="btn primary" id="confirm-one-time" ${failed||!items.length?'disabled':''}>Add to next issue</button></div></div>`);
+    <div class="one-time-summary"><p class="muted small">${items.length} article${items.length===1?'':'s'} · added once</p><div class="row wrap"><button class="btn" id="edit-one-time">Edit URLs</button><button class="btn primary" id="confirm-one-time" ${failed||!items.length?'disabled':''}>Add to next issue</button></div></div>`,'flow');
   document.querySelector('#close-modal').onclick=closeModal;
   document.querySelector('#edit-one-time').onclick=()=>oneTimeEditionModal(oneTimeDraft);
   document.querySelectorAll('.one-time-up').forEach(button=>button.onclick=()=>{const index=Number(button.dataset.index);[items[index-1],items[index]]=[items[index],items[index-1]];oneTimeDraft.request_id=crypto.randomUUID();oneTimeReview(name,items)});
