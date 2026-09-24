@@ -412,7 +412,7 @@ Deno.test("renders a book-native linear edition with hierarchical native navigat
   const pageFour = await zip.file("OEBPS/article-4.xhtml")!.async("string");
 
   assert(contents.includes('<span class="section-index-name">AI</span>') && contents.includes('<span class="section-index-name">Systems</span>'), "visible contents should retain clear section hierarchy");
-  assert(!contents.includes("<ol") && !contents.includes("<li"), "reader-facing contents should avoid Kindle auto-numbered list markup");
+  assert(!/<(?:ol|li)(?:\s|>)/.test(contents), "reader-facing contents should avoid Kindle auto-numbered list markup");
   assert(contents.includes('<h3 class="contents-topic-name">Production agents</h3>'), "visible contents should expose topic labels");
   assert(contents.includes('href="article-1.xhtml">Reliability for production agents</a>'), "visible contents should link each article title directly to its article");
   assert(contents.includes('href="article-2.xhtml">Observability for long-running agents</a>') && contents.includes('href="article-3.xhtml">Design Engineering with Maggie Appleton</a>') && contents.includes('href="article-4.xhtml">Database internals in practice</a>'), "every retained article title must appear in the opening contents");
