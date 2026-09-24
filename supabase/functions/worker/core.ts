@@ -2,7 +2,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.116.0";
 import { XMLParser } from "npm:fast-xml-parser@5.11.1";
 import { extractArticle, extractionBudget, hydrateArticleImages, omitArticleImages, type ExtractionBudget, fetchPublicText, sha256, textValue } from "../_shared/article.ts";
 import { dispatchPrepared, DeliveryNeedsReview, checkAttachmentBudget } from "../_shared/delivery.ts";
-import { makeEpub, type EpubArticle } from "../_shared/epub.ts";
+import { makeEpub, validateEpub, type EpubArticle } from "../_shared/epub.ts";
 import { editorializeIssue } from "../_shared/editorial.ts";
 import { assignIssue } from "../_shared/assignment.ts";
 
@@ -169,6 +169,23 @@ function base64(bytes: Uint8Array) {
   return btoa(output);
 }
 
+function summarizeMedia(items: EpubArticle[]) {
+  const summary = { discovered: 0, embedded: 0, failed: 0, omitted: 0, failures: [] as Array<{ title: string; url: string; reason: string }> };
+  for (const item of items) {
+    const media = item.media;
+    if (!media) continue;
+    summary.discovered += Number(media.discovered || 0);
+    summary.embedded += Number(media.embedded || 0);
+    summary.failed += Number(media.failed || 0);
+    summary.omitted += Number(media.omitted || 0);
+    for (const failure of media.failures || []) {
+      summary.failures.push({ title: item.title, url: failure.url, reason: failure.reason });
+    }
+  }
+  summary.failures = summary.failures.slice(0, 30);
+  return summary;
+}
+
 async function sendResend(email: any, jobId: string) {
   if (!RESEND_API_KEY) throw new Error("RESEND_API_KEY is missing.");
   const response = await fetch("https://api.resend.com/emails", {
@@ -256,11 +273,16 @@ async function buildOneTime(job: any, settings: any, now: Date, displayDate: str
     throw new Error(`Article ${first.index + 1} could not be prepared: ${first.error instanceof Error ? first.error.message : String(first.error)}`);
   }
   const bytes = await makeEpub({ name, displayDate, date: now, timezone: settings.timezone || "UTC", label: "One-time edition" }, items);
+  const qa = await validateEpub(bytes, items);
+  const media = summarizeMedia(items);
+  logEvent("epub.qa_completed", { job_id: job.id, ...qa, media_discovered: media.discovered, media_embedded: media.embedded, media_failed: media.failed, media_omitted: media.omitted });
   return {
     attachments: [{ filename: `${slug(name)}-${filenameDate}.epub`, content: base64(bytes), content_type: "application/epub+zip" }],
     groups: [{ section: { id: null, name }, items }],
     feedCount: 0, issues: [] as string[],
     subject: `${name} — ${displayDate}`,
+    qa,
+    media,
   };
 }
 
@@ -322,6 +344,7 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
     included: assignment.report.included,
     omitted: assignment.report.omitted,
     moved: assignment.report.moved,
+    other: assignment.report.other,
     error: assignment.report.error || null,
     usage: assignment.report.usage || null,
     decisions: assignment.report.decisions || [],
@@ -335,6 +358,7 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
     included: assignmentSummary.included,
     omitted: assignmentSummary.omitted,
     moved: assignmentSummary.moved,
+    other: assignmentSummary.other,
     error: assignmentSummary.error,
   }, assignmentSummary.status === "fallback" ? "warn" : "info");
   for (const decision of assignmentSummary.decisions) {
@@ -395,6 +419,11 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
     items = items.slice(0, 80).map((article) => ({ ...article, section_name: section.name }));
     if (items.length) selectedGroups.push({ section, items });
   }
+  const otherItems = all
+    .filter((article) => !article.section_id && article.section_name === "Other")
+    .slice(0, 80)
+    .map((article) => ({ ...article, section_id: null, section_name: "Other" }));
+  if (otherItems.length) selectedGroups.push({ section: { id: null, name: "Other" }, items: otherItems });
 
   // Images are the expensive part. Only hydrate articles that survived assignment
   // and will actually appear in this issue.
@@ -445,6 +474,9 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
       label: testIdentity?.coverLabel || "Daily issue",
       libraryTitle: testIdentity?.libraryTitle,
     }, issueItems);
+    const qa = await validateEpub(bytes, issueItems);
+    const media = summarizeMedia(issueItems);
+    logEvent("epub.qa_completed", { job_id: job.id, ...qa, media_discovered: media.discovered, media_embedded: media.embedded, media_failed: media.failed, media_omitted: media.omitted });
     attachments.push({
       filename: testIdentity?.filename || `morning-reader-${filenameDate}.epub`,
       content: base64(bytes),
@@ -452,6 +484,16 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
     });
     checkAttachmentBudget(attachments);
     if (testIdentity) logEvent("test.artifact_prepared", { job_id: job.id, review_label: testIdentity.reviewLabel, filename: testIdentity.filename });
+    return {
+      attachments,
+      groups,
+      issues,
+      feedCount: feeds.length,
+      subject: testIdentity?.subject || `Morning Reader — ${displayDate}`,
+      editorial: editorialSummary,
+      qa,
+      media,
+    };
   }
   return {
     attachments,
@@ -460,6 +502,8 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
     feedCount: feeds.length,
     subject: testIdentity?.subject || `Morning Reader — ${displayDate}`,
     editorial: editorialSummary,
+    qa: null,
+    media: summarizeMedia(issueItems),
   };
 }
 
@@ -496,6 +540,8 @@ export async function processJob(queuedJob: any, deadline = Date.now() + 90_000)
           feedCount: prepared.feedCount,
           issues: prepared.issues,
           editorial: (prepared as any).editorial || null,
+          qa: (prepared as any).qa || null,
+          media: (prepared as any).media || null,
           pendingItems: (prepared as any).pendingItems || [],
         };
       },
@@ -509,13 +555,13 @@ export async function processJob(queuedJob: any, deadline = Date.now() + 90_000)
       if (r.error) throw r.error;
       return { job: job.id, status: "empty" };
     }
-    let total = 0;
-    const pendingIds: string[] = [];
-    for (const group of build.groups) {
-      await digestForGroup(job, group, providerId);
-      total += group.items.length;
-      pendingIds.push(...group.items.map((item: any) => item.pending_id).filter(Boolean));
-    }
+    const persistentGroups = build.groups.filter((group: any) => Boolean(group.section?.id));
+    const unsectionedItems = build.groups.filter((group: any) => !group.section?.id).flatMap((group: any) => group.items);
+    if (unsectionedItems.length) persistentGroups.push({ section: { id: null, name: "Unsectioned" }, items: unsectionedItems });
+    for (const group of persistentGroups) await digestForGroup(job, group, providerId);
+
+    const total = build.groups.reduce((count: number, group: any) => count + group.items.length, 0);
+    const pendingIds: string[] = build.groups.flatMap((group: any) => group.items.map((item: any) => item.pending_id).filter(Boolean));
     const frozenPending = (build as any).pendingItems || [];
     pendingIds.push(...frozenPending.map((item: any) => item.pending_id).filter(Boolean));
     if (pendingIds.length) {
@@ -524,7 +570,7 @@ export async function processJob(queuedJob: any, deadline = Date.now() + 90_000)
     }
     const warningMessages = [...new Set<string>(build.groups.flatMap(group => group.items.flatMap((article: any) => article.warnings || [])))];
     const status = build.issues.length || warningMessages.length ? "partial" : "sent";
-    const finished = await admin.from("digest_jobs").update({ status, finished_at: new Date().toISOString(), result: { articles: total, sections: build.groups.length, feeds: build.feedCount, provider_email_id: providerId, packet_name: job.packet_name || null, warnings: warningMessages.length, issues: [...build.issues, ...warningMessages].slice(0, 30), editorial: (build as any).editorial || null } }).eq("id", job.id);
+    const finished = await admin.from("digest_jobs").update({ status, finished_at: new Date().toISOString(), result: { articles: total, sections: build.groups.length, feeds: build.feedCount, provider_email_id: providerId, packet_name: job.packet_name || null, warnings: warningMessages.length, issues: [...build.issues, ...warningMessages].slice(0, 30), editorial: (build as any).editorial || null, qa: (build as any).qa || null, media: (build as any).media || null } }).eq("id", job.id);
     if (finished.error) throw finished.error;
     logEvent("digest.submitted", { job_id: job.id, user_id: job.user_id, status, articles: total, duration_ms: Math.round(performance.now() - started) });
     return { job: job.id, status, articles: total, sections: build.groups.length };
