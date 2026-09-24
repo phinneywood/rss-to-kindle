@@ -182,7 +182,10 @@ Deno.test("transcodes WebP-only publisher images to packaged PNG", async () => {
       article_hash: "webp",
     };
     const hydrated = await hydrateArticleImages(article, extractionBudget(Date.now() + 10_000));
-    assert(hydrated.media?.discovered === 1 && hydrated.media?.embedded === 1 && hydrated.media?.failed === 0, "WebP media should be embedded after transcoding");
+    assert(
+      hydrated.media?.discovered === 1 && hydrated.media?.embedded === 1 && hydrated.media?.failed === 0,
+      "WebP media should be embedded after transcoding: " + JSON.stringify({ media: hydrated.media, warnings: hydrated.warnings }),
+    );
     assert(hydrated.assets.length === 1 && hydrated.assets[0].mediaType === "image/png", "WebP should be packaged as a Kindle-safe PNG");
     assert(hydrated.assets[0].bytes[0] === 0x89 && hydrated.assets[0].bytes[1] === 0x50, "transcoded bytes should have a PNG signature");
     assert(!hydrated.warnings.some((warning) => warning.includes("only.webp")), "successful WebP transcoding should not emit an omission warning");
