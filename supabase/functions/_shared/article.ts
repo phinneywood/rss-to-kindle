@@ -2,6 +2,7 @@ import { Readability } from "npm:@mozilla/readability@0.6.0";
 import { parseHTML } from "npm:linkedom@0.18.13";
 import sanitizeHtml from "npm:sanitize-html@2.17.7";
 import { XMLParser } from "npm:fast-xml-parser@5.11.1";
+import { ImageMagick, initializeImageMagick, MagickFormat } from "npm:@imagemagick/magick-wasm@0.0.43";
 import { fetchPublic } from "./network.ts";
 export { fetchPublicText } from "./network.ts";
 
@@ -94,6 +95,19 @@ function resolveHttpUrl(value: string, baseUrl: string): string {
   }
 }
 
+export function recoverEmbeddedImageUrl(value: string): string {
+  const raw = String(value || "").trim();
+  const match = raw.match(/https?%3A%2F%2F[^?#\s"'<>]+/i);
+  if (!match) return raw;
+  try {
+    const decoded = decodeURIComponent(match[0]);
+    const url = new URL(decoded);
+    return ["http:", "https:"].includes(url.protocol) ? url.toString() : raw;
+  } catch {
+    return raw;
+  }
+}
+
 export function resolveLinkPostTarget(feedHtml: string | undefined, requestedUrl: string): { url: string; isLinkPostWrapper: boolean } {
   const raw = feedHtml || "";
   const text = plainText(raw);
@@ -162,7 +176,7 @@ function normalizeDom(document: any, baseUrl: string) {
       image.remove();
       continue;
     }
-    const resolved = resolveHttpUrl(imageCandidate(image), baseUrl);
+    const resolved = resolveHttpUrl(recoverEmbeddedImageUrl(imageCandidate(image)), baseUrl);
     if (!resolved) {
       image.remove();
       continue;
@@ -418,6 +432,42 @@ function detectedImage(bytes: Uint8Array): { mediaType: ArticleAsset["mediaType"
   return null;
 }
 
+function isWebp(bytes: Uint8Array) {
+  return bytes.length >= 12 &&
+    new TextDecoder().decode(bytes.subarray(0, 4)) === "RIFF" &&
+    new TextDecoder().decode(bytes.subarray(8, 12)) === "WEBP";
+}
+
+let imageMagickReady: Promise<void> | null = null;
+async function ensureImageMagick() {
+  if (!imageMagickReady) {
+    imageMagickReady = (async () => {
+      const packageEntry = new URL(import.meta.resolve("npm:@imagemagick/magick-wasm@0.0.43"));
+      const wasmUrl = new URL("x86/magick.wasm", packageEntry);
+      const wasmBytes = await Deno.readFile(wasmUrl);
+      await initializeImageMagick(wasmBytes);
+    })();
+  }
+  await imageMagickReady;
+}
+
+async function decodeSupportedImage(bytes: Uint8Array): Promise<{ bytes: Uint8Array; mediaType: ArticleAsset["mediaType"]; extension: string }> {
+  const detected = detectedImage(bytes);
+  if (detected) return { bytes, ...detected };
+  if (!isWebp(bytes)) throw new Error("unsupported image format");
+
+  await ensureImageMagick();
+  const outputs: Uint8Array[] = [];
+  await ImageMagick.read(bytes, async image => {
+    await image.write(MagickFormat.Png, data => {
+      outputs.push(Uint8Array.from(data));
+    });
+  });
+  const png = outputs[0];
+  if (!png || png.length === 0) throw new Error("WebP transcoding returned no image data");
+  return { bytes: png, mediaType: "image/png", extension: "png" };
+}
+
 async function embedImages(html: string, baseUrl: string, budget: ExtractionBudget): Promise<{ html: string; assets: ArticleAsset[]; warnings: string[]; media: ArticleMediaDiagnostics }> {
   const document = (parseHTML(`<!doctype html><html><body>${html}</body></html>`) as any).document;
   const images = Array.from(document.querySelectorAll("img[src]")) as any[];
@@ -453,10 +503,9 @@ async function embedImages(html: string, baseUrl: string, budget: ExtractionBudg
           timeoutMs: 8_000,
           deadline: budget.deadline,
         });
-        const image = detectedImage(result.bytes);
-        if (!image) throw new Error("unsupported image format");
+        const image = await decodeSupportedImage(result.bytes);
         received = result.bytes.length;
-        fetched.set(sourceUrl, { bytes: result.bytes, ...image });
+        fetched.set(sourceUrl, image);
         } finally { budget.imageBytes += reservation - received; }
       } catch (error) {
         fetched.set(sourceUrl, error instanceof Error ? error : new Error(String(error)));

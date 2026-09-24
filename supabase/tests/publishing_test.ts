@@ -59,6 +59,18 @@ Deno.test("preserves reading structure and repairs URLs", () => {
   assert(plainText(html).includes("Plan Cost A $5"), "table text should remain readable");
 });
 
+Deno.test("recovers original publisher URLs from Substack image transformation paths", () => {
+  const html = sanitizeArticleHtml(
+    '<img src="fl_progressive:steep/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2Fexample_1600x140.png" alt="Notebook">',
+    "https://newsletter.pragmaticengineer.com/p/example",
+  );
+  assert(
+    html.includes('src="https://substack-post-media.s3.amazonaws.com/public/images/example_1600x140.png"'),
+    "encoded Substack origin URLs should be recovered before article-relative resolution",
+  );
+  assert(!html.includes("newsletter.pragmaticengineer.com/p/fl_progressive"), "broken article-relative image URLs must not survive sanitization");
+});
+
 Deno.test("extracts visible and structured article metadata", () => {
   const article = extractArticleDocument(`<!doctype html><html><head>
     <title>An investigation | Example Journal</title>
@@ -148,12 +160,16 @@ Deno.test("prefers Kindle-safe picture fallbacks over WebP sources", async () =>
   }
 });
 
-Deno.test("image failures retain the exact URL and reason without dropping article text", async () => {
+Deno.test("transcodes WebP-only publisher images to packaged PNG", async () => {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = (async () => new Response(new Uint8Array([0x52,0x49,0x46,0x46,0x00,0x00,0x00,0x00,0x57,0x45,0x42,0x50]))) as typeof fetch;
+  const webp = Uint8Array.from(
+    atob("UklGRjoAAABXRUJQVlA4IC4AAADwAQCdASoCAAIAAUAmJaACdLoB+AAEyAAA/q4X/zYEDND6YP/SbPE2eJs+OYAA"),
+    (char) => char.charCodeAt(0),
+  );
+  globalThis.fetch = (async () => new Response(webp)) as typeof fetch;
   try {
     const article: Article = {
-      title: "Unsupported image",
+      title: "WebP image",
       url: "https://8.8.8.8/article",
       canonical_url: "https://8.8.8.8/article",
       source: "Example",
@@ -163,14 +179,17 @@ Deno.test("image failures retain the exact URL and reason without dropping artic
       body: '<p>Article text survives.</p><img src="https://8.8.8.8/only.webp" alt="WebP only">',
       assets: [],
       warnings: [],
-      article_hash: "unsupported",
+      article_hash: "webp",
     };
     const hydrated = await hydrateArticleImages(article, extractionBudget(Date.now() + 10_000));
-    assert(hydrated.media?.discovered === 1 && hydrated.media?.failed === 1, "unsupported media should be counted precisely");
-    assert(hydrated.media?.failures[0]?.url === "https://8.8.8.8/only.webp", "failed image URL should be retained");
-    assert(hydrated.media?.failures[0]?.reason.includes("unsupported image format"), "failure reason should identify the unsupported format");
-    assert(hydrated.warnings.some((warning) => warning.includes("only.webp") && warning.includes("unsupported image format")), "run diagnostics should identify the exact failed image");
-    assert(plainText(hydrated.body).includes("Article text survives."), "image failure must never remove article text");
+    assert(
+      hydrated.media?.discovered === 1 && hydrated.media?.embedded === 1 && hydrated.media?.failed === 0,
+      "WebP media should be embedded after transcoding: " + JSON.stringify({ media: hydrated.media, warnings: hydrated.warnings }),
+    );
+    assert(hydrated.assets.length === 1 && hydrated.assets[0].mediaType === "image/png", "WebP should be packaged as a Kindle-safe PNG");
+    assert(hydrated.assets[0].bytes[0] === 0x89 && hydrated.assets[0].bytes[1] === 0x50, "transcoded bytes should have a PNG signature");
+    assert(!hydrated.warnings.some((warning) => warning.includes("only.webp")), "successful WebP transcoding should not emit an omission warning");
+    assert(plainText(hydrated.body).includes("Article text survives."), "transcoding must not alter article text");
   } finally {
     globalThis.fetch = originalFetch;
   }
