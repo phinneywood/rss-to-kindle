@@ -1,7 +1,7 @@
 import JSZip from "npm:jszip@3.10.1";
 import jpeg from "npm:jpeg-js@0.4.4";
 import { extractArticle, extractArticleDocument, extractMediumFeedArticle, extractionBudget, hydrateArticleImages, plainText, sanitizeArticleHtml, textValue, type Article } from "../functions/_shared/article.ts";
-import { makeEpub, repairArticleAnchors, type EpubArticle } from "../functions/_shared/epub.ts";
+import { makeEpub, repairArticleAnchors, validateEpub, type EpubArticle } from "../functions/_shared/epub.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -109,6 +109,68 @@ Deno.test("hydrates article images only when explicitly requested after text ext
     assert(fetched.includes("/diagram.png"), "explicit hydration should fetch the image");
     assert(hydrated.assets.length === 1, "hydration should attach the fetched image asset");
     assert(!hydrated.body.includes("https://8.8.8.8/diagram.png"), "hydrated article body should reference the packaged local image");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test("prefers Kindle-safe picture fallbacks over WebP sources", async () => {
+  const originalFetch = globalThis.fetch;
+  const fetched: string[] = [];
+  globalThis.fetch = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    fetched.push(url.pathname);
+    if (url.pathname === "/fallback.jpg") return new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]));
+    if (url.pathname === "/modern.webp") return new Response(new Uint8Array([0x52,0x49,0x46,0x46,0x00,0x00,0x00,0x00,0x57,0x45,0x42,0x50]));
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+  try {
+    const body = sanitizeArticleHtml('<picture><source type="image/jpeg" srcset="https://8.8.8.8/fallback.jpg 2x"><source type="image/webp" srcset="https://8.8.8.8/modern.webp 2x"><img src="https://8.8.8.8/modern.webp" alt="Diagram"></picture>', "https://8.8.8.8/article");
+    const article: Article = {
+      title: "Fallback image",
+      url: "https://8.8.8.8/article",
+      canonical_url: "https://8.8.8.8/article",
+      source: "Example",
+      author: null,
+      published_at: null,
+      excerpt: "",
+      body,
+      assets: [],
+      warnings: [],
+      article_hash: "fallback",
+    };
+    const hydrated = await hydrateArticleImages(article, extractionBudget(Date.now() + 10_000));
+    assert(fetched.includes("/fallback.jpg"), "supported picture fallback should be fetched");
+    assert(!fetched.includes("/modern.webp"), "WebP should not be fetched when a JPEG fallback exists");
+    assert(hydrated.media?.embedded === 1 && hydrated.media?.failed === 0, "fallback should count as a successful embedded image");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test("image failures retain the exact URL and reason without dropping article text", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(new Uint8Array([0x52,0x49,0x46,0x46,0x00,0x00,0x00,0x00,0x57,0x45,0x42,0x50]))) as typeof fetch;
+  try {
+    const article: Article = {
+      title: "Unsupported image",
+      url: "https://8.8.8.8/article",
+      canonical_url: "https://8.8.8.8/article",
+      source: "Example",
+      author: null,
+      published_at: null,
+      excerpt: "",
+      body: '<p>Article text survives.</p><img src="https://8.8.8.8/only.webp" alt="WebP only">',
+      assets: [],
+      warnings: [],
+      article_hash: "unsupported",
+    };
+    const hydrated = await hydrateArticleImages(article, extractionBudget(Date.now() + 10_000));
+    assert(hydrated.media?.discovered === 1 && hydrated.media?.failed === 1, "unsupported media should be counted precisely");
+    assert(hydrated.media?.failures[0]?.url === "https://8.8.8.8/only.webp", "failed image URL should be retained");
+    assert(hydrated.media?.failures[0]?.reason.includes("unsupported image format"), "failure reason should identify the unsupported format");
+    assert(hydrated.warnings.some((warning) => warning.includes("only.webp") && warning.includes("unsupported image format")), "run diagnostics should identify the exact failed image");
+    assert(plainText(hydrated.body).includes("Article text survives."), "image failure must never remove article text");
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -349,9 +411,11 @@ Deno.test("renders a book-native linear edition with hierarchical native navigat
   const pageThree = await zip.file("OEBPS/article-3.xhtml")!.async("string");
   const pageFour = await zip.file("OEBPS/article-4.xhtml")!.async("string");
 
-  assert(contents.includes('<span class="section-index-name">AI</span>') && contents.includes('<span class="section-index-name">Systems</span>'), "visible contents should be a simple static section index");
-  assert(!contents.includes("<a "), "visible contents should not expose hyperlink chrome");
-  assert(!contents.includes("Reliability for production agents") && !contents.includes("Production agents"), "visible contents should not become an article directory");
+  assert(contents.includes('<span class="section-index-name">AI</span>') && contents.includes('<span class="section-index-name">Systems</span>'), "visible contents should retain clear section hierarchy");
+  assert(!contents.includes("<ol") && !contents.includes("<li"), "reader-facing contents should avoid Kindle auto-numbered list markup");
+  assert(contents.includes('<h3 class="contents-topic-name">Production agents</h3>'), "visible contents should expose topic labels");
+  assert(contents.includes('href="article-1.xhtml">Reliability for production agents</a>'), "visible contents should link each article title directly to its article");
+  assert(contents.includes('href="article-2.xhtml">Observability for long-running agents</a>') && contents.includes('href="article-3.xhtml">Design Engineering with Maggie Appleton</a>') && contents.includes('href="article-4.xhtml">Database internals in practice</a>'), "every retained article title must appear in the opening contents");
   assert(sectionOne.includes('<h1 class="section-name">AI</h1>') && sectionOne.includes("3 stories"), "section divider should name the section and story count");
   assert(!sectionOne.includes("<a ") && !sectionOne.includes("Begin section"), "section divider should contain no navigation chrome");
   assert(!sectionOne.includes("Reliability for production agents") && !sectionOne.includes("Production agents"), "section divider should not list articles or topics");
@@ -368,4 +432,6 @@ Deno.test("renders a book-native linear edition with hierarchical native navigat
   assert(nav.includes('href="article-1.xhtml">Reliability for production agents</a>'), "EPUB nav should expose article entries");
   assert(ncx.includes("<text>AI</text>") && ncx.includes("<text>Production agents</text>") && ncx.includes("<text>Reliability for production agents</text>"), "legacy Kindle NCX should preserve section-topic-article hierarchy");
   assert(opf.includes('<spine toc="ncx"><itemref idref="contents"/><itemref idref="section-1"/><itemref idref="article-1"/><itemref idref="article-2"/><itemref idref="article-3"/><itemref idref="section-2"/><itemref idref="article-4"/>'), "reading spine should remain linear by section");
+  const qa = await validateEpub(bytes, articles);
+  assert(qa.articles === 4 && qa.contentsEntries === 4, "pre-send EPUB QA should prove every retained article is represented in the opening contents");
 });
