@@ -442,7 +442,8 @@ let imageMagickReady: Promise<void> | null = null;
 async function ensureImageMagick() {
   if (!imageMagickReady) {
     imageMagickReady = (async () => {
-      const wasmUrl = new URL("magick.wasm", import.meta.resolve("npm:@imagemagick/magick-wasm@0.0.43"));
+      const packageEntry = new URL(import.meta.resolve("npm:@imagemagick/magick-wasm@0.0.43"));
+      const wasmUrl = new URL("x86/magick.wasm", packageEntry);
       const wasmBytes = await Deno.readFile(wasmUrl);
       await initializeImageMagick(wasmBytes);
     })();
@@ -456,11 +457,14 @@ async function decodeSupportedImage(bytes: Uint8Array): Promise<{ bytes: Uint8Ar
   if (!isWebp(bytes)) throw new Error("unsupported image format");
 
   await ensureImageMagick();
-  const png = ImageMagick.read(bytes, image =>
-    image.write(MagickFormat.Png, data => Uint8Array.from(data))
-  );
+  let png: Uint8Array | null = null;
+  await ImageMagick.read(bytes, async image => {
+    await image.write(MagickFormat.Png, data => {
+      png = Uint8Array.from(data);
+    });
+  });
   if (!png?.length) throw new Error("WebP transcoding returned no image data");
-  return { bytes: Uint8Array.from(png), mediaType: "image/png", extension: "png" };
+  return { bytes: png, mediaType: "image/png", extension: "png" };
 }
 
 async function embedImages(html: string, baseUrl: string, budget: ExtractionBudget): Promise<{ html: string; assets: ArticleAsset[]; warnings: string[]; media: ArticleMediaDiagnostics }> {
