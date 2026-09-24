@@ -2,6 +2,7 @@ import { Readability } from "npm:@mozilla/readability@0.6.0";
 import { parseHTML } from "npm:linkedom@0.18.13";
 import sanitizeHtml from "npm:sanitize-html@2.17.7";
 import { XMLParser } from "npm:fast-xml-parser@5.11.1";
+import parseSrcsetModule from "npm:parse-srcset@1.0.2";
 import { ImageMagick, initializeImageMagick, MagickFormat } from "npm:@imagemagick/magick-wasm@0.0.43";
 import { fetchPublic } from "./network.ts";
 export { fetchPublicText } from "./network.ts";
@@ -99,6 +100,12 @@ function resolveHttpUrl(value: string, baseUrl: string): string {
 
 export function recoverEmbeddedImageUrl(value: string): string {
   const raw = String(value || "").trim();
+  try {
+    const absolute = new URL(raw);
+    if (["http:", "https:"].includes(absolute.protocol)) return absolute.toString();
+  } catch {
+    // Recover an encoded publisher origin only when the candidate itself is not a valid absolute URL.
+  }
   const match = raw.match(/https?%3A%2F%2F[^?#\s"'<>]+/i);
   if (!match) return raw;
   try {
@@ -125,6 +132,37 @@ export function resolveLinkPostTarget(feedHtml: string | undefined, requestedUrl
   return { url: resolved || requestedUrl, isLinkPostWrapper: true };
 }
 
+type ParsedSrcsetCandidate = { url: string; w?: number; h?: number; d?: number };
+const parseSrcset = parseSrcsetModule as unknown as (value: string) => ParsedSrcsetCandidate[];
+
+function preferredSrcsetCandidate(srcset: string): string {
+  if (!srcset.trim()) return "";
+  try {
+    const candidates = parseSrcset(srcset).filter((candidate) => Boolean(candidate?.url));
+    if (!candidates.length) return "";
+
+    const widths = candidates.filter((candidate) => Number.isFinite(candidate.w) && Number(candidate.w) > 0);
+    if (widths.length) {
+      const underTarget = widths.filter((candidate) => Number(candidate.w) <= 1200)
+        .sort((a, b) => Number(b.w) - Number(a.w));
+      if (underTarget.length) return underTarget[0].url;
+      return widths.sort((a, b) => Number(a.w) - Number(b.w))[0].url;
+    }
+
+    const densities = candidates.filter((candidate) => Number.isFinite(candidate.d) && Number(candidate.d) > 0);
+    if (densities.length) {
+      const underTarget = densities.filter((candidate) => Number(candidate.d) <= 2)
+        .sort((a, b) => Number(b.d) - Number(a.d));
+      if (underTarget.length) return underTarget[0].url;
+      return densities.sort((a, b) => Number(a.d) - Number(b.d))[0].url;
+    }
+
+    return candidates[0].url;
+  } catch {
+    return "";
+  }
+}
+
 function imageCandidate(element: any): string {
   const direct = element.getAttribute("data-src") || element.getAttribute("data-original") || element.getAttribute("data-lazy-src") || element.getAttribute("src") || "";
   const picture = element.closest("picture");
@@ -136,14 +174,7 @@ function imageCandidate(element: any): string {
       (!type && !/\.(?:webp|avif)(?:[?#]|\s|$)/i.test(srcset));
   });
   const srcset = fallback?.getAttribute("srcset") || element.getAttribute("data-srcset") || element.getAttribute("srcset") || "";
-  if (!srcset) return direct;
-  const candidates = srcset.split(",").map((part: string) => {
-    const [url, descriptor = ""] = part.trim().split(/\s+/, 2);
-    const score = descriptor.endsWith("w") ? Number(descriptor.slice(0, -1)) : descriptor.endsWith("x") ? Number(descriptor.slice(0, -1)) * 1000 : 0;
-    return { url, score: Number.isFinite(score) ? score : 0 };
-  }).filter((x: { url: string }) => x.url);
-  candidates.sort((a: { score: number }, b: { score: number }) => b.score - a.score);
-  return candidates[0]?.url || direct;
+  return preferredSrcsetCandidate(srcset) || direct;
 }
 
 function normalizeDom(document: any, baseUrl: string) {

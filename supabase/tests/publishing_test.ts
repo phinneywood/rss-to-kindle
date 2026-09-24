@@ -71,6 +71,21 @@ Deno.test("recovers original publisher URLs from Substack image transformation p
   assert(!html.includes("newsletter.pragmaticengineer.com/p/fl_progressive"), "broken article-relative image URLs must not survive sanitization");
 });
 
+Deno.test("preserves valid Substack CDN srcset URLs and chooses a Kindle-sized variant", () => {
+  const origin = "https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2Fexample_2000x1600.png";
+  const srcset = [
+    `https://substackcdn.com/image/fetch/w_640,c_limit,f_auto,q_auto:good,fl_progressive:steep/${origin} 640w`,
+    `https://substackcdn.com/image/fetch/w_960,c_limit,f_auto,q_auto:good,fl_progressive:steep/${origin} 960w`,
+    `https://substackcdn.com/image/fetch/w_1456,c_limit,f_auto,q_auto:good,fl_progressive:steep/${origin} 1456w`,
+  ].join(", ");
+  const html = sanitizeArticleHtml(
+    `<img src="https://substack-post-media.s3.amazonaws.com/public/images/example_2000x1600.png" srcset="${srcset}" alt="Notebook">`,
+    "https://newsletter.pragmaticengineer.com/p/example",
+  );
+  assert(html.includes("https://substackcdn.com/image/fetch/w_960,c_limit"), "responsive selection should preserve the valid CDN transform and choose the largest candidate at or below 1200px");
+  assert(!html.includes('src="https://substack-post-media.s3.amazonaws.com/public/images/example_2000x1600.png"'), "responsive selection should not fall back to the oversized origin");
+});
+
 Deno.test("extracts visible and structured article metadata", () => {
   const article = extractArticleDocument(`<!doctype html><html><head>
     <title>An investigation | Example Journal</title>
