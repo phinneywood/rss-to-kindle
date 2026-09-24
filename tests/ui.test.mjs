@@ -42,9 +42,9 @@ test('explicit sign-out clears credentials only after server revocation succeeds
   assert.equal(result.retained,'test-token');assert.match(result.message,/Could not sign out/);assert.equal(result.saved,null);assert.ok(result.login);
 });
 
-test('one-time sending, history, paused sources and removal are discoverable', async () => {
-  const result = await run(`expandedSections.add('s1');dashboard();return {first:document.querySelector('.source-index-action').id,paused:document.querySelector('.feed').textContent.includes('Paused'),history:!!document.querySelector('#delivery-history'),remove:!!document.querySelector('.remove-section'),label:document.querySelector('.kindle-state').textContent}`);
-  assert.equal(result.first, 'one-time-send');assert.ok(result.paused && result.history && result.remove);assert.match(result.label, /Address saved/);
+test('dashboard prioritizes the next issue and sections before source management', async () => {
+  const result = await run(`expandedSections.add('s1');dashboard();const children=[...document.querySelector('.editorial-grid').children];return {sideFirst:children[0].classList.contains('dashboard-side'),mainFirstHeading:document.querySelector('.dashboard-main .editorial-section h2').textContent,sourceFirst:document.querySelector('.source-index-action').id,readingList:document.querySelector('#one-time-send').textContent,paused:document.querySelector('.feed').textContent.includes('Paused'),history:!!document.querySelector('#delivery-history'),remove:!!document.querySelector('.remove-section'),label:document.querySelector('.kindle-state').textContent,account:document.querySelector('#account-menu').textContent,more:document.querySelector('#delivery-menu').textContent}`);
+  assert.ok(result.sideFirst);assert.equal(result.mainFirstHeading,'Your sections');assert.equal(result.sourceFirst,'add-single-feed');assert.match(result.readingList,/Add articles to the next issue/);assert.ok(result.paused && result.history && result.remove);assert.match(result.label,/Address saved/);assert.equal(result.account,'Account');assert.equal(result.more,'More');
 });
 
 test('dialogs manage focus, trap Tab, restore focus and close on Escape', async () => {
@@ -62,9 +62,9 @@ test('closing one-time review while loading never reopens it', async () => {
   assert.ok(result);
 });
 
-test('one-time drafts survive closing and review shows excerpts and warnings', async () => {
-  const result = await run(`oneTimeEditionModal();document.querySelector('#one-time-name').value='Weekend';document.querySelector('#one-time-urls').value='https://example.com/a';document.querySelector('#one-time-form').oninput();closeModal();oneTimeEditionModal();const restored=document.querySelector('#one-time-name').value;oneTimeReview('Weekend',[{status:'ready',title:'Article',url:'https://example.com/a',excerpt:'Readable excerpt',warnings:['Feed version used']}]);return {restored,text:modal.textContent}`);
-  assert.equal(result.restored, 'Weekend');assert.match(result.text, /Readable excerpt/);assert.match(result.text, /Feed version used/);assert.match(result.text, /not the final EPUB/);
+test('one-time drafts survive closing and article review becomes a full-screen flow', async () => {
+  const result = await run(`oneTimeEditionModal();document.querySelector('#one-time-name').value='Weekend';document.querySelector('#one-time-urls').value='https://example.com/a';document.querySelector('#one-time-form').oninput();closeModal();oneTimeEditionModal();const restored=document.querySelector('#one-time-name').value;oneTimeReview('Weekend',[{status:'ready',title:'Article',url:'https://example.com/a',excerpt:'Readable excerpt',warnings:['Feed version used']}]);const flow=modal.classList.contains('flow');document.querySelector('#edit-one-time').click();return {restored,text:modal.textContent,flow,flowCleared:!modal.classList.contains('flow')}`);
+  assert.equal(result.restored, 'Weekend');assert.ok(result.flow && result.flowCleared);assert.match(result.text, /Add selected articles/);
 });
 
 test('new one-time users can save an address without scheduling or a test send', async () => {
@@ -106,6 +106,13 @@ test('dashboard presents one daily issue and section frequency',async()=>{
 test('account settings contain the one daily delivery time',async()=>{
   const result=await run(`settingsModal();return {time:!!document.querySelector('[name="delivery_time"]'),zone:!!document.querySelector('[name="timezone"]')}`);
   assert.equal(result.time,true);assert.equal(result.zone,true);
+});
+
+test('routine primary actions use the publication green while danger and errors retain red',async()=>{
+  const css=html.match(/<style>([\s\S]*?)<\/style>/)?.[1]||'';
+  assert.match(css,/\.btn\.primary\{background:var\(--green\);border-color:var\(--green\)/);
+  assert.match(css,/\.btn\.danger\{color:var\(--red\)/);
+  assert.match(css,/\.notice\.error\{background:var\(--red-soft\);color:var\(--red\)/);
 });
 
 test('source alerts name the source and section and open the exact source with focus restored',async()=>{
