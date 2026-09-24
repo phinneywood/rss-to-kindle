@@ -43,6 +43,7 @@ export type AssignmentReport = {
   included: number;
   omitted: number;
   moved: number;
+  other: number;
   error?: string;
   usage?: Record<string, unknown>;
   decisions?: Array<{
@@ -57,6 +58,8 @@ export type AssignmentReport = {
 };
 
 const DEFAULT_MODEL = "gpt-6-luna";
+export const MOVE_CONFIDENCE_MIN = 0.85;
+export const OMIT_CONFIDENCE_MIN = 0.90;
 
 function candidateId(index: number) {
   return `article-${index + 1}`;
@@ -82,7 +85,7 @@ function assignmentSchema(sections: AssignmentSection[]) {
           type: "object",
           properties: {
             id: { type: "string" },
-            label: { type: "string", enum: ["OMIT", ...sections.map((section) => section.name)] },
+            label: { type: "string", enum: ["OMIT", "NO_STRONG_FIT", ...sections.map((section) => section.name)] },
             confidence: { type: "number", minimum: 0, maximum: 1 },
             reason: { type: "string" },
           },
@@ -103,7 +106,7 @@ export function applyAssignmentPlan(
   provider: string,
 ): {
   articles: AssignedArticle[];
-  report: Pick<AssignmentReport, "included" | "omitted" | "moved" | "decisions">;
+  report: Pick<AssignmentReport, "included" | "omitted" | "moved" | "other" | "decisions">;
 } {
   const expected = new Set(articles.map((_article, index) => candidateId(index)));
   const seen = new Set<string>();
@@ -113,6 +116,7 @@ export function applyAssignmentPlan(
   const decisions: NonNullable<AssignmentReport["decisions"]> = [];
   let omitted = 0;
   let moved = 0;
+  let other = 0;
 
   if (!plan || !Array.isArray(plan.articles) || plan.articles.length !== articles.length) {
     throw new Error("Assignment plan did not return exactly one decision for every article.");
@@ -133,7 +137,34 @@ export function applyAssignmentPlan(
       : null;
     const reason = String(decision.reason || "").trim();
 
+    const retainOriginal = (policyReason: string) => {
+      const original = sectionById.get(String(article.section_id || ""));
+      if (!original) throw new Error("Assignment policy could not preserve an article with no original section.");
+      const retainedReason = reason ? `${reason} ${policyReason}` : policyReason;
+      output.push({
+        ...article,
+        section_id: original.id,
+        section_name: original.name,
+        assignment_provider: provider,
+        assignment_confidence: confidence,
+        assignment_reason: retainedReason,
+      });
+      decisions.push({
+        title: article.title,
+        source: article.source,
+        from,
+        to: original.name,
+        include: true,
+        confidence,
+        reason: retainedReason,
+      });
+    };
+
     if (decision.label === "OMIT") {
+      if (confidence == null || confidence < OMIT_CONFIDENCE_MIN) {
+        retainOriginal(`Retained in ${from} because omission requires confidence >= ${OMIT_CONFIDENCE_MIN.toFixed(2)}.`);
+        continue;
+      }
       omitted++;
       decisions.push({
         title: article.title,
@@ -147,8 +178,39 @@ export function applyAssignmentPlan(
       continue;
     }
 
+    if (decision.label === "NO_STRONG_FIT") {
+      if (confidence == null || confidence < MOVE_CONFIDENCE_MIN) {
+        retainOriginal(`Retained in ${from} because moving to Other requires confidence >= ${MOVE_CONFIDENCE_MIN.toFixed(2)}.`);
+        continue;
+      }
+      other++;
+      if (article.section_id) moved++;
+      output.push({
+        ...article,
+        section_id: null,
+        section_name: "Other",
+        assignment_provider: provider,
+        assignment_confidence: confidence,
+        assignment_reason: reason,
+      });
+      decisions.push({
+        title: article.title,
+        source: article.source,
+        from,
+        to: "Other",
+        include: true,
+        confidence,
+        reason,
+      });
+      continue;
+    }
+
     const target = sectionByName.get(decision.label);
     if (!target) throw new Error("Assignment plan used an unknown section label.");
+    if (article.section_id && article.section_id !== target.id && (confidence == null || confidence < MOVE_CONFIDENCE_MIN)) {
+      retainOriginal(`Retained in ${from} because cross-section moves require confidence >= ${MOVE_CONFIDENCE_MIN.toFixed(2)}.`);
+      continue;
+    }
     if (article.section_id && article.section_id !== target.id) moved++;
 
     output.push({
@@ -171,7 +233,7 @@ export function applyAssignmentPlan(
   }
 
   if (seen.size !== expected.size) throw new Error("Assignment plan omitted one or more article decisions.");
-  return { articles: output, report: { included: output.length, omitted, moved, decisions } };
+  return { articles: output, report: { included: output.length, omitted, moved, other, decisions } };
 }
 
 export function lunaAssignmentClassifier(options: {
@@ -206,7 +268,11 @@ export function lunaAssignmentClassifier(options: {
         "Classify every candidate into exactly one supplied section or OMIT.",
         "A candidate's current section is only a discovery hint from its feed. Judge the linked article itself.",
         "Reposts and links discovered through a person's feed must be classified by the linked article's actual subject and publisher metadata, not the feed owner's identity.",
-        "Prefer OMIT to weak section fit. Do not create new section labels.",
+        "Use NO_STRONG_FIT for a worthwhile article that does not naturally belong in any supplied section; Morning Reader will place it in Other.",
+        "Use OMIT only when the article itself is not worth including in this reader's publication, not merely because its section fit is weak.",
+        "Do not force general consumer technology, culture, or business coverage into TPM, AI, or Systems just because of the feed that surfaced it.",
+        "Only move an article between supplied sections when the article's subject clearly fits the destination better than its current section; borderline cases should stay put or use NO_STRONG_FIT.",
+        "Example: a practical Apple charging-hardware guide is not TPM merely because it came from a management-oriented feed; use NO_STRONG_FIT unless another supplied section genuinely fits.",
         "Return every input id exactly once.",
         "Confidence is your own 0-1 estimate of classification certainty. It is diagnostic only and is not a calibrated probability.",
       ].join("\n");
@@ -286,6 +352,7 @@ export async function assignIssue(
         included: articles.length,
         omitted: 0,
         moved: 0,
+        other: 0,
       },
     };
   }
@@ -316,6 +383,7 @@ export async function assignIssue(
         included: articles.length,
         omitted: 0,
         moved: 0,
+        other: 0,
         error: message.slice(0, 500),
       },
     };
