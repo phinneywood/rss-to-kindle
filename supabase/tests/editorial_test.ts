@@ -24,7 +24,7 @@ function article(index: number, sectionId: string, sectionName: string, title: s
   };
 }
 
-Deno.test("section editor groups accepted articles without moving, omitting, or rewriting them", () => {
+Deno.test("section editor groups and orders accepted articles without generating prose", () => {
   const input = [
     article(1, "ai", "AI", "Agent reliability"),
     article(2, "ai", "AI", "Agent observability"),
@@ -33,29 +33,30 @@ Deno.test("section editor groups accepted articles without moving, omitting, or 
   const bodies = new Map(input.map((item) => [item.article_hash, item.body]));
   const plan: EditorialPlan = {
     articles: [
-      { id: "article-1", topic_name: "Production agents", topic_intro: "Two pieces cover production agent operations." },
-      { id: "article-2", topic_name: "Production agents", topic_intro: "Two pieces cover production agent operations." },
-      { id: "article-3", topic_name: "Database architecture", topic_intro: "A standalone systems piece." },
+      { id: "article-1", topic_name: "Production agents" },
+      { id: "article-2", topic_name: "Production agents" },
+      { id: "article-3", topic_name: "Database architecture" },
     ],
   };
   const result = applyEditorialPlan(input, plan);
   assert(result.articles.length === input.length, "section editor must return every accepted article");
   assert(result.topics === 2, "topics should be counted by section and title");
   assert(result.articles[2].section_id === "systems", "section editor must not reroute articles");
+  assert(result.articles.every((item) => !("editorial_topic_intro" in item) || !item.editorial_topic_intro), "section editor must not attach visible summary prose");
   for (const item of result.articles) assert(item.body === bodies.get(item.article_hash), "section editor must not rewrite article bodies");
 });
 
-Deno.test("section editor uses GPT-6 Luna structured output for topic organization", async () => {
+Deno.test("section editor uses GPT-6 Luna structured output for topic labels only", async () => {
   const input = [article(1, "ai", "AI", "Agent reliability")];
   let requestBody: any = null;
   const fetchImpl = (async (_input: RequestInfo | URL, init?: RequestInit) => {
     requestBody = JSON.parse(String(init?.body || "{}"));
     const plan: EditorialPlan = {
-      articles: [{ id: "article-1", topic_name: "Production agents", topic_intro: "A production-agent update." }],
+      articles: [{ id: "article-1", topic_name: "Production agents" }],
     };
     return Response.json({
       output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text: JSON.stringify(plan) }] }],
-      usage: { input_tokens: 80, output_tokens: 20, total_tokens: 100 },
+      usage: { input_tokens: 80, output_tokens: 12, total_tokens: 92 },
     });
   }) as typeof fetch;
 
@@ -68,13 +69,12 @@ Deno.test("section editor uses GPT-6 Luna structured output for topic organizati
   assert(requestBody?.text?.format?.name === "morning_reader_editorial_plan", "editor should use a dedicated strict schema");
   assert(requestBody?.text?.format?.schema?.properties?.articles?.minItems === input.length, "editor schema must require one output per accepted article");
   assert(requestBody?.text?.format?.schema?.properties?.articles?.maxItems === input.length, "editor schema must reject short or long article arrays");
-  assert(JSON.stringify(requestBody?.text?.format?.schema?.properties?.articles?.items?.properties?.id?.enum) === JSON.stringify(["article-1"]), "editor schema must restrict ids to accepted articles");
-  assert(!JSON.stringify(requestBody).includes('"include"'), "editor contract must not contain inclusion decisions");
-  assert(!JSON.stringify(requestBody).includes('"section_name"'), "editor contract must not contain section routing decisions");
-  assert(!JSON.stringify(requestBody).includes('"article_note"'), "editor contract must not generate per-article framing notes");
+  const props = requestBody?.text?.format?.schema?.properties?.articles?.items?.properties || {};
+  assert(Object.keys(props).sort().join(",") === "id,topic_name", "editor schema should expose only id and topic_name");
+  assert(!JSON.stringify(requestBody).includes('"topic_intro"'), "editor contract must not generate topic introductions");
+  assert(!JSON.stringify(requestBody).includes('"article_note"'), "editor contract must not generate per-article notes");
   assert(result.report.status === "edited", "valid topic plan should be applied");
   assert(result.articles[0].editorial_topic === "Production agents", "topic metadata should be attached");
-  assert((result.articles[0].editorial_topic_intro || "").length <= 180, "topic intro should remain compact");
 });
 
 Deno.test("section editor failure preserves assigned articles as a flat conventional issue", async () => {
@@ -94,8 +94,8 @@ Deno.test("invalid topic plans cannot silently duplicate or lose accepted articl
   const input = [article(1, "ai", "AI", "One"), article(2, "ai", "AI", "Two")];
   const invalid: EditorialPlan = {
     articles: [
-      { id: "article-1", topic_name: "Topic", topic_intro: "Intro" },
-      { id: "article-1", topic_name: "Topic", topic_intro: "Intro" },
+      { id: "article-1", topic_name: "Topic" },
+      { id: "article-1", topic_name: "Topic" },
     ],
   };
   let threw = false;
