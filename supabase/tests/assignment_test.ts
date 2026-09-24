@@ -99,7 +99,7 @@ Deno.test("assignment provider can be swapped without changing the pipeline cont
           articles: articles.map((_article, index) => ({
             id: `article-${index + 1}`,
             label: index === 0 ? "Systems" : "OMIT",
-            confidence: 0.88,
+            confidence: 0.95,
             reason: "Fixture decision.",
           })),
         },
