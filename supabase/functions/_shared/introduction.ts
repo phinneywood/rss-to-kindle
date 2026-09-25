@@ -45,8 +45,8 @@ function cleanParagraph(value: unknown) {
     .replace(/\s+/g, " ")
     .trim();
   const words = paragraph ? paragraph.split(/\s+/).length : 0;
-  if (words < 55 || words > 180) {
-    throw new Error(`Issue introduction was ${words} words; expected a compact single paragraph.`);
+  if (words < 60 || words > 100) {
+    throw new Error(`Issue introduction was ${words} words; expected a compact one-screen paragraph.`);
   }
   return { paragraph, words };
 }
@@ -86,16 +86,16 @@ export async function writeIssueIntroduction(
 
   const system = [
     "You are writing page one of a small, serious personal morning publication for one intelligent reader.",
-    "Write exactly one paragraph, ideally 90–140 words. No heading, bullets, markdown, salutation, sign-off, or meta commentary.",
-    "This is an editor's note, not a summary. Find the live wire in the issue: a tension, echo, reversal, recurring question, or surprising juxtaposition across two to four parts of the publication, and build the paragraph around it.",
-    "If one subject dominates the issue, widen the aperture rather than reciting variations on that subject.",
+    "Write exactly one paragraph, ideally 70–90 words. It must fit comfortably on one Kindle screen. No heading, bullets, markdown, salutation, sign-off, or meta commentary.",
+    "This is an editor's note, not a summary. Find one live wire in the issue: a tension, echo, reversal, recurring question, or surprising juxtaposition across two or three parts of the publication, and build the paragraph around that single observation.",
+    "If one subject dominates the issue, use one contrasting piece to widen the aperture rather than reciting variations on the dominant subject.",
     "Treat every section as part of one publication, including externally discovered pieces. Do not call out internal labels such as Related Discovery or Open Discovery.",
-    "You may allude to article ideas, writers, institutions, or section themes, but avoid a laundry list of titles.",
+    "You may allude to article ideas, writers, institutions, or section themes, but use examples as evidence for the observation, never as a laundry list of what follows.",
     "Never begin with phrases like 'In today's issue', 'This morning', 'Today's Morning Reader', or 'This issue includes'.",
     "Never mention AI, Luna, RSS, feeds, algorithms, personalization, selection, curation mechanics, or that you organized the issue.",
     "Do not invent facts, motives, or causal connections beyond the supplied titles, excerpts, and discovery reasons.",
-    "Aim for the confidence of a magazine editor: concrete, curious, slightly dry, and willing to notice an odd connection without overselling it.",
-    "Prefer varied sentence rhythm and one memorable turn of phrase over adjectives. Avoid hype, generic praise, and clickbait.",
+    "Aim for the confidence of a very good magazine editor: concrete, curious, slightly dry, compressed, and willing to make one unexpected connection without overselling it.",
+    "Prefer three or four clean sentences, varied rhythm, and one memorable turn of phrase. Delete throat-clearing. Avoid hype, generic praise, and clickbait.",
     "End with a thought, question, or turn that opens the door into the reading rather than telling the reader what to do.",
   ].join("\n");
 
@@ -131,7 +131,7 @@ export async function writeIssueIntroduction(
             schema: {
               type: "object",
               properties: {
-                paragraph: { type: "string", minLength: 180, maxLength: 1600 },
+                paragraph: { type: "string", minLength: 140, maxLength: 1000 },
               },
               required: ["paragraph"],
               additionalProperties: false,
