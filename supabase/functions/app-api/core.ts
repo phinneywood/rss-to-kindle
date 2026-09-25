@@ -87,17 +87,36 @@ export async function auth(req:Request){
   if(!session)return null;
   return{sessionId:session.session_id,user:{id:session.user_id,email:session.email}};
 }
-export async function dashboard(userId:string,email:string){const[s,se,fe,di,jo]=await Promise.all([admin.from("user_settings").select("*").eq("user_id",userId).single(),admin.from("sections").select("*").eq("user_id",userId).is("archived_at",null).order("position").order("created_at"),admin.from("feeds").select("*").eq("user_id",userId).is("archived_at",null).order("created_at"),admin.from("digests").select("id,section_id,edition_name,status,article_count,error,created_at,sent_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(25),admin.from("digest_jobs").select("id,reason,section_id,edition_name,scheduled_for,packet_name,article_urls,status,result,error,attempts,run_after,created_at,started_at,finished_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(15)]);if(s.error)throw s.error;const sections=(se.data||[]).map((x:any)=>({...x,feeds:(fe.data||[]).filter((f:any)=>f.section_id===x.id)}));return{user:{id:userId,email},settings:s.data,sections,digests:di.data||[],jobs:jo.data||[],sender_email:"reader@antonioskilton.com"}}
+export async function dashboard(userId:string,email:string){
+  const[s,se,fe,di,jo]=await Promise.all([
+    admin.from("user_settings").select("*").eq("user_id",userId).single(),
+    admin.from("sections").select("*").eq("user_id",userId).is("archived_at",null).order("position").order("created_at"),
+    admin.from("feeds").select("*").eq("user_id",userId).is("archived_at",null).order("created_at"),
+    admin.from("digests").select("id,section_id,edition_name,status,article_count,error,created_at,sent_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(25),
+    admin.from("digest_jobs").select("id,reason,section_id,edition_name,scheduled_for,packet_name,article_urls,status,result,error,attempts,run_after,created_at,started_at,finished_at").eq("user_id",userId).order("created_at",{ascending:false}).limit(15)
+  ]);
+  if(s.error)throw s.error;if(se.error)throw se.error;if(fe.error)throw fe.error;if(di.error)throw di.error;if(jo.error)throw jo.error;
+  const sources=fe.data||[];
+  const sections=(se.data||[]).map((x:any)=>({...x,feeds:sources.filter((f:any)=>f.section_id===x.id)}));
+  return{
+    user:{id:userId,email},
+    settings:s.data,
+    sources,
+    sections,
+    digests:di.data||[],
+    jobs:jo.data||[],
+    sender_email:"reader@antonioskilton.com"
+  };
+}
 export async function systemHealth(userId:string){
   const since=new Date(Date.now()-24*3600_000).toISOString();
-  const [settingsR,feedsR,jobsR,articlesR,sectionsR]=await Promise.all([
+  const [settingsR,feedsR,jobsR,articlesR]=await Promise.all([
     admin.from("user_settings").select("paused,onboarding_complete,next_run_at,kindle_email").eq("user_id",userId).single(),
     admin.from("feeds").select("id,name,last_fetch_at,last_success_at,last_error,consecutive_failures,enabled").eq("user_id",userId).eq("enabled",true).is("archived_at",null).order("consecutive_failures",{ascending:false}),
     admin.from("digest_jobs").select("id,reason,section_id,edition_name,scheduled_for,packet_name,status,result,error,created_at,started_at,finished_at").eq("user_id",userId).gte("created_at",since).order("created_at",{ascending:false}).limit(100),
-    admin.from("article_deliveries").select("id",{count:"exact",head:true}).eq("user_id",userId).gte("delivered_at",since),
-    admin.from("sections").select("id,name,next_run_at,enabled").eq("user_id",userId).eq("enabled",true).is("archived_at",null)
+    admin.from("article_deliveries").select("id",{count:"exact",head:true}).eq("user_id",userId).gte("delivered_at",since)
   ]);
-  if(settingsR.error)throw settingsR.error;if(feedsR.error)throw feedsR.error;if(jobsR.error)throw jobsR.error;if(articlesR.error)throw articlesR.error;if(sectionsR.error)throw sectionsR.error;
+  if(settingsR.error)throw settingsR.error;if(feedsR.error)throw feedsR.error;if(jobsR.error)throw jobsR.error;if(articlesR.error)throw articlesR.error;
   const settings=settingsR.data,feeds=feedsR.data||[],jobs=jobsR.data||[];
   const completed=jobs.filter((j:any)=>["sent","empty","partial","failed"].includes(j.status));
   const successful=completed.filter((j:any)=>j.status==="sent"||j.status==="empty").length;
@@ -107,7 +126,9 @@ export async function systemHealth(userId:string){
   const repeatedFeeds=feeds.filter((f:any)=>Number(f.consecutive_failures||0)>=3);
   const failedJobs=jobs.filter((j:any)=>j.status==="failed");
   const alerts:any[]=[];
-  if(settings?.onboarding_complete&&!settings?.paused)for(const section of sectionsR.data||[]){if(section.next_run_at&&new Date(section.next_run_at).getTime()<Date.now()-30*60_000)alerts.push({severity:"error",type:"delivery_overdue",message:`${section.name}: scheduled delivery is overdue by more than 30 minutes.`});}
+  if(settings?.onboarding_complete&&!settings?.paused&&settings?.next_run_at&&new Date(settings.next_run_at).getTime()<Date.now()-30*60_000){
+    alerts.push({severity:"error",type:"delivery_overdue",message:"Scheduled daily delivery is overdue by more than 30 minutes."});
+  }
   if(failedJobs.length)alerts.push({severity:"error",type:"delivery_failed",message:`${failedJobs.length} delivery ${failedJobs.length===1?"job has":"jobs have"} failed in the last 24 hours.`});
   if(repeatedFeeds.length)alerts.push({severity:"warning",type:"feeds_repeatedly_failing",message:`${repeatedFeeds.length} source${repeatedFeeds.length===1?" is":"s are"} failing repeatedly.`});
   return{
@@ -134,6 +155,7 @@ export async function systemHealth(userId:string){
     source_issues:failingFeeds.slice(0,20).map((f:any)=>({id:f.id,name:f.name,last_error:f.last_error,consecutive_failures:f.consecutive_failures||0,last_fetch_at:f.last_fetch_at,last_success_at:f.last_success_at}))
   };
 }
+
 async function safeFetch(input:string,maxBytes=1_500_000){return (await fetchPublicText(input,"application/rss+xml,application/atom+xml,text/html,*/*",maxBytes)).text}
 function looksLikeFeed(x:string){return /<(rss\b|feed\b|rdf:RDF\b)/i.test(x)}
 function feedTitle(x:string){const m=x.match(/<title(?:\s[^>]*)?>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/i);return(m?.[1]||"").replace(/<[^>]+>/g,"").replace(/&amp;/gi,"&").replace(/&#39;/g,"'").trim().slice(0,120)}

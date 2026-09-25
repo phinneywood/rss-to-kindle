@@ -20,6 +20,8 @@ jobs:
         run: deno check supabase/functions/app-api/index.ts
       - name: Check worker
         run: deno check supabase/functions/worker/index.ts
+      - name: Check MCP
+        run: deno check supabase/functions/mcp/index.ts
       - name: Test publishing pipeline
         run: deno test --allow-env --allow-read supabase/tests
       - name: Test interface regressions

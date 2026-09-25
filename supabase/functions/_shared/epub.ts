@@ -17,6 +17,8 @@ export type EpubArticle = Article & {
   editorial_topic_intro?: string | null;
   editorial_decision_reason?: string | null;
   editorial_position?: number | null;
+  discovery_kind?: "related" | "open" | null;
+  discovery_reason?: string | null;
 };
 
 export type EpubOptions = {

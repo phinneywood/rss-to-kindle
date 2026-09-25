@@ -6,7 +6,7 @@ import { Window } from 'happy-dom';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const script = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)].map(m => m[1]).find(s => s.includes('function dashboard'));
 const source = script.slice(0, script.lastIndexOf('(async()=>{'));
-const fixture = { user: { id: 'user-1', email: 'reader@example.com' }, settings: { onboarding_complete: true, kindle_email: 'example@kindle.com', paused: false, delivery_time: '06:00', timezone: 'UTC' }, sections: [{ id: 's1', name: 'Reading', feeds: [{ id: 'f1', name: 'Example source', url: 'https://example.com/feed', enabled: false }] }, { id: 's2', name: 'Science', feeds: [] }], jobs: [], digests: [] };
+const fixture = { user: { id: 'user-1', email: 'reader@example.com' }, settings: { onboarding_complete: true, kindle_email: 'example@kindle.com', paused: false, delivery_time: '06:00', timezone: 'UTC', editorial_brief: 'Software, design, history, cities, and excellent long-form essays.' }, sections: [{ id: 's1', name: 'Reading', feeds: [{ id: 'f1', name: 'Example source', url: 'https://example.com/feed', enabled: false }] }, { id: 's2', name: 'Science', feeds: [] }], jobs: [], digests: [] };
 async function run(code) {
   const w = new Window({ url: 'https://reader.antonioskilton.com' });
   w.document.body.innerHTML = '<div id="app"></div><div id="modal"></div><div id="toast"></div>';
@@ -42,9 +42,9 @@ test('explicit sign-out clears credentials only after server revocation succeeds
   assert.equal(result.retained,'test-token');assert.match(result.message,/Could not sign out/);assert.equal(result.saved,null);assert.ok(result.login);
 });
 
-test('dashboard prioritizes the next issue and sections before source management', async () => {
-  const result = await run(`expandedSections.add('s1');dashboard();const children=[...document.querySelector('.editorial-grid').children];return {sideFirst:children[0].classList.contains('dashboard-side'),mainFirstHeading:document.querySelector('.dashboard-main .editorial-section h2').textContent,sourceFirst:document.querySelector('.source-index-action').id,readingList:document.querySelector('#one-time-send').textContent,paused:document.querySelector('.feed').textContent.includes('Paused'),history:!!document.querySelector('#delivery-history'),remove:!!document.querySelector('.remove-section'),label:document.querySelector('.kindle-state').textContent,account:document.querySelector('#account-menu').textContent,more:document.querySelector('#delivery-menu').textContent}`);
-  assert.ok(result.sideFirst);assert.equal(result.mainFirstHeading,'Your sections');assert.equal(result.sourceFirst,'add-single-feed');assert.match(result.readingList,/Add articles to the next issue/);assert.ok(result.paused && result.history && result.remove);assert.match(result.label,/Address saved/);assert.equal(result.account,'Account');assert.equal(result.more,'More');
+test('dashboard prioritizes the next issue, editor brief, and one flat source list', async () => {
+  const result = await run(`dashboard();const children=[...document.querySelector('.editorial-grid').children];return {sideFirst:children[0].classList.contains('dashboard-side'),mainFirstHeading:document.querySelector('.dashboard-main .editorial-section h2').textContent,sourceFirst:document.querySelector('.source-index-action').id,readingList:document.querySelector('#one-time-send').textContent,paused:document.querySelector('.feed').textContent.includes('Paused'),history:!!document.querySelector('#delivery-history'),sectionControls:document.querySelectorAll('.remove-section,.rename-section,#add-section,.section-days-link').length,brief:document.querySelector('#edit-editorial-brief').textContent,body:document.body.textContent,label:document.querySelectorAll('.kindle-state')[1].textContent,account:document.querySelector('#account-menu').textContent,more:document.querySelector('#delivery-menu').textContent}`);
+  assert.ok(result.sideFirst);assert.equal(result.mainFirstHeading,'Your sources');assert.equal(result.sourceFirst,'add-single-feed');assert.match(result.readingList,/Add articles to the next issue/);assert.ok(result.paused && result.history);assert.equal(result.sectionControls,0);assert.match(result.brief,/Edit brief/);assert.match(result.body,/Every eligible article/);assert.doesNotMatch(result.body,/Your sections/);assert.match(result.label,/Address saved/);assert.equal(result.account,'Account');assert.equal(result.more,'More');
 });
 
 test('dialogs manage focus, trap Tab, restore focus and close on Escape', async () => {
@@ -91,21 +91,24 @@ test('unsafe feed links cannot inject active URLs', async () => {
   assert.equal(await run(`return safeHref('javascript:alert(1)')`), '#');
 });
 
-test('section frequency saves selected weekdays without a separate delivery time', async () => {
-  const result=await run(`sectionDaysModal('s1');const form=document.querySelector('#section-days-form');form.querySelectorAll('[name="delivery_days"]').forEach(c=>c.checked=c.value==='1'||c.value==='5');let request;api=async(path,options)=>{request={path,body:options.body};return state};await form.onsubmit({preventDefault(){},currentTarget:form});return request`);
-  assert.equal(result.path,'/sections/s1');assert.deepEqual([...result.body.delivery_days],[1,5]);assert.equal(result.body.delivery_time,undefined);
+test('adding a single feed never asks for or sends a section',async()=>{
+  const result=await run(`singleFeedModal();const form=document.querySelector('#single-feed-form');document.querySelector('#single-feed-url').value='https://example.com';let calls=[];api=async(path,options)=>{calls.push({path,body:options.body});if(path==='/discover')return {feeds:[{url:'https://example.com/feed',title:'Example'}]};return state};await form.onsubmit({preventDefault(){},currentTarget:form});return {calls,sectionControl:!!document.querySelector('#single-feed-section')}`);
+  assert.equal(result.sectionControl,false);assert.equal(result.calls[1].path,'/feeds');assert.equal(JSON.stringify(result.calls[1].body),JSON.stringify({url:'https://example.com/feed'}));assert.equal('section_id' in result.calls[1].body,false);
 });
-test('empty section weekday selection prevents saving',async()=>{
-  const result=await run(`sectionDaysModal('s1');const form=document.querySelector('#section-days-form');form.querySelectorAll('[name="delivery_days"]').forEach(c=>c.checked=false);let calls=0;api=async()=>{calls++;return state};await form.onsubmit({preventDefault(){},currentTarget:form});return {calls,notice:document.querySelector('#schedule-error').textContent}`);
-  assert.equal(result.calls,0);assert.match(result.notice,/at least one/);
+
+test('editorial brief saves as an explicit setting and states the RSS invariant',async()=>{
+  const result=await run(`dashboard();editorialBriefModal();const form=document.querySelector('#editorial-brief-form');document.querySelector('#editorial-brief').value='Architecture, cities, and deeply reported essays.';let request;api=async(path,options)=>{request={path,body:options.body};state.settings={...state.settings,...options.body};return state};await form.onsubmit({preventDefault(){},currentTarget:form});return {request,text:document.body.textContent}`);
+  assert.equal(result.request.path,'/settings');assert.equal(result.request.body.editorial_brief,'Architecture, cities, and deeply reported essays.');assert.match(result.text,/never removes an eligible RSS article/i);
 });
-test('dashboard presents one daily issue and section frequency',async()=>{
-  const result=await run(`state.sections[0].delivery_days=[1,2,3,4,5];state.settings.paused=true;dashboard();return {label:document.querySelector('.section-days-link').textContent,next:document.querySelector('.edition-next').textContent,text:document.body.textContent}`);
-  assert.match(result.label,/Weekdays only/);assert.equal(result.next,'Delivery paused');assert.match(result.text,/Your sections/);
+
+test('dashboard has one daily delivery schedule rather than section frequency',async()=>{
+  const result=await run(`state.settings.paused=true;dashboard();return {next:document.querySelector('.edition-next').textContent,text:document.body.textContent,sectionDays:document.querySelectorAll('.section-days-link').length}`);
+  assert.equal(result.next,'Delivery paused');assert.match(result.text,/One daily issue/);assert.equal(result.sectionDays,0);
 });
+
 test('account settings contain the one daily delivery time',async()=>{
-  const result=await run(`settingsModal();return {time:!!document.querySelector('[name="delivery_time"]'),zone:!!document.querySelector('[name="timezone"]')}`);
-  assert.equal(result.time,true);assert.equal(result.zone,true);
+  const result=await run(`settingsModal();return {time:!!document.querySelector('[name="delivery_time"]'),zone:!!document.querySelector('[name="timezone"]'),text:modal.textContent}`);
+  assert.equal(result.time,true);assert.equal(result.zone,true);assert.match(result.text,/Every enabled source participates/);
 });
 
 test('routine primary actions use the publication green while danger and errors retain red',async()=>{
@@ -115,14 +118,14 @@ test('routine primary actions use the publication green while danger and errors 
   assert.match(css,/\.notice\.error\{background:var\(--red-soft\);color:var\(--red\)/);
 });
 
-test('source alerts name the source and section and open the exact source with focus restored',async()=>{
-  const result=await run(`state.sections[0].feeds[0].enabled=true;state.sections[0].feeds[0].last_error='HTTP 503';dashboard();const banner=document.querySelector('.problem-banner').textContent,flag=document.querySelector('.section-head .section-attention').textContent;document.querySelector('.problem-banner .review-source').click();const dialog=modal.textContent,expanded=expandedSections.has('s1');closeModal();return {banner,flag,dialog,expanded,focus:document.activeElement.id}`);
-  assert.match(result.banner,/Example source/);assert.match(result.banner,/Reading section/);assert.match(result.flag,/1 source needs attention/);assert.match(result.dialog,/Reading section/);assert.match(result.dialog,/HTTP 503/);assert.ok(result.expanded);assert.equal(result.focus,'feed-f1');
+test('source alerts identify the source without exposing legacy section state',async()=>{
+  const result=await run(`state.sections[0].feeds[0].enabled=true;state.sections[0].feeds[0].last_error='HTTP 503';dashboard();const banner=document.querySelector('.problem-banner').textContent;document.querySelector('.problem-banner .review-source').click();const dialog=modal.textContent;closeModal();return {banner,dialog,focus:document.activeElement.id}`);
+  assert.match(result.banner,/Example source/);assert.match(result.banner,/Recurring source/);assert.doesNotMatch(result.banner,/Reading section/);assert.match(result.dialog,/HTTP 503/);assert.doesNotMatch(result.dialog,/Reading section/);assert.equal(result.focus,'feed-f1');
 });
 
-test('multiple alerts keep source and section paired; paused failures remain historical',async()=>{
-  const result=await run(`state.sections[0].feeds[0].last_error='Old failure';state.sections[1].feeds=[{id:'f2',name:'Same name',enabled:true,last_error:'Timeout'},{id:'f3',name:'Another source',enabled:true,last_error:'HTTP 500'}];dashboard();const alerts=[...document.querySelectorAll('.problem-banner li')].map(e=>e.textContent);state.sections[1].enabled=false;expandedSections.add('s1');dashboard();return {alerts,banner:!!document.querySelector('.problem-banner'),historical:document.querySelector('.feed').textContent}`);
-  assert.equal(result.alerts.length,2);assert.match(result.alerts[0],/Same name.*Science section/);assert.match(result.alerts[1],/Another source.*Science section/);assert.equal(result.banner,false);assert.match(result.historical,/source paused/);
+test('multiple source alerts are independent of legacy section enabled state; paused sources stay historical',async()=>{
+  const result=await run(`state.sections[0].feeds[0].last_error='Old failure';state.sections[0].feeds[0].enabled=false;state.sections[1].enabled=false;state.sections[1].feeds=[{id:'f2',name:'Same name',url:'https://example.com/2',enabled:true,last_error:'Timeout'},{id:'f3',name:'Another source',url:'https://example.com/3',enabled:true,last_error:'HTTP 500'}];dashboard();const alerts=[...document.querySelectorAll('.problem-banner li')].map(e=>e.textContent);return {alerts,banner:!!document.querySelector('.problem-banner'),historical:document.querySelector('.feed').textContent}`);
+  assert.equal(result.alerts.length,2);assert.match(result.alerts[0],/Same name/);assert.match(result.alerts[1],/Another source/);assert.ok(result.banner);assert.match(result.historical,/source paused/i);
 });
 
 test('source recheck calls only the source endpoint and clears recovered alerts',async()=>{
@@ -137,12 +140,12 @@ test('failed rechecks retain actionable errors and late responses do not reopen 
 
 test('article preview errors identify their sources and update stale dashboard warnings',async()=>{
   const result=await run(`state.sections[0].feeds[0].enabled=true;dashboard();api=async()=>({items:[],feeds:[{feed_id:'f1',error:'Timed out'}]});await previewModal();const text=modal.textContent,banner=document.querySelector('.problem-banner').textContent;document.querySelector('.notice .review-source').click();const context=modal.textContent;closeModal();api=async()=>({items:[],feeds:[{feed_id:'f1',items:[]}]});await previewModal();return {text,banner,context,cleared:!document.querySelector('.problem-banner')}`);
-  assert.match(result.text,/Example source.*Reading section/s);assert.match(result.text,/Review the source errors/);assert.match(result.banner,/Example source/);assert.match(result.context,/Timed out/);assert.ok(result.cleared);
+  assert.match(result.text,/Example source/);assert.doesNotMatch(result.text,/Reading section/);assert.match(result.banner,/Example source/);assert.match(result.context,/Timed out/);assert.ok(result.cleared);
 });
 
-test('system health links source errors to the correct section',async()=>{
+test('system health links source errors directly to the source',async()=>{
   const result=await run(`renderSystemHealth({source_issues:[{id:'f1',name:'Example source',last_error:'HTTP 503',consecutive_failures:2}]});const label=document.querySelector('.review-source').textContent;document.querySelector('.review-source').click();return {label,dialog:modal.textContent}`);
-  assert.match(result.label,/Example source.*Reading section/s);assert.match(result.dialog,/Example source.*Reading section/s);
+  assert.match(result.label,/Example source/);assert.match(result.label,/Recurring source/);assert.match(result.dialog,/Example source/);assert.doesNotMatch(result.dialog,/Reading section/);
 });
 
 test('source names and errors are escaped in alert links and dialogs',async()=>{

@@ -23,6 +23,15 @@ function oneTimePayload(body:any){
   return{name,urls};
 }
 
+async function defaultSourceSectionId(userId:string){
+  const existing=await admin.from("sections").select("id").eq("user_id",userId).is("archived_at",null).order("position").order("created_at").limit(1).maybeSingle();
+  if(existing.error)throw existing.error;
+  if(existing.data?.id)return existing.data.id;
+  const created=await admin.from("sections").insert({user_id:userId,name:"Sources",position:0}).select("id").single();
+  if(created.error)throw created.error;
+  return created.data.id;
+}
+
 Deno.serve(async(req)=>{
   const requestId=crypto.randomUUID();
   const origin=req.headers.get("origin");
@@ -59,6 +68,7 @@ Deno.serve(async(req)=>{
       if("kindle_email"in b){const k=normEmail(b.kindle_email);if(k&&!validEmail(k))return json({error:"Enter a valid Send-to-Kindle email address."},400);p.kindle_email=k||null}
       if("timezone"in b){const tz=String(b.timezone||"");if(!validTimezone(tz))return json({error:"Invalid timezone."},400);p.timezone=tz}
       if("delivery_time"in b){const t=String(b.delivery_time||"");if(!/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(t))return json({error:"Invalid delivery time."},400);p.delivery_time=t.length===5?`${t}:00`:t}
+      if("editorial_brief"in b){const brief=String(b.editorial_brief||"").trim();if(brief.length>3000)return json({error:"Editorial brief must be 3,000 characters or fewer."},400);p.editorial_brief=brief}
       if("paused"in b)p.paused=Boolean(b.paused);if("onboarding_complete"in b)p.onboarding_complete=Boolean(b.onboarding_complete);
       // Account time is retained only as a default for legacy clients/new editions.
       // Database triggers recalculate edition schedules on timezone/pause changes.
@@ -95,15 +105,22 @@ Deno.serve(async(req)=>{
       ]);
       if(sectionError)throw sectionError;if(feedCountError)throw feedCountError;
       const sections=[...(sectionRows||[])],sectionById=new Map(sections.map((s:any)=>[s.id,s])),sectionByName=new Map(sections.map((s:any)=>[String(s.name).trim().toLowerCase(),s]));
+      if(!sections.length){
+        const{data:created,error:createError}=await admin.from("sections").insert({user_id:user.id,name:"Sources",position:0}).select("id,name,position").single();
+        if(createError)throw createError;
+        sections.push(created);sectionById.set(created.id,created);sectionByName.set("sources",created);
+      }
+      const defaultSection=sections[0];
       let activeCount=feedCount||0,nextPosition=sections.length?Math.max(...sections.map((s:any)=>Number(s.position)||0))+1:0;
 
       const probed:any[]=new Array(items.length);let cursor=0;
       async function worker(){
         while(true){
           const i=cursor++;if(i>=items.length)return;
-          const item=items[i]||{},input=String(item.url||"").trim(),requestedName=String(item.name||"").trim(),sectionId=String(item.section_id||"").trim(),sectionName=String(item.section_name||"").trim();
+          const item=items[i]||{},input=String(item.url||"").trim(),requestedName=String(item.name||"").trim();
+          let sectionId=String(item.section_id||"").trim();const sectionName=String(item.section_name||"").trim();
           if(!validUrl(input)){probed[i]={index:i,input,requestedName,sectionId,sectionName,error:"Enter a valid website or RSS/Atom address."};continue}
-          if(!sectionId&&!sectionName){probed[i]={index:i,input,requestedName,sectionId,sectionName,error:"Choose a section for this feed."};continue}
+          if(!sectionId&&!sectionName)sectionId=defaultSection.id;
           if(sectionName.length>80){probed[i]={index:i,input,requestedName,sectionId,sectionName,error:"Section name must be 80 characters or fewer."};continue}
           try{
             const pr=await probe(input),url=normalizeUrl(pr.url),name=(requestedName||pr.title||new URL(url).hostname.replace(/^www\./,"")).slice(0,120);
@@ -154,19 +171,20 @@ Deno.serve(async(req)=>{
     }
 
     if(route==="/feeds"&&req.method==="POST"){
-      const b=await req.json().catch(()=>({})),input=String(b.url||"").trim(),sectionId=String(b.section_id||"");if(!validUrl(input))return json({error:"Enter a valid website or RSS/Atom address."},400);
-      const{data:sec}=await admin.from("sections").select("id").eq("id",sectionId).eq("user_id",user.id).is("archived_at",null).maybeSingle();if(!sec)return json({error:"Section not found."},404);
+      const b=await req.json().catch(()=>({})),input=String(b.url||"").trim();let sectionId=String(b.section_id||"");if(!validUrl(input))return json({error:"Enter a valid website or RSS/Atom address."},400);
+      if(!sectionId)sectionId=await defaultSourceSectionId(user.id);
+      const{data:sec}=await admin.from("sections").select("id").eq("id",sectionId).eq("user_id",user.id).is("archived_at",null).maybeSingle();if(!sec)return json({error:"Source container not found."},404);
       const{count}=await admin.from("feeds").select("id",{count:"exact",head:true}).eq("user_id",user.id).is("archived_at",null);if((count||0)>=100)return json({error:"You can have up to 100 feeds."},400);
       let pr;try{pr=await probe(input)}catch(e){return json({error:e instanceof Error?e.message:String(e)},400)}
       const url=normalizeUrl(pr.url),name=(String(b.name||"").trim()||pr.title||new URL(url).hostname.replace(/^www\./,"")).slice(0,120);
       const{data:existing,error:existingError}=await admin.from("feeds").select("id,archived_at").eq("user_id",user.id).eq("url",url).maybeSingle();if(existingError)throw existingError;
       if(existing){
-        if(!existing.archived_at)return json({error:"This source is already in one of your sections. Move it instead of adding it again."},409);
+        if(!existing.archived_at)return json({error:"This source is already in your source list."},409);
         const{error}=await admin.from("feeds").update({section_id:sectionId,name,kind:"standard",enabled:true,archived_at:null,last_error:null,last_fetch_at:new Date().toISOString()}).eq("id",existing.id).eq("user_id",user.id);if(error)throw error;
         logEvent("feed.restored",{request_id:requestId,user_id:user.id,feed_id:existing.id,section_id:sectionId});return json(await dashboard(user.id,user.email),200);
       }
       const{error}=await admin.from("feeds").insert({user_id:user.id,section_id:sectionId,name,url,kind:"standard",enabled:true});
-      if(error){if((error as any)?.code==="23505")return json({error:"This source is already in one of your sections. Move it instead of adding it again."},409);throw error}
+      if(error){if((error as any)?.code==="23505")return json({error:"This source is already in your source list."},409);throw error}
       logEvent("feed.added",{request_id:requestId,user_id:user.id,section_id:sectionId});return json(await dashboard(user.id,user.email),201);
     }
     const checkFeed=route.match(/^\/feeds\/([0-9a-f-]+)\/check$/i);
