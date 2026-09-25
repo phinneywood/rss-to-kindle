@@ -39,17 +39,6 @@ const SOURCE_SCHEMA = {
   required: ["id","name","url","enabled","last_error"],
   additionalProperties: false
 };
-const EDITION_SCHEMA = {
-  type: "object",
-  properties: {
-    id: { type: "string" },
-    name: { type: "string" },
-    enabled: { type: "boolean" },
-    sources: { type: "array", items: SOURCE_SCHEMA }
-  },
-  required: ["id","name","enabled","sources"],
-  additionalProperties: false
-};
 const ARTICLE_SCHEMA = {
   type: "object",
   properties: {
@@ -60,6 +49,18 @@ const ARTICLE_SCHEMA = {
   },
   required: ["title","url","published_at","source"],
   additionalProperties: true
+};
+const BRIEF_SCHEMA = {
+  type: "object",
+  properties: {
+    editorial_brief: {
+      type: "string",
+      maxLength: 3000,
+      description: "Explicit reader interests and editorial preferences. This guides organization and Open Discovery; it never filters eligible RSS articles."
+    }
+  },
+  required: ["editorial_brief"],
+  additionalProperties: false
 };
 
 const TOOLS: any[] = [
@@ -73,27 +74,13 @@ const TOOLS: any[] = [
     _meta: { "openai/profile": true, securitySchemes: READ_SECURITY }
   },
   {
-    name: "list_editions",
-    description: "List this user's Morning Reader Kindle editions and the sources grouped into each edition.",
+    name: "list_sources",
+    description: "List the user's recurring RSS/Atom sources. Morning Reader organizes eligible articles dynamically at issue time rather than assigning sources to preset categories.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    outputSchema: { type: "object", properties: { editions: { type: "array", items: EDITION_SCHEMA } }, required: ["editions"], additionalProperties: false },
+    outputSchema: { type: "object", properties: { sources: { type: "array", items: SOURCE_SCHEMA } }, required: ["sources"], additionalProperties: false },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     securitySchemes: READ_SECURITY,
     _meta: { securitySchemes: READ_SECURITY }
-  },
-  {
-    name: "create_edition",
-    description: "Create a new Morning Reader Kindle edition. Each edition is delivered as its own EPUB.",
-    inputSchema: {
-      type: "object",
-      properties: { name: { type: "string", minLength: 1, maxLength: 80, description: "Edition name shown on the EPUB and cover." } },
-      required: ["name"],
-      additionalProperties: false
-    },
-    outputSchema: { type: "object", properties: { edition: EDITION_SCHEMA }, required: ["edition"], additionalProperties: false },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
-    securitySchemes: WRITE_SECURITY,
-    _meta: { securitySchemes: WRITE_SECURITY }
   },
   {
     name: "find_feeds",
@@ -119,39 +106,32 @@ const TOOLS: any[] = [
   },
   {
     name: "add_source",
-    description: "Add a website or RSS/Atom source to a specific Morning Reader Kindle edition.",
+    description: "Add a recurring website or RSS/Atom source. No category or section is required.",
     inputSchema: {
       type: "object",
       properties: {
-        edition_id: { type: "string", minLength: 1, description: "Morning Reader edition ID." },
         url: { type: "string", minLength: 1, description: "Website URL or direct RSS/Atom feed URL." },
         name: { type: "string", maxLength: 120, description: "Optional display name. Morning Reader will infer one if omitted." }
       },
-      required: ["edition_id", "url"],
+      required: ["url"],
       additionalProperties: false
     },
-    outputSchema: { type: "object", properties: { edition: EDITION_SCHEMA }, required: ["edition"], additionalProperties: false },
+    outputSchema: { type: "object", properties: { source: SOURCE_SCHEMA }, required: ["source"], additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     securitySchemes: WRITE_SECURITY,
     _meta: { securitySchemes: WRITE_SECURITY }
   },
   {
-    name: "preview_edition",
-    description: "Preview recent articles from the active sources in one Morning Reader edition without sending anything.",
-    inputSchema: {
-      type: "object",
-      properties: { edition_id: { type: "string", minLength: 1, description: "Morning Reader edition ID." } },
-      required: ["edition_id"],
-      additionalProperties: false
-    },
+    name: "preview_sources",
+    description: "Browse recent articles across all active recurring sources without sending anything or applying delivery-history suppression.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
     outputSchema: {
       type: "object",
       properties: {
-        edition: { type: "object", properties: { id:{type:"string"}, name:{type:"string"} }, required:["id","name"], additionalProperties:false },
         items: { type: "array", items: ARTICLE_SCHEMA },
         feeds: { type: "array", items: { type: "object", additionalProperties: true } }
       },
-      required: ["edition","items","feeds"],
+      required: ["items","feeds"],
       additionalProperties: false
     },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
@@ -159,8 +139,26 @@ const TOOLS: any[] = [
     _meta: { securitySchemes: READ_SECURITY }
   },
   {
+    name: "get_editorial_brief",
+    description: "Return the explicit Morning Reader editorial brief used for organization and Open Discovery. It is never used to omit eligible RSS articles.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    outputSchema: BRIEF_SCHEMA,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    securitySchemes: READ_SECURITY,
+    _meta: { securitySchemes: READ_SECURITY }
+  },
+  {
+    name: "update_editorial_brief",
+    description: "Replace the explicit Morning Reader editorial brief. This affects organization and Open Discovery, not RSS article eligibility.",
+    inputSchema: BRIEF_SCHEMA,
+    outputSchema: BRIEF_SCHEMA,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    securitySchemes: WRITE_SECURITY,
+    _meta: { securitySchemes: WRITE_SECURITY }
+  },
+  {
     name: "send_now",
-    description: "Queue the user's current Morning Reader editions for immediate delivery to the configured Send-to-Kindle address.",
+    description: "Queue the user's current Morning Reader issue for immediate delivery to the configured Send-to-Kindle address.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     outputSchema: { type: "object", additionalProperties: true },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
@@ -257,22 +255,21 @@ async function apiAsUser(userId: string, path: string, method = "GET", body?: un
     await admin.from("sessions").delete().eq("id", session.id);
   }
 }
-function editionView(section: any) {
+function sourceView(source: any) {
   return {
-    id: section.id,
-    name: section.name,
-    enabled: section.enabled,
-    sources: (section.feeds || []).map((f: any) => ({
-      id: f.id,
-      name: f.name,
-      url: f.url,
-      enabled: f.enabled,
-      last_error: f.last_error || null
-    }))
+    id: source.id,
+    name: source.name,
+    url: source.url,
+    enabled: source.enabled,
+    last_error: source.last_error || null
   };
 }
 async function dashboard(userId: string) {
   return await apiAsUser(userId, "/me");
+}
+function sourcesFrom(me: any) {
+  if (Array.isArray(me?.sources)) return me.sources;
+  return (me?.sections || []).flatMap((section: any) => section.feeds || []);
 }
 function requiredScopes(toolName: string) {
   const tool = TOOLS.find(t => t.name === toolName);
@@ -288,16 +285,9 @@ async function callTool(name: string, args: any, auth: AuthInfo) {
         isError: false
       };
     }
-    case "list_editions": {
+    case "list_sources": {
       const me = await dashboard(auth.userId);
-      return toolResult({ editions: (me.sections || []).map(editionView) });
-    }
-    case "create_edition": {
-      const nameArg = String(args?.name || "").trim();
-      if (!nameArg || nameArg.length > 80) return toolResult({ error: "Edition name must be 1–80 characters." }, true);
-      const after = await apiAsUser(auth.userId, "/sections", "POST", { name: nameArg });
-      const edition = [...(after.sections || [])].reverse().find((s: any) => s.name === nameArg);
-      return toolResult({ edition: edition ? editionView(edition) : { name: nameArg } });
+      return toolResult({ sources: sourcesFrom(me).map(sourceView) });
     }
     case "find_feeds": {
       const url = String(args?.url || "").trim();
@@ -305,28 +295,30 @@ async function callTool(name: string, args: any, auth: AuthInfo) {
       return toolResult(await apiAsUser(auth.userId, "/discover", "POST", { url }));
     }
     case "add_source": {
-      const editionId = String(args?.edition_id || "");
       const url = String(args?.url || "").trim();
-      if (!editionId || !url) return toolResult({ error: "edition_id and url are required." }, true);
+      if (!url) return toolResult({ error: "url is required." }, true);
+      const before = await dashboard(auth.userId);
+      const previous = new Set(sourcesFrom(before).map((source: any) => source.id));
       const after = await apiAsUser(auth.userId, "/feeds", "POST", {
-        section_id: editionId,
         url,
         ...(args?.name ? { name: String(args.name).trim() } : {})
       });
-      const edition = (after.sections || []).find((s: any) => s.id === editionId);
-      return toolResult({ edition: edition ? editionView(edition) : null });
+      const sources = sourcesFrom(after);
+      const source = sources.find((item: any) => !previous.has(item.id)) || sources.at(-1);
+      if (!source) return toolResult({ error: "Source was added but could not be read back." }, true);
+      return toolResult({ source: sourceView(source) });
     }
-    case "preview_edition": {
-      const editionId = String(args?.edition_id || "");
+    case "preview_sources":
+      return toolResult(await apiAsUser(auth.userId, "/preview", "POST", {}));
+    case "get_editorial_brief": {
       const me = await dashboard(auth.userId);
-      const edition = (me.sections || []).find((s: any) => s.id === editionId);
-      if (!edition) return toolResult({ error: "Edition not found." }, true);
-      const feedIds = new Set((edition.feeds || []).filter((f: any) => f.enabled).map((f: any) => f.id));
-      const result = await apiAsUser(auth.userId, "/preview", "POST", {});
-      const matching = (result.feeds || []).filter((f: any) => feedIds.has(f.feed_id));
-      const items = matching.flatMap((f: any) => f.items || [])
-        .sort((a: any, b: any) => (b.published_at ? +new Date(b.published_at) : 0) - (a.published_at ? +new Date(a.published_at) : 0));
-      return toolResult({ edition: { id: edition.id, name: edition.name }, items, feeds: matching });
+      return toolResult({ editorial_brief: String(me?.settings?.editorial_brief || "") });
+    }
+    case "update_editorial_brief": {
+      const editorialBrief = String(args?.editorial_brief || "").trim();
+      if (editorialBrief.length > 3000) return toolResult({ error: "Editorial brief must be 3,000 characters or fewer." }, true);
+      const after = await apiAsUser(auth.userId, "/settings", "PATCH", { editorial_brief: editorialBrief });
+      return toolResult({ editorial_brief: String(after?.settings?.editorial_brief || "") });
     }
     case "send_now":
       return toolResult(await apiAsUser(auth.userId, "/send-now", "POST", {}));
