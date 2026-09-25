@@ -1272,60 +1272,57 @@ function renameSectionModal(id){
 }
 function singleFeedModal(){
   openModal(`<div class="row"><div><div class="editorial-label">Add source</div><h2 style="margin-top:6px">Add a single feed</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
-    <p class="muted small">Paste a publication's website or RSS address. Morning Reader will find the feed for you.</p>
+    <p class="muted small">Paste a publication's website or RSS address. Morning Reader will find the feed and add it to your source list.</p>
     <form id="single-feed-form">
       <div class="field"><label for="single-feed-url">Website or RSS feed</label><input id="single-feed-url" class="input" name="url" required placeholder="https://example.com"></div>
-      <div class="field"><label for="single-feed-section">Add to section</label><select id="single-feed-section" class="select" name="section_id">${state.sections.map(section=>`<option value="${section.id}">${esc(section.name)}</option>`).join('')}</select></div>
       <button class="btn primary" id="single-feed-submit">Find & add feed →</button>
     </form>`);
   document.querySelector('#close-modal').onclick=closeModal;
   document.querySelector('#single-feed-form').onsubmit=async e=>{
     e.preventDefault();
-    const form=e.currentTarget,data=new FormData(form),input=String(data.get('url')||'').trim(),sectionId=String(data.get('section_id')||'');
+    const input=String(new FormData(e.currentTarget).get('url')||'').trim();
     const button=document.querySelector('#single-feed-submit');button.disabled=true;button.textContent='Finding…';
     try{
       const result=await api('/discover',{method:'POST',body:{url:input}});
       const feeds=result.feeds||[];
       if(!feeds.length)throw new Error("No RSS or Atom feed found.");
       if(feeds.length===1){
-        state=await api('/feeds',{method:'POST',body:{section_id:sectionId,url:feeds[0].url}});
+        state=await api('/feeds',{method:'POST',body:{url:feeds[0].url}});
         closeModal(true);dashboard();toast('Source added');return;
       }
-      chooseFeedModal(sectionId,feeds);
+      chooseFeedModal(feeds);
     }catch(err){
       button.disabled=false;button.textContent='Find & add feed →';toast(err.message);
     }
   };
 }
-function chooseFeedModal(sectionId,feeds){
+function chooseFeedModal(feeds){
   openModal(`<div class="row"><h2>Choose a feed</h2><button class="btn small-btn" id="close-modal">Close</button></div>
-    <p class="muted small">This site publishes more than one feed. Pick the one you want in this section.</p>
+    <p class="muted small">This site publishes more than one feed. Pick the recurring source you want.</p>
     <div class="stack">${feeds.map((feed,i)=>`<button class="card choose-discovered-feed" data-i="${i}" style="text-align:left;cursor:pointer"><strong>${esc(feed.title||'Untitled feed')}</strong><div class="tiny muted" style="margin-top:4px;word-break:break-all">${esc(feed.url)}</div></button>`).join('')}</div>
     <p class="tiny muted" style="margin-top:14px"><a href="https://feedsearch.dev/" target="_blank" rel="noopener">powered by Feedsearch ↗</a></p>`);
   document.querySelector('#close-modal').onclick=closeModal;
   document.querySelectorAll('.choose-discovered-feed').forEach(button=>button.onclick=async()=>{
     const feed=feeds[Number(button.dataset.i)];button.disabled=true;
-    try{state=await api('/feeds',{method:'POST',body:{section_id:sectionId,url:feed.url}});closeModal(true);dashboard();toast('Source added')}
+    try{state=await api('/feeds',{method:'POST',body:{url:feed.url}});closeModal(true);dashboard();toast('Source added')}
     catch(err){button.disabled=false;toast(err.message)}
   });
 }
 function feedActionsModal(id,checkMessage=''){
   const context=sourceContext(id);if(!context)return;
-  const {feed,section}=context;
-  openModal(`<div class="row"><div><div class="editorial-label">Source</div><h2 style="margin-top:6px">${esc(feed.name)}</h2><div class="source-context">${esc(section.name)} section${feed.enabled===false?' · Source paused':section.enabled===false?' · Section paused':''}</div></div><button class="btn small-btn" id="close-modal">Close</button></div>
+  const {feed}=context;
+  openModal(`<div class="row"><div><div class="editorial-label">Source</div><h2 style="margin-top:6px">${esc(feed.name)}</h2><div class="source-context">${feed.enabled===false?'Source paused':'Recurring source'}</div></div><button class="btn small-btn" id="close-modal">Close</button></div>
     <div class="technical-note" style="word-break:break-all;margin:8px 0 18px">${esc(feed.url)}</div>
     ${feed.last_error?`<div class="notice error" style="margin-bottom:14px"><strong>Last check failed.</strong> ${esc(feed.last_error)}${feed.last_fetch_at?`<div class="source-context">Checked ${esc(fmtDate(feed.last_fetch_at))}</div>`:''}</div>`:''}
     <div id="source-check-result" role="status" ${checkMessage?'':'hidden'} class="notice info">${esc(checkMessage)}</div>
-    <p class="small muted">Recheck this source without sending anything to Kindle.${feed.enabled===false||section.enabled===false?' It will remain paused.':''}</p>
+    <p class="small muted">Recheck this source without sending anything to Kindle.${feed.enabled===false?' It will remain paused.':''}</p>
     <div class="row wrap" style="justify-content:flex-start">
       <button class="btn primary" id="manage-recheck">Check source again</button>
-      <button class="btn" id="manage-move">Move</button>
       <button class="btn" id="manage-toggle">${feed.enabled?'Pause':'Resume'}</button>
       <button class="btn danger" id="manage-delete">Delete</button>
     </div>`);
   document.querySelector('#close-modal').onclick=closeModal;
   document.querySelector('#manage-recheck').onclick=event=>recheckSource(id,event.currentTarget);
-  document.querySelector('#manage-move').onclick=()=>moveFeedModal(id,section.id);
   document.querySelector('#manage-delete').onclick=()=>deleteFeedModal(id);
   document.querySelector('#manage-toggle').onclick=async()=>{
     try{state=await api('/feeds/'+id,{method:'PATCH',body:{enabled:!feed.enabled}});closeModal(true);dashboard();toast(feed.enabled?'Source paused':'Source resumed')}
@@ -1339,7 +1336,7 @@ async function recheckSource(id,button){
     const response=await api('/feeds/'+id+'/check',{method:'POST'});
     if(token!==sessionToken||!state)return;
     state=response.dashboard;
-    if(document.querySelector('.editions-list'))dashboard();
+    if(document.querySelector('.sources-list'))dashboard();
     if(version===modalVersion)feedActionsModal(id,response.result.error?'The source still needs attention. See the latest error above.':'Source is working. The warning has been cleared.');
   }catch(err){
     if(version!==modalVersion)return;
@@ -1347,24 +1344,9 @@ async function recheckSource(id,button){
     button.disabled=false;button.textContent='Check source again';
   }
 }
-function moveFeedModal(id,currentSectionId){
-  const feed=state.sections.flatMap(s=>s.feeds).find(f=>f.id===id);
-  const choices=state.sections.filter(s=>s.id!==currentSectionId);
-  if(!feed||!choices.length){toast('Create another section first.');return}
-  openModal(`<div class="row"><h2>Move source</h2><button class="btn small-btn" id="close-modal">Close</button></div>
-    <p class="muted small">Move <strong>${esc(feed.name)}</strong> into a different section.</p>
-    <div class="stack">${choices.map(section=>`<button class="card move-to-edition" data-id="${section.id}" style="text-align:left;cursor:pointer"><strong>${esc(section.name)}</strong><div class="tiny muted" style="margin-top:4px">This source will be included in that section of the daily issue instead.</div></button>`).join('')}</div>`);
-  document.querySelector('#close-modal').onclick=closeModal;
-  document.querySelectorAll('.move-to-edition').forEach(button=>button.onclick=async()=>{
-    button.disabled=true;
-    try{
-      state=await api('/feeds/'+id,{method:'PATCH',body:{section_id:button.dataset.id}});
-      closeModal(true);dashboard();toast('Source moved to another section');
-    }catch(err){button.disabled=false;toast(err.message)}
-  });
-}
+
 function deleteFeedModal(id){
-  const feed=state.sections.flatMap(s=>s.feeds).find(f=>f.id===id);
+  const feed=allSources().find(f=>f.id===id);
   openModal(`<h2>Delete feed?</h2><p>This removes <strong>${esc(feed?.name||'this feed')}</strong> from future issues. Past delivery history remains.</p><div class="row wrap" style="justify-content:flex-start"><button class="btn danger" id="confirm-delete">Delete feed</button><button class="btn" id="cancel-delete">Cancel</button></div>`);
   document.querySelector('#cancel-delete').onclick=closeModal;
   document.querySelector('#confirm-delete').onclick=async()=>{
@@ -1374,14 +1356,14 @@ function deleteFeedModal(id){
 }
 function settingsModal(){
   const s=state.settings;
-  openModal(`<div class="row"><h2>Kindle & time zone</h2><button class="btn small-btn" id="close-modal">Close</button></div>
+  openModal(`<div class="row"><h2>Kindle & delivery</h2><button class="btn small-btn" id="close-modal">Close</button></div>
     <form id="settings-form">
       <div class="field"><label>Send-to-Kindle address</label><input class="input" type="email" name="kindle_email" required value="${esc(s.kindle_email||'')}"></div>
       <div class="row wrap">
         <div class="field" style="flex:1;min-width:150px"><label>Daily delivery time</label><input class="input" type="time" name="delivery_time" value="${esc((s.delivery_time||'06:00').slice(0,5))}"></div>
         <div class="field" style="flex:2;min-width:220px"><label>Timezone</label><input class="input" name="timezone" value="${esc(s.timezone)}"></div>
       </div>
-      <p class="small muted">One issue is sent per day. Section frequency controls which sections appear inside it.</p>
+      <p class="small muted">One issue is sent per day. Every enabled source participates; the editor creates fresh issue sections automatically.</p>
       <div class="notice info">Need to change Amazon setup? <a href="${AMAZON_SETTINGS}" target="_blank" rel="noopener"><strong>Open Personal Document Settings ↗</strong></a></div>
       <div style="margin-top:16px"><button class="btn primary">Save settings</button></div>
     </form>`);
@@ -1392,6 +1374,7 @@ function settingsModal(){
     catch(err){toast(err.message)}
   };
 }
+
 async function previewModal(){
   const version=openModal('<div class="row"><h2>Latest articles</h2><button class="btn small-btn" id="close-modal">Close</button></div><p class="muted">Checking your active feeds…</p>');
   document.querySelector('#close-modal').onclick=closeModal;
@@ -1404,7 +1387,7 @@ async function previewModal(){
       const context=sourceContext(checked.feed_id);if(!context)continue;
       context.feed.last_error=checked.error||null;
     }
-    if(document.querySelector('.editions-list'))dashboard();
+    if(document.querySelector('.sources-list'))dashboard();
     openModal(`<div class="row"><h2>Latest articles</h2><button class="btn small-btn" id="close-modal">Close</button></div>
       <p class="muted small">${items.length} recent item${items.length===1?'':'s'} across active feeds. Headline browser only: it does not show Kindle formatting or filter already-delivered articles. Nothing was sent.</p>
       ${failures.map(f=>`<div class="notice error">${sourceProblemLink(f.feed_id)||'<strong>Source unavailable</strong>'}<p>${esc(f.error)}</p></div>`).join('')}<div class="preview-list">${items.slice(0,40).map(item=>`<div class="preview-item"><a href="${esc(safeHref(item.url))}" target="_blank" rel="noopener">${esc(item.title)}</a><div class="preview-source">${esc(item.source)}${item.published_at?' · '+fmtDate(item.published_at):''}</div></div>`).join('')||`<p class="muted">${failures.length?'No articles could be shown. Review the source errors above.':'No recent articles found.'}</p>`}</div>`);
