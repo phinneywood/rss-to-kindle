@@ -45,7 +45,7 @@ Deno.test("publication design uses a Kindle-proportioned cover and editorial sec
   const zip = await JSZip.loadAsync(bytes);
 
   const coverBytes = await zip.file("OEBPS/cover.jpg")!.async("uint8array");
-  const cover = jpeg.decode(coverBytes, { useTArray: true });
+  const cover = jpeg.decode(coverBytes, { useTArray: true, maxResolutionInMP: 3 });
   assert(cover.width === 1200 && cover.height === 1920, "cover should use a 1.6:1 Kindle portrait ratio");
 
   const css = await zip.file("OEBPS/style.css")!.async("string");
