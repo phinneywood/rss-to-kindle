@@ -13,6 +13,13 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession:
 const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "@_", textNodeName: "#text", cdataPropName: "__cdata" });
 const headers = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
 
+class FrozenManifestReady extends Error {
+  constructor() {
+    super("Frozen manifest ready for deterministic continuation.");
+    this.name = "FrozenManifestReady";
+  }
+}
+
 function logEvent(event: string, fields: Record<string, unknown> = {}, level: "info" | "warn" | "error" = "info") {
   const line = JSON.stringify({ ts: new Date().toISOString(), service: "worker", event, ...fields });
   if (level === "error") console.error(line);
@@ -501,6 +508,7 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
       articles: selectedGroups.reduce((count, group) => count + group.items.length, 0) + pendingItems.length,
       duration_ms: Math.round(performance.now() - preparationStarted),
     });
+    throw new FrozenManifestReady();
   }
 
   const budget = extractionBudget(deadline);
@@ -670,6 +678,24 @@ export async function processJob(queuedJob: any, deadline = Date.now() + 90_000)
     logEvent("digest.submitted", { job_id: job.id, user_id: job.user_id, status, articles: total, duration_ms: Math.round(performance.now() - started) });
     return { job: job.id, status, articles: total, sections: build.groups.length };
   } catch (error) {
+    if (error instanceof FrozenManifestReady) {
+      const requeue = await admin.from("digest_jobs").update({
+        status: "queued",
+        run_after: new Date().toISOString(),
+        error: null,
+      }).eq("id", job.id);
+      if (requeue.error) throw requeue.error;
+      const { data: kick, error: kickError } = await admin.rpc("kick_digest_worker");
+      logEvent("digest.continuation_queued", {
+        job_id: job.id,
+        user_id: job.user_id,
+        reason: job.reason,
+        attempt: job.attempts,
+        worker_triggered: !kickError && Boolean(kick),
+        duration_ms: Math.round(performance.now() - started),
+      }, kickError ? "warn" : "info");
+      return { job: job.id, status: "queued", continuation: "frozen-manifest" };
+    }
     const message = (error instanceof Error ? error.message : String((error as any)?.message || error)).slice(0, 800);
     const attempts = job.attempts;
     const nextStatus = attempts < 3 && !(error instanceof DeliveryNeedsReview) ? "queued" : "failed";
