@@ -93,7 +93,7 @@ test('unsafe feed links cannot inject active URLs', async () => {
 
 test('adding a single feed never asks for or sends a section',async()=>{
   const result=await run(`singleFeedModal();const form=document.querySelector('#single-feed-form');document.querySelector('#single-feed-url').value='https://example.com';let calls=[];api=async(path,options)=>{calls.push({path,body:options.body});if(path==='/discover')return {feeds:[{url:'https://example.com/feed',title:'Example'}]};return state};await form.onsubmit({preventDefault(){},currentTarget:form});return {calls,sectionControl:!!document.querySelector('#single-feed-section')}`);
-  assert.equal(result.sectionControl,false);assert.equal(result.calls[1].path,'/feeds');assert.deepEqual(result.calls[1].body,{url:'https://example.com/feed'});assert.equal('section_id' in result.calls[1].body,false);
+  assert.equal(result.sectionControl,false);assert.equal(result.calls[1].path,'/feeds');assert.equal(JSON.stringify(result.calls[1].body),JSON.stringify({url:'https://example.com/feed'}));assert.equal('section_id' in result.calls[1].body,false);
 });
 
 test('editorial brief saves as an explicit setting and states the RSS invariant',async()=>{
