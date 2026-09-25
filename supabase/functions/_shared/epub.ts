@@ -95,99 +95,185 @@ function datePart(date: Date, timezone: string, type: Intl.DateTimeFormatPartTyp
   return parts.find((part) => part.type === type)?.value || "";
 }
 
-export async function makeCoverPng(options: EpubOptions, articleCount: number) {
+type CoverLine = { section: string; story: string };
+
+function displaySectionName(value: string | null | undefined) {
+  const name = String(value || "").trim();
+  if (!name) return "Saved articles";
+  if (/^other$/i.test(name)) return "Elsewhere";
+  return name;
+}
+
+function sectionDeck(value: string | null | undefined) {
+  const name = String(value || "").trim();
+  if (name === "Related Discovery") return "Further reading on ideas running through this issue.";
+  if (name === "Open Discovery") return "A deliberate detour.";
+  return "";
+}
+
+function coverSectionName(value: string | null | undefined) {
+  const name = displaySectionName(value);
+  if (name === "Related Discovery") return "Further reading";
+  if (name === "Open Discovery") return "A deliberate detour";
+  return name;
+}
+
+function compactCoverText(value: string, max = 88) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (text.length <= max) return text;
+  const clipped = text.slice(0, max - 1).replace(/\s+\S*$/, "").trim();
+  return (clipped || text.slice(0, max - 1)).trim() + "…";
+}
+
+function coverLinesFor(articles: EpubArticle[]): CoverLine[] {
+  const groups = new Map<string, EpubArticle[]>();
+  for (const article of articles) {
+    const raw = String(article.section_name || "Other").trim() || "Other";
+    if (!groups.has(raw)) groups.set(raw, []);
+    groups.get(raw)!.push(article);
+  }
+  const primary = [...groups.entries()].filter(([name]) => name !== "Related Discovery" && name !== "Open Discovery" && !/^other$/i.test(name));
+  const elsewhere = [...groups.entries()].filter(([name]) => /^other$/i.test(name));
+  const discovery = [...groups.entries()].filter(([name]) => name === "Related Discovery" || name === "Open Discovery");
+  return [...primary, ...elsewhere, ...discovery].slice(0, 3).map(([name, items]) => ({
+    section: coverSectionName(name),
+    story: compactCoverText(items[0]?.title || "", 92),
+  }));
+}
+
+function coverSectionSize(value: string, lead = false) {
+  const length = value.length;
+  if (lead) return length > 34 ? 72 : length > 25 ? 82 : 94;
+  return length > 34 ? 34 : length > 25 ? 39 : 44;
+}
+
+export async function makeCoverPng(options: EpubOptions, articleCount: number, coverLines: CoverLine[] = []) {
   const element = React.createElement;
   const monthLong = new Intl.DateTimeFormat("en-US", { timeZone: options.timezone, month: "long" }).format(options.date).toUpperCase();
+  const weekday = new Intl.DateTimeFormat("en-US", { timeZone: options.timezone, weekday: "long" }).format(options.date).toUpperCase();
   const day = datePart(options.date, options.timezone, "day");
   const year = datePart(options.date, options.timezone, "year");
-  const titleSize = options.name.length <= 14 ? 132 : options.name.length <= 28 ? 108 : options.name.length <= 46 ? 84 : 68;
-  const paper = "#ffffff", ink = "#000000";
+  const paper = "#ffffff", ink = "#080808", muted = "#5c5c5c";
+  const lead = coverLines[0] || { section: "Morning reading", story: "A personal edition assembled for the day." };
+  const secondary = coverLines.slice(1, 3);
+  const label = (options.label || "DAILY EDITION").toUpperCase();
+
   const cover = element("div", {
     style: {
       width: "100%", height: "100%", display: "flex", flexDirection: "column",
-      background: paper, color: ink, fontFamily: "serif",
+      background: paper, color: ink, fontFamily: "serif", border: `10px solid ${ink}`,
+      padding: "56px 62px 48px",
+    },
+  },
+  element("div", {
+    style: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24 },
+  },
+  element("div", { style: { display: "flex", flexDirection: "column" } },
+    element("div", {
+      style: { fontFamily: "monospace", fontSize: 17, fontWeight: 800, letterSpacing: 4.2, textTransform: "uppercase" },
+    }, "A PERSONAL DAILY READER"),
+    element("div", {
+      style: { fontSize: 118, fontWeight: 700, lineHeight: .88, letterSpacing: -5, marginTop: 18 },
+    }, "Morning"),
+    element("div", {
+      style: { fontSize: 118, fontWeight: 700, lineHeight: .88, letterSpacing: -5 },
+    }, "Reader")
+  ),
+  element("div", {
+    style: {
+      fontFamily: "monospace", fontSize: 14, fontWeight: 800, letterSpacing: 1.6,
+      border: `2px solid ${ink}`, padding: "11px 13px 9px", textTransform: "uppercase",
+    },
+  }, label)),
+  element("div", { style: { borderTop: `5px solid ${ink}`, marginTop: 38 } }),
+  element("div", {
+    style: {
+      display: "flex", alignItems: "stretch", minHeight: 360,
+      borderBottom: `2px solid ${ink}`,
     },
   },
   element("div", {
     style: {
-      display: "flex", alignItems: "center", justifyContent: "space-between",
-      borderTop: `16px solid ${ink}`, borderBottom: `3px solid ${ink}`, padding: "35px 68px 31px",
-      fontFamily: "monospace", textTransform: "uppercase",
+      width: 390, display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: 272, fontWeight: 700, lineHeight: .9, letterSpacing: -14, paddingRight: 22,
     },
-  },
-  element("div", { style: { fontSize: 23, fontWeight: 900, letterSpacing: 4 } }, "MORNING READER"),
+  }, day),
   element("div", {
     style: {
-      background: ink, color: paper, padding: "10px 17px 9px",
-      fontSize: 15, fontWeight: 800, letterSpacing: 2,
-    },
-  }, (options.label || "KINDLE EDITION").toUpperCase())),
-  element("div", {
-    style: { display: "flex", flexDirection: "column", padding: "54px 68px 48px", flex: 1 },
-  },
-  element("div", {
-    style: {
-      fontSize: titleSize, fontWeight: 700, lineHeight: 0.94, letterSpacing: -3,
-      maxWidth: 1064, minHeight: 330, display: "flex", alignItems: "flex-start",
-    },
-  }, options.name),
-  element("div", {
-    style: {
-      display: "flex", flexDirection: "column", background: ink,
-      paddingRight: 16, paddingBottom: 16, marginTop: 24,
+      flex: 1, display: "flex", flexDirection: "column", justifyContent: "center",
+      borderLeft: `2px solid ${ink}`, paddingLeft: 38,
     },
   },
   element("div", {
-    style: {
-      display: "flex", flexDirection: "column", height: 540,
-      background: paper, border: `5px solid ${ink}`,
-    },
-  },
+    style: { fontFamily: "monospace", fontSize: 18, fontWeight: 800, letterSpacing: 3.3, color: muted },
+  }, weekday),
   element("div", {
-    style: {
-      display: "flex", flex: 1, fontFamily: "monospace",
-    },
-  },
-  element("div", {
-    style: {
-      display: "flex", flex: 1, alignItems: "center", justifyContent: "center",
-      background: ink, color: paper, fontSize: 94, fontWeight: 900, letterSpacing: 4,
-    },
+    style: { fontSize: 58, fontWeight: 700, letterSpacing: -2, marginTop: 10 },
   }, monthLong),
   element("div", {
-    style: {
-      width: 285, display: "flex", alignItems: "center", justifyContent: "center",
-      borderLeft: `5px solid ${ink}`, fontSize: 122, fontWeight: 900, letterSpacing: -8,
-      paddingRight: 12,
-    },
-  }, day)),
+    style: { fontFamily: "monospace", fontSize: 25, fontWeight: 800, letterSpacing: 5, marginTop: 7 },
+  }, year))),
   element("div", {
     style: {
-      height: 112, display: "flex", alignItems: "center", justifyContent: "space-between",
-      borderTop: `4px solid ${ink}`, padding: "0 42px", fontFamily: "monospace",
-      fontSize: 32, fontWeight: 900, letterSpacing: 4, textTransform: "uppercase",
+      display: "flex", flexDirection: "column", background: ink, color: paper,
+      marginTop: 38, padding: "40px 42px 42px", minHeight: 430,
     },
   },
-  element("div", null, year),
-  element("div", { style: { fontSize: 17, letterSpacing: 2 } }, `${articleCount} ${articleCount === 1 ? "article" : "articles"}`))))),
+  element("div", {
+    style: { fontFamily: "monospace", fontSize: 16, fontWeight: 800, letterSpacing: 4, color: "#d6d6d6", textTransform: "uppercase" },
+  }, "LEAD"),
+  element("div", {
+    style: {
+      fontSize: coverSectionSize(lead.section, true), fontWeight: 700, lineHeight: .98,
+      letterSpacing: -2.2, marginTop: 22, maxWidth: 980,
+    },
+  }, lead.section),
+  lead.story ? element("div", {
+    style: {
+      fontFamily: "sans-serif", fontSize: 28, lineHeight: 1.24, marginTop: 28,
+      color: "#e4e4e4", maxWidth: 980,
+    },
+  }, lead.story) : null),
+  element("div", {
+    style: { display: "flex", flexDirection: "column", flex: 1, justifyContent: "flex-start", marginTop: 26 },
+  },
+  ...secondary.map((line, index) => element("div", {
+    key: `cover-line-${index}`,
+    style: {
+      display: "flex", gap: 26, borderTop: `2px solid ${ink}`,
+      padding: "26px 0 28px", alignItems: "flex-start",
+    },
+  },
+  element("div", {
+    style: { width: 54, fontFamily: "monospace", fontSize: 16, fontWeight: 800, color: muted, paddingTop: 7 },
+  }, String(index + 2).padStart(2, "0")),
+  element("div", { style: { display: "flex", flexDirection: "column", flex: 1 } },
+    element("div", {
+      style: { fontSize: coverSectionSize(line.section), fontWeight: 700, lineHeight: 1.02, letterSpacing: -1.1 },
+    }, line.section),
+    line.story ? element("div", {
+      style: { fontFamily: "sans-serif", fontSize: 22, lineHeight: 1.28, color: muted, marginTop: 9 },
+    }, line.story) : null
+  )))),
   element("div", {
     style: {
       display: "flex", justifyContent: "space-between", alignItems: "center",
-      borderTop: `3px solid ${ink}`, padding: "23px 68px 27px", fontFamily: "monospace",
-      fontSize: 15, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase",
+      borderTop: `5px solid ${ink}`, paddingTop: 22, fontFamily: "monospace",
+      fontSize: 15, fontWeight: 800, letterSpacing: 1.7, textTransform: "uppercase",
     },
-  }, element("div", null, options.displayDate), element("div", { style: { textTransform: "none" } }, "reader.antonioskilton.com")));
-  const response = new ImageResponse(cover, { width: 1200, height: 1600 });
+  },
+  element("div", null, `${articleCount} ${articleCount === 1 ? "story" : "stories"}`),
+  element("div", { style: { textTransform: "none", letterSpacing: .4 } }, "reader.antonioskilton.com")));
+
+  const response = new ImageResponse(cover, { width: 1200, height: 1920 });
   if (!response.ok) throw new Error("Could not render the cover image.");
   return new Uint8Array(await response.arrayBuffer());
 }
 
-export async function makeCoverJpeg(options: EpubOptions, articleCount: number) {
-  // Decode only our fixed-size, opaque cover render, never publisher images.
-  // This packaging was confirmed to produce a thumbnail in Kindle iOS.
-  const png = await makeCoverPng(options, articleCount);
+export async function makeCoverJpeg(options: EpubOptions, articleCount: number, coverLines: CoverLine[] = []) {
+  const png = await makeCoverPng(options, articleCount, coverLines);
   const pixels = PNG.sync.read(Buffer.from(png));
-  return new Uint8Array(jpeg.encode({ width: pixels.width, height: pixels.height, data: pixels.data }, 95).data);
+  return new Uint8Array(jpeg.encode({ width: pixels.width, height: pixels.height, data: pixels.data }, 94).data);
 }
 
 function replaceOmittedImage(body: string, href: string) {
@@ -201,7 +287,7 @@ export async function makeEpub(options: EpubOptions, articles: EpubArticle[]) {
   zip.folder("META-INF")!.file("container.xml", `<?xml version="1.0" encoding="UTF-8"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`);
   const output = zip.folder("OEBPS")!;
-  const cover = await makeCoverJpeg(options, articles.length);
+  const cover = await makeCoverJpeg(options, articles.length, coverLinesFor(articles));
   output.file("cover.jpg", cover);
 
   const maxAssetBytes = options.maxAssetBytes || 18_000_000;
@@ -221,7 +307,7 @@ export async function makeEpub(options: EpubOptions, articles: EpubArticle[]) {
     return { ...article, body: xmlBody(body) };
   });
 
-  const css = `body{font-family:serif;line-height:1.55;margin:5%;color:#171717}h1{font-size:1.7em;line-height:1.12;margin-bottom:.3em}h2,h3,h4,h5,h6{line-height:1.2;margin:1.35em 0 .45em}.date,.source,.meta,.caption,figcaption{color:#595959;font-size:.88em}.meta{margin:.25em 0 1.15em}.article-rule{border:0;border-top:1px solid #aaa;margin:0 0 1.5em}a{color:#111}pre{white-space:pre-wrap;font-family:monospace;font-size:.86em;background:#f2f2f2;padding:.8em}code{font-family:monospace}blockquote{margin-left:.6em;border-left:2px solid #888;padding-left:1em}figure{margin:1.4em 0}img{display:block;max-width:100%;height:auto;margin:1em auto}figcaption{line-height:1.35;margin-top:.4em}table{border-collapse:collapse;width:100%;font-size:.82em;margin:1.2em 0}th,td{border:1px solid #888;padding:.38em;vertical-align:top}th{font-weight:bold}dl{margin:1em 0}dt{font-weight:bold;margin-top:.7em}dd{margin-left:1em}.contents{margin-top:1.4em}.publication-title{font-size:1.85em;margin-bottom:.12em}.contents-kicker{font-family:sans-serif;font-size:.74em;font-weight:bold;letter-spacing:.08em;text-transform:uppercase;color:#595959;margin:1.7em 0 .7em}.section-index-item{border-top:1px solid #777;padding:1em 0 1.1em}.section-index-name{display:block;font-weight:bold;font-size:1.28em}.section-index-count{display:block;color:#595959;font-family:sans-serif;font-size:.82em;margin-top:.15em}.contents-topic{margin-top:.9em}.contents-topic-name{font-family:sans-serif;font-size:.83em;font-weight:bold;letter-spacing:.02em;margin:.8em 0 .25em;color:#595959}.contents-article{display:block;text-decoration:none;font-size:1.02em;line-height:1.28;margin:.38em 0;color:#111}.section-divider{padding-top:12%}.divider-rule{border-top:2px solid #111;margin:0 0 1.2em}.section-kicker{font-family:sans-serif;font-size:.72em;font-weight:bold;letter-spacing:.1em;text-transform:uppercase;color:#595959}.section-name{font-size:2.55em;line-height:1;margin:.2em 0 .2em}.section-count{font-family:sans-serif;font-size:.88em;color:#595959;margin-bottom:1.25em}.introduction{padding-top:7%;max-width:34em}.intro-rule{border-top:2px solid #111;margin:0 0 1.4em}.intro-kicker{font-family:sans-serif;font-size:.72em;font-weight:bold;letter-spacing:.1em;text-transform:uppercase;color:#595959;margin-top:2.2em}.intro-copy{font-size:1.2em;line-height:1.62;margin:1.5em 0 0}.original{margin-top:2em;padding-top:1em;border-top:1px solid #999;font-family:sans-serif;font-size:.78em;color:#666}.original a{color:#666;text-decoration:none}`;
+  const css = `body{font-family:serif;line-height:1.55;margin:5%;color:#171717}h1{font-size:1.7em;line-height:1.12;margin-bottom:.3em}h2,h3,h4,h5,h6{line-height:1.2;margin:1.35em 0 .45em}.date,.source,.meta,.caption,figcaption{color:#595959;font-size:.88em}.meta{margin:.25em 0 1.15em}.article-rule{border:0;border-top:1px solid #aaa;margin:0 0 1.5em}a{color:#111}pre{white-space:pre-wrap;font-family:monospace;font-size:.86em;background:#f2f2f2;padding:.8em}code{font-family:monospace}blockquote{margin-left:.6em;border-left:2px solid #888;padding-left:1em}figure{margin:1.4em 0}img{display:block;max-width:100%;height:auto;margin:1em auto}figcaption{line-height:1.35;margin-top:.4em}table{border-collapse:collapse;width:100%;font-size:.82em;margin:1.2em 0}th,td{border:1px solid #888;padding:.38em;vertical-align:top}th{font-weight:bold}dl{margin:1em 0}dt{font-weight:bold;margin-top:.7em}dd{margin-left:1em}.contents{margin-top:.7em}.publication-title{font-size:1.75em;margin-bottom:.08em}.contents-kicker{font-family:sans-serif;font-size:.7em;font-weight:bold;letter-spacing:.09em;text-transform:uppercase;color:#595959;margin:1.25em 0 .55em}.section-index-item{border-top:1px solid #777;padding:.72em 0 .8em}.section-index-name{display:block;font-weight:bold;font-size:1.17em;line-height:1.15}.section-index-count{display:block;color:#666;font-family:sans-serif;font-size:.74em;margin-top:.12em}.contents-topic{margin-top:.52em}.contents-topic-name{font-family:sans-serif;font-size:.76em;font-weight:bold;letter-spacing:.025em;margin:.52em 0 .18em;color:#666}.contents-article{display:block;text-decoration:none!important;font-size:.92em;line-height:1.22;margin:.18em 0;color:#171717!important}.section-divider{padding-top:8%}.divider-rule{border-top:2px solid #111;margin:0 0 1em}.section-kicker{font-family:sans-serif;font-size:.7em;font-weight:bold;letter-spacing:.1em;text-transform:uppercase;color:#595959}.section-name{font-size:2.55em;line-height:.98;margin:.18em 0 .16em;hyphens:none}.section-count{font-family:sans-serif;font-size:.82em;color:#595959;margin-bottom:.65em}.section-deck{font-size:1.02em;line-height:1.42;color:#555;margin:.35em 0 1.15em;max-width:28em}.introduction{padding-top:3%;max-width:32em}.intro-rule{border-top:2px solid #111;margin:0 0 .9em}.intro-kicker{font-family:sans-serif;font-size:.7em;font-weight:bold;letter-spacing:.11em;text-transform:uppercase;color:#595959;margin:.85em 0 0}.intro-copy{font-size:1.12em;line-height:1.5;margin:.95em 0 0}.original{margin-top:2em;padding-top:1em;border-top:1px solid #999;font-family:sans-serif;font-size:.78em;color:#666}.original a{color:#666;text-decoration:none}`;
   output.file("style.css", css);
 
   const navGroups: {
@@ -250,7 +336,7 @@ export async function makeEpub(options: EpubOptions, articles: EpubArticle[]) {
 
   const introduction = String(options.introduction || "").trim();
   if (introduction) {
-    output.file("introduction.xhtml", `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Editor's note — ${esc(options.name)}</title><link rel="stylesheet" type="text/css" href="style.css"/></head><body><main class="introduction"><div class="intro-rule"></div><p class="date">${esc(options.displayDate)}</p><h1 class="publication-title">${esc(options.name)}</h1><p class="intro-kicker">Editor's note</p><p class="intro-copy">${esc(introduction)}</p></main></body></html>`);
+    output.file("introduction.xhtml", `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Editor's note — ${esc(options.name)}</title><link rel="stylesheet" type="text/css" href="style.css"/></head><body><main class="introduction"><div class="intro-rule"></div><p class="date">${esc(options.displayDate)}</p><p class="intro-kicker">Editor's note</p><p class="intro-copy">${esc(introduction)}</p></main></body></html>`);
   }
 
   const machineNavItems = sectionPages.map(({ group, href }) => {
@@ -262,14 +348,14 @@ export async function makeEpub(options: EpubOptions, articles: EpubArticle[]) {
       if (!topic.name || !first) return items;
       return `<li><a href="article-${first.index + 1}.xhtml">${esc(topic.name)}</a><ol>${items}</ol></li>`;
     }).join("");
-    const label = group.name || "Saved articles";
+    const label = displaySectionName(group.name);
     return `<li><a href="${href}">${esc(label)}</a><ol>${topics}</ol></li>`;
   }).join("");
   const introductionNavItem = introduction ? '<li><a href="introduction.xhtml">Editor&#39;s note</a></li>' : "";
   output.file("nav.xhtml", `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops"><head><title>${esc(options.name)} navigation</title></head><body><nav epub:type="toc" id="toc"><h1>${esc(options.name)}</h1><ol>${introductionNavItem}${machineNavItems}</ol></nav></body></html>`);
 
   const readerContents = sectionPages.map(({ group, articleCount }) => {
-    const label = group.name || "Saved articles";
+    const label = displaySectionName(group.name);
     const topics = group.topics.map((topic) => {
       const topicLabel = topic.name ? `<h3 class="contents-topic-name">${esc(topic.name)}</h3>` : "";
       const articleLinks = topic.items.map(({ article, index }) =>
@@ -282,8 +368,10 @@ export async function makeEpub(options: EpubOptions, articles: EpubArticle[]) {
   output.file("contents.xhtml", `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${esc(options.name)}</title><link rel="stylesheet" type="text/css" href="style.css"/></head><body><main class="contents"><p class="date">${esc(options.displayDate)}</p><h1 class="publication-title">${esc(options.name)}</h1><p class="contents-kicker">In this issue</p>${readerContents}</main></body></html>`);
 
   for (const { group, href, articleCount } of sectionPages) {
-    const label = group.name || "Saved articles";
-    output.file(href, `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${esc(label)} — ${esc(options.name)}</title><link rel="stylesheet" type="text/css" href="style.css"/></head><body class="section-divider"><div class="divider-rule"></div><p class="section-kicker">${esc(options.name)} · ${esc(options.displayDate)}</p><h1 class="section-name">${esc(label)}</h1><p class="section-count">${articleCount} ${articleCount === 1 ? "story" : "stories"}</p><div class="divider-rule"></div></body></html>`);
+    const label = displaySectionName(group.name);
+    const deck = sectionDeck(group.name);
+    const titleSize = label.length > 38 ? "1.72em" : label.length > 28 ? "2.02em" : label.length > 20 ? "2.28em" : "2.55em";
+    output.file(href, `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>${esc(label)} — ${esc(options.name)}</title><link rel="stylesheet" type="text/css" href="style.css"/></head><body class="section-divider"><div class="divider-rule"></div><p class="section-kicker">${esc(options.name)} · ${esc(options.displayDate)}</p><h1 class="section-name" style="font-size:${titleSize}">${esc(label)}</h1><p class="section-count">${articleCount} ${articleCount === 1 ? "story" : "stories"}</p>${deck ? `<p class="section-deck">${esc(deck)}</p>` : ""}<div class="divider-rule"></div></body></html>`);
   }
 
   const manifest = [
@@ -351,7 +439,7 @@ export async function makeEpub(options: EpubOptions, articles: EpubArticle[]) {
       }).join("");
       return `<navPoint id="nav-${topicOrder}" playOrder="${topicOrder}"><navLabel><text>${esc(topic.name)}</text></navLabel><content src="article-${topic.items[0].index + 1}.xhtml"/>${articleChildren}</navPoint>`;
     }).join("");
-    const label = section.group.name || "Saved articles";
+    const label = displaySectionName(section.group.name);
     return `<navPoint id="nav-${sectionOrder}" playOrder="${sectionOrder}"><navLabel><text>${esc(label)}</text></navLabel><content src="${section.href}"/>${sectionChildren}</navPoint>`;
   }).join("");
   output.file("toc.ncx", `<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE ncx PUBLIC "-//NISO//DTD ncx 2005-1//EN" "http://www.daisy.org/z3986/2005/ncx-2005-1.dtd"><ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head><meta name="dtb:uid" content="urn:uuid:${bookId}"/></head><docTitle><text>${esc(options.name)}</text></docTitle><navMap>${ncxIntroduction}${ncxSections}</navMap></ncx>`);

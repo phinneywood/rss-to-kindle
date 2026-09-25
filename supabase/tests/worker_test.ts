@@ -43,7 +43,7 @@ async function scenario(mode: "empty" | "failed" | "partial" | "retry" | "prepar
         return Response.json({ output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify({ articles: [] }) }] }], usage: { input_tokens: 10, output_tokens: 2 } });
       }
       if (format === "morning_reader_issue_introduction") {
-        const paragraph = "A small issue can still contain a useful argument: tools acquire boundaries, teams acquire rituals, and systems become legible only when something pushes against their edges. The stories here keep circling that pressure from different directions, from software that needs supervision to organizations that discover their real shape through failure. Even the quieter pieces feel less like detours than reminders that structure is often easiest to see from the side. What ties the morning together is not a single subject so much as a recurring question: once a system starts acting on its own, who gets to decide where it stops?";
+        const paragraph = "Tools acquire boundaries, teams acquire rituals, and systems become legible when something pushes against their edges. The stories here circle that pressure from different directions: software needs supervision, organizations reveal their shape through failure, and a quieter detour makes structure easier to see from the side. The morning’s recurring question is simple enough to state and harder to answer: once a system starts acting on its own, who gets to decide where it stops?";
         return Response.json({ output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify({ paragraph }) }] }], usage: { input_tokens: 40, output_tokens: 110 } });
       }
       return new Response("unexpected OpenAI request", { status: 400 });
@@ -201,7 +201,7 @@ Deno.test("explicit test sends are uniquely reviewable on Kindle without consumi
   const nav = await zip.file("OEBPS/nav.xhtml")!.async("string");
   assert(/<dc:title>Morning Reader · TEST \d{2}:\d{2}:\d{2} · JOB1<\/dc:title>/.test(opf), "Kindle library metadata should distinguish every test run");
   assert(introduction.includes('<p class="intro-kicker">Editor\'s note</p>'), "the first editorial page should identify itself as the editor note");
-  assert(introduction.includes("A small issue can still contain a useful argument"), "the EPUB should contain the exact frozen Luna introduction");
+  assert(introduction.includes("Tools acquire boundaries, teams acquire rituals"), "the EPUB should contain the exact frozen Luna introduction");
   assert(opf.indexOf('<itemref idref="introduction"/>') < opf.indexOf('<itemref idref="contents"/>'), "the Luna introduction must precede contents in reading order");
   assert(nav.includes('href="introduction.xhtml">Editor&#39;s note</a>'), "native navigation should expose the editor note");
   assert(contents.includes("<h1 class=\"publication-title\">Morning Reader</h1>"), "test interior should keep the production publication title");

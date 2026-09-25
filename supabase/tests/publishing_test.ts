@@ -271,8 +271,8 @@ Deno.test("builds an EPUB with navigation, images, and reflowable articles", asy
   assert(opf.includes('<meta name="cover" content="cover-image"/>'), "legacy cover metadata must reference the same image");
   assert(opf.includes('href="cover.jpg" media-type="image/jpeg"'), "the cover must use the tested JPEG packaging");
   assert(!zip.file("OEBPS/cover.xhtml") && !opf.includes('idref="cover"'), "do not add a second HTML cover page");
-  const cover = jpeg.decode(await zip.file("OEBPS/cover.jpg")!.async("uint8array"), { useTArray: true, maxResolutionInMP: 2 });
-  assert(cover.width === 1200 && cover.height === 1600, "cover must decode at the approved resolution");
+  const cover = jpeg.decode(await zip.file("OEBPS/cover.jpg")!.async("uint8array"), { useTArray: true, maxResolutionInMP: 3 });
+  assert(cover.width === 1200 && cover.height === 1920, "cover must decode at the Kindle-proportioned editorial resolution");
   assert(page.includes('id="reader-anchor-1"') && page.includes('href="#reader-anchor-1"'), "packaging must repair invalid cached publisher anchors and links");
   assert(opf.includes('href="images/example.png" media-type="image/png"'), "embedded images should be listed in the manifest");
   assert(page.includes('<img src="images/example.png" alt="Example" />'), "article images should be valid XHTML");
@@ -482,10 +482,10 @@ Deno.test("renders a book-native linear edition with hierarchical native navigat
   assert(contents.includes('<h3 class="contents-topic-name">Production agents</h3>'), "visible contents should expose topic labels");
   assert(contents.includes('href="article-1.xhtml">Reliability for production agents</a>'), "visible contents should link each article title directly to its article");
   assert(contents.includes('href="article-2.xhtml">Observability for long-running agents</a>') && contents.includes('href="article-3.xhtml">Design Engineering with Maggie Appleton</a>') && contents.includes('href="article-4.xhtml">Database internals in practice</a>'), "every retained article title must appear in the opening contents");
-  assert(sectionOne.includes('<h1 class="section-name">AI</h1>') && sectionOne.includes("3 stories"), "section divider should name the section and story count");
+  assert(sectionOne.includes('class="section-name"') && sectionOne.includes(">AI</h1>") && sectionOne.includes("3 stories"), "section divider should name the section and story count");
   assert(!sectionOne.includes("<a ") && !sectionOne.includes("Begin section"), "section divider should contain no navigation chrome");
   assert(!sectionOne.includes("Reliability for production agents") && !sectionOne.includes("Production agents"), "section divider should not list articles or topics");
-  assert(sectionTwo.includes('<h1 class="section-name">Systems</h1>'), "next section should have its own divider");
+  assert(sectionTwo.includes('class="section-name"') && sectionTwo.includes(">Systems</h1>"), "next section should have its own divider");
   assert(!pageOne.includes("Production agents") && !pageTwo.includes("Production agents"), "topic labels should not appear in visible article pages");
   assert(!pageThree.includes("Designing with AI") && !pageFour.includes("Database architecture"), "topic labels should remain native-navigation-only");
   assert(!pageOne.includes("article-nav") && !pageOne.includes('href="contents.xhtml"') && !pageOne.includes('href="section-1.xhtml"'), "article pages should contain no visible internal navigation chrome");
