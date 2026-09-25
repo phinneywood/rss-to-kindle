@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "deno check supabase/functions/app-api/index.ts supabase/functions/worker/index.ts",
+    "check": "deno check supabase/functions/app-api/index.ts supabase/functions/worker/index.ts supabase/functions/mcp/index.ts",
     "test": "deno test supabase/tests"
   },
   "dependencies": {
