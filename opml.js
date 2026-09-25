@@ -30,7 +30,7 @@ function opmlImportModal(){
     '<div class="row"><h2>Import feeds</h2><button class="btn small-btn" id="close-modal">Close</button></div>'+
     '<p class="muted small">Choose an OPML export from NetNewsWire or another RSS reader. Morning Reader reads the file in your browser, then imports the feeds you approve.</p>'+
     '<div class="field"><label for="opml-file">OPML file</label><input id="opml-file" class="input" type="file" accept=".opml,.xml,text/xml,application/xml"></div>'+
-    '<div class="notice info">Folders in the OPML file can become sections in your daily issue. Ungrouped feeds default to your first existing section.</div>'
+    '<div class="notice info">OPML folders are ignored. Morning Reader keeps one source list and creates fresh issue sections from the articles themselves.</div>'
   );
   document.querySelector("#close-modal").onclick=closeModal;
   document.querySelector("#opml-file").onchange=async e=>{
@@ -47,72 +47,21 @@ function opmlImportModal(){
 }
 
 function renderOpmlPreview(feeds,fileName){
-  const groups=[],byFolder=new Map();
-  for(const feed of feeds){
-    const key=feed.folder||"";
-    if(!byFolder.has(key)){
-      const group={folder:key,feeds:[]};
-      byFolder.set(key,group);
-      groups.push(group);
-    }
-    byFolder.get(key).feeds.push(feed);
-  }
-
-  const existingByName=new Map(state.sections.map(s=>[String(s.name).trim().toLowerCase(),s]));
-  let remainingNew=Math.max(0,12-state.sections.length);
-  const defaults=new Map();
-  for(const group of groups){
-    const match=group.folder?existingByName.get(group.folder.toLowerCase()):null;
-    if(match){
-      defaults.set(group.folder,match.id);
-    }else if(group.folder&&remainingNew>0){
-      defaults.set(group.folder,"new:"+encodeURIComponent(group.folder.slice(0,80)));
-      remainingNew--;
-    }else{
-      defaults.set(group.folder,state.sections[0]?state.sections[0].id:"");
-    }
-  }
-
-  const knownUrls=new Set(
-    state.sections.flatMap(s=>s.feeds).map(f=>String(f.url).replace(/\/$/,""))
-  );
-
-  const optionHtml=group=>{
-    const selected=defaults.get(group.folder);
-    const existing=state.sections.map(s=>
-      '<option value="'+esc(s.id)+'" '+(selected===s.id?"selected":"")+'>'+esc(s.name)+'</option>'
-    ).join("");
-    let create="";
-    if(group.folder&&!existingByName.has(group.folder.toLowerCase())){
-      const newValue="new:"+encodeURIComponent(group.folder.slice(0,80));
-      create='<option value="'+esc(newValue)+'" '+(selected===newValue?"selected":"")+'>'+
-        'Create “'+esc(group.folder.slice(0,80))+'” section</option>';
-    }
-    return create+existing;
-  };
-
-  const groupHtml=groups.map((group,i)=>{
-    const feedHtml=group.feeds.map(feed=>{
-      const known=knownUrls.has(String(feed.url).replace(/\/$/,""));
-      return '<div class="tiny" style="padding:5px 0;word-break:break-word">'+
-        esc(feed.name||feed.url)+(known?' <span class="status off">Already present</span>':'')+
-        '<div class="muted" style="margin-top:2px">'+esc(feed.url)+'</div></div>';
-    }).join("");
+  const knownUrls=new Set(allSources().map(f=>String(f.url).replace(/\/$/,"")));
+  const feedHtml=feeds.map(feed=>{
+    const known=knownUrls.has(String(feed.url).replace(/\/$/,""));
     return '<div class="card" style="box-shadow:none">'+
-      '<div class="row wrap">'+
-        '<div><strong>'+esc(group.folder||"Ungrouped")+'</strong><div class="tiny muted">'+
-          group.feeds.length+' feed'+(group.feeds.length===1?"":"s")+'</div></div>'+
-        '<select class="select opml-section" data-group="'+i+'" style="width:auto;min-width:190px">'+optionHtml(group)+'</select>'+
-      '</div>'+
-      '<div style="margin-top:10px">'+feedHtml+'</div>'+
-    '</div>';
+      '<strong>'+esc(feed.name||feed.url)+'</strong>'+(known?' <span class="status off">Already present</span>':'')+
+      (feed.folder?'<div class="tiny muted" style="margin-top:3px">OPML folder: '+esc(feed.folder)+' · folder will not become a section</div>':'')+
+      '<div class="tiny muted" style="margin-top:4px;word-break:break-all">'+esc(feed.url)+'</div>'+
+      '</div>';
   }).join("");
 
   modal.querySelector(".modal-card").innerHTML=
     '<div class="row"><div><h2>Review OPML import</h2><div class="tiny muted">'+esc(fileName)+' · '+feeds.length+
       ' feed'+(feeds.length===1?"":"s")+'</div></div><button class="btn small-btn" id="close-modal">Close</button></div>'+
-    '<p class="muted small">Choose the section for each OPML folder. Morning Reader will validate every feed before adding it.</p>'+
-    '<div class="stack" style="margin-top:16px">'+groupHtml+'</div>'+
+    '<p class="muted small">Morning Reader will validate every feed, add it to your source list, and ignore any OPML folder taxonomy.</p>'+
+    '<div class="stack" style="margin-top:16px">'+feedHtml+'</div>'+
     '<div class="row wrap" style="justify-content:flex-start;margin-top:18px">'+
       '<button class="btn primary" id="confirm-opml-import">Import '+feeds.length+' feed'+(feeds.length===1?"":"s")+'</button>'+
       '<span class="tiny muted">Feeds are checked in batches of five.</span>'+
@@ -123,18 +72,10 @@ function renderOpmlPreview(feeds,fileName){
     const button=document.querySelector("#confirm-opml-import");
     button.disabled=true;
     button.textContent="Importing…";
-    const payload=[];
-
-    groups.forEach((group,i)=>{
-      const choice=document.querySelector('.opml-section[data-group="'+i+'"]').value;
-      for(const feed of group.feeds){
-        const item={url:feed.url};
-        if(feed.name)item.name=feed.name;
-        if(choice.startsWith("new:"))item.section_name=decodeURIComponent(choice.slice(4));
-        else item.section_id=choice;
-        payload.push(item);
-      }
-    });
+    const payload=feeds.map(feed=>({
+      url:feed.url,
+      ...(feed.name?{name:feed.name}:{})
+    }));
 
     try{
       const result=await api("/feeds/bulk",{method:"POST",body:{feeds:payload}});
