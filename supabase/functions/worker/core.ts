@@ -5,6 +5,7 @@ import { dispatchPrepared, DeliveryNeedsReview, checkAttachmentBudget } from "..
 import { makeEpub, validateEpub, type EpubArticle } from "../_shared/epub.ts";
 import { editorializeIssue } from "../_shared/editorial.ts";
 import { discoverBeyondRss, type DiscoveryCandidate } from "../_shared/discovery.ts";
+import { writeIssueIntroduction } from "../_shared/introduction.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -300,6 +301,7 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
   let issues: string[] = [];
   let feedCount = 0;
   let editorialSummary: any = null;
+  let issueIntroduction: string | null = null;
 
   const frozen = job.result?.preparation_manifest;
   if ((frozen?.version === 1 || frozen?.version === 2) && Array.isArray(frozen.groups)) {
@@ -308,6 +310,7 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
     issues = Array.isArray(frozen.issues) ? frozen.issues : [];
     feedCount = Number(frozen.feedCount || 0);
     editorialSummary = frozen.editorial || null;
+    issueIntroduction = typeof frozen.introduction === "string" ? frozen.introduction : null;
     logEvent("digest.manifest_reused", {
       job_id: job.id,
       user_id: job.user_id,
@@ -486,6 +489,29 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
       }
     }
 
+    const introGroups = [
+      ...selectedGroups,
+      ...(pendingItems.length ? [{ section: { id: null, name: "Saved articles" }, items: pendingItems }] : []),
+    ];
+    const introduction = await writeIssueIntroduction(
+      introGroups,
+      String(settings.editorial_brief || ""),
+      { deadline },
+    );
+    issueIntroduction = introduction.paragraph;
+    editorialSummary = {
+      ...(editorialSummary || {}),
+      introduction: introduction.report,
+    };
+    logEvent("editorial.introduction_completed", {
+      job_id: job.id,
+      user_id: job.user_id,
+      status: introduction.report.status,
+      model: introduction.report.model,
+      words: introduction.report.words,
+      error: introduction.report.error || null,
+    }, introduction.report.status === "fallback" ? "warn" : "info");
+
     const manifest = {
       version: 2,
       groups: selectedGroups.map((group) => ({
@@ -493,6 +519,7 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
         items: group.items.map((item) => ({ ...item, assets: [] })),
       })),
       pendingItems: pendingItems.map((item) => ({ ...item, assets: [] })),
+      introduction: issueIntroduction,
       issues,
       feedCount,
       editorial: editorialSummary,
@@ -565,8 +592,9 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
       name: "Morning Reader", displayDate, date: now, timezone,
       label: testIdentity?.coverLabel || "Daily issue",
       libraryTitle: testIdentity?.libraryTitle,
+      introduction: issueIntroduction,
     }, issueItems);
-    const qa = await validateEpub(bytes, issueItems);
+    const qa = await validateEpub(bytes, issueItems, issueIntroduction);
     const media = summarizeMedia(issueItems);
     logEvent("digest.stage_completed", {
       job_id: job.id,
