@@ -26,7 +26,7 @@ function article(index: number, section: string, title: string, extra: Partial<E
   };
 }
 
-const fixtureParagraph = "Software agents keep acquiring the trappings of ordinary coworkers—sandboxes, oversight routines, security boundaries—just as the rest of the issue keeps asking what happens when familiar institutions are pushed past their original shape. A developer tool becomes an organizational problem; a containment mechanism becomes a theory of trust; an unrelated history piece reminds us that durable systems often grow from arrangements nobody would have designed from scratch. The interesting thread is less whether these systems work than who gets to define the edges around them, and what becomes visible only after those edges start to move.";
+const fixtureParagraph = "Software agents keep acquiring the trappings of ordinary coworkers—sandboxes, oversight routines, security boundaries—while the quieter pieces ask a similar question of older institutions: what makes a system trustworthy once its edges start moving? A developer tool becomes an organizational problem; a historical detour makes improvisation look less like failure than design by accumulation. The interesting part is not whether these systems become autonomous, but how quickly yesterday’s safeguards turn into tomorrow’s assumptions.";
 
 Deno.test("Luna introduction prompt asks for an editorial note rather than a summary", async () => {
   const groups = [
@@ -53,12 +53,13 @@ Deno.test("Luna introduction prompt asks for an editorial note rather than a sum
   const prompt = String(request?.input?.[0]?.content || "");
   assert(prompt.includes("editor's note, not a summary"), "prompt should define the editorial form");
   assert(prompt.includes("tension, echo, reversal"), "prompt should ask Luna to find a connective idea");
+  assert(prompt.includes("70–90 words"), "prompt should explicitly target a one-screen note");
   assert(prompt.includes("Never mention AI, Luna, RSS"), "prompt should hide production mechanics");
   assert(prompt.includes("End with a thought, question, or turn"), "prompt should shape the ending");
   assert(JSON.stringify(request).includes("Open Discovery"), "Luna should see the complete final issue, including discovery");
   assert(result.paragraph === fixtureParagraph);
   assert(result.report.status === "written" && result.report.model === "gpt-6-luna");
-  assert(result.report.words >= 55, "accepted introduction should have substantive length");
+  assert(result.report.words >= 60 && result.report.words <= 100, "accepted introduction should stay within the one-screen guardrail");
 });
 
 Deno.test("introduction failure is non-blocking", async () => {
