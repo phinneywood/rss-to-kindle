@@ -61,7 +61,6 @@ Production:
 The MCP exposes a narrow Morning Reader tool surface rather than generic database or HTTP access:
 
 - `get_profile`
-- `get_profile`
 - `list_sources`
 - `find_feeds`
 - `add_source`
