@@ -29,27 +29,18 @@ async function scenario(mode: "empty" | "failed" | "partial" | "retry" | "prepar
       const payload = JSON.parse(await req.text());
       const format = payload?.text?.format?.name;
       const userContent = JSON.parse(payload?.input?.at(-1)?.content || "{}");
-      if (format === "morning_reader_assignment_plan") {
+      if (format === "morning_reader_issue_organization") {
         const plan = {
           articles: (userContent.candidates || []).map((candidate: any) => ({
             id: candidate.id,
-            label: candidate.title === "Drop me" ? "OMIT" : (candidate.current_section || "Reading"),
-            confidence: candidate.title === "Drop me" ? 0.99 : 0.95,
-            reason: candidate.title === "Drop me" ? "Fixture marks this article out of scope." : "Fixture keeps the article in its assigned section.",
+            section_name: candidate.title === "Drop me" ? "Other" : "Fixture section",
+            topic_name: null,
           })),
         };
         return Response.json({ output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(plan) }] }], usage: { input_tokens: 10, output_tokens: 10 } });
       }
-      if (format === "morning_reader_editorial_plan") {
-        const plan = {
-          articles: (userContent.candidates || []).map((candidate: any) => ({
-            id: candidate.id,
-            topic_name: "Fixture topic",
-            topic_intro: "Fixture introduction.",
-            article_note: "Fixture article note.",
-          })),
-        };
-        return Response.json({ output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(plan) }] }], usage: { input_tokens: 10, output_tokens: 10 } });
+      if (format === "morning_reader_related_discovery" || format === "morning_reader_open_discovery") {
+        return Response.json({ output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify({ articles: [] }) }] }], usage: { input_tokens: 10, output_tokens: 2 } });
       }
       return new Response("unexpected OpenAI request", { status: 400 });
     }
@@ -84,7 +75,7 @@ async function scenario(mode: "empty" | "failed" | "partial" | "retry" | "prepar
       if (req.method === "POST") outbox = { ...body, first_send_at: null, provider_email_id: null };
       if (req.method === "PATCH") Object.assign(outbox, body);
       rows = outbox ? [outbox] : [];
-    } else if (table === "user_settings") rows = [{ kindle_email: "test@example.com", timezone: "UTC",paused:false,onboarding_complete:true }];
+    } else if (table === "user_settings") rows = [{ kindle_email: "test@example.com", timezone: "UTC",paused:false,onboarding_complete:true,editorial_brief:"Systems, software, design, and thoughtful long-form reading." }];
     else if (table === "sections") {
       rows = [{ id: "section-1", name: "Reading",enabled:true,delivery_days:[0,1,2,3,4,5,6] },{id:"section-2",name:"Other section",enabled:true,delivery_days:[]}];
       const idFilter = url.searchParams.get("id");
@@ -120,10 +111,10 @@ Deno.test("worker submits partial editions and persists source omissions", async
   const result = await scenario("partial");
   assert(result.job.status === "partial", JSON.stringify(result.first));assert(result.sends === 1);
   assert(result.job.result.articles === 1);assert(result.job.result.issues.some((x: string) => x.includes("Broken source")));
-  assert(result.job.result.editorial?.assignment?.status === "assigned", "assignment diagnostics must survive outbox freezing");
-  assert(result.job.result.editorial?.organization?.status === "edited", "section-editor diagnostics must survive outbox freezing");
-  assert(result.outbox.payload.editorial?.assignment?.status === "assigned", "frozen outbox must retain assignment diagnostics");
-  assert(result.outbox.payload.editorial?.organization?.status === "edited", "frozen outbox must retain section-editor diagnostics");
+  assert(result.job.result.editorial?.organization?.status === "edited", "organizer diagnostics must survive outbox freezing");
+  assert(result.job.result.editorial?.discovery?.related?.status === "discovered", "related-discovery diagnostics must survive outbox freezing");
+  assert(result.outbox.payload.editorial?.organization?.status === "edited", "frozen outbox must retain organizer diagnostics");
+  assert(result.outbox.payload.editorial?.discovery?.open?.status === "discovered", "frozen outbox must retain discovery diagnostics");
   assert(result.outbox.payload.email.attachments[0].filename.endsWith(".epub"));
   assert(result.job.result.qa?.contentsEntries === 1, "pre-send QA must survive outbox freezing and final job diagnostics");
   assert(result.outbox.payload.qa?.contentsEntries === 1, "frozen payload should retain EPUB QA evidence");
@@ -140,12 +131,13 @@ Deno.test("retry reuses the frozen preparation manifest instead of rediscovering
   assert(result.sends === 1, "the successful retry should submit exactly one email");
   assert(result.fetched.filter((path: string) => path === "/feed").length === 1, "feed discovery must not rerun after the manifest has been frozen");
   assert(result.manifestWrites.length === 1, "the selected issue should be frozen exactly once across retries");
-  assert(result.manifestWrites[0].groups[0].items.length === 1, "the frozen manifest should preserve the selected article set");
+  assert(result.manifestWrites[0].version === 2, "new recurring runs should freeze the v2 agentic manifest");
+  assert(result.manifestWrites[0].groups[0].items.length === 1, "the frozen manifest should preserve the organized article set");
 });
 
-Deno.test("a scheduled daily issue combines eligible sections into one EPUB",async()=>{
-  const r=await scenario("scheduled");assert(r.job.status==='sent',JSON.stringify(r.first));assert(r.sends===1);
-  assert(!r.fetched.includes('/broken'),"a section excluded today must not be fetched");
+Deno.test("scheduled issues ignore legacy section frequency and read all enabled sources",async()=>{
+  const r=await scenario("scheduled");assert(r.job.status==='partial',JSON.stringify(r.first));assert(r.sends===1);
+  assert(r.fetched.includes('/broken'),"legacy section schedules must not suppress enabled sources");
   assert(r.outbox.payload.email.attachments.length===1,"daily issue must have exactly one EPUB");
   assert(r.outbox.payload.email.attachments[0].filename.startsWith("morning-reader-"));
   assert(r.job.result.articles===1);
@@ -202,13 +194,13 @@ Deno.test("explicit test sends are uniquely reviewable on Kindle without consumi
 });
 
 
-Deno.test("assignment happens before image hydration so omitted articles never fetch media", async () => {
+Deno.test("organizer never filters an eligible RSS article before image hydration", async () => {
   const result = await scenario("classified");
   assert(result.job.status === "sent", JSON.stringify(result.first));
-  assert(result.job.result.articles === 1, "only the included article should be delivered");
-  assert(result.fetched.includes("/keep.png"), "included article image should be hydrated");
-  assert(!result.fetched.includes("/drop.png"), "omitted article image must never be fetched");
-  assert(result.job.result.editorial.assignment.omitted === 1, "assignment diagnostics should record the omitted candidate");
-  assert(result.job.result.qa?.contentsEntries === 1, "classified delivery should pass article-title contents QA");
-  assert(result.job.result.media?.discovered === 1 && result.job.result.media?.embedded === 1, "production media diagnostics should record the retained article image");
+  assert(result.job.result.articles === 2, "every eligible RSS article must be delivered");
+  assert(result.fetched.includes("/keep.png"), "first eligible article image should be hydrated");
+  assert(result.fetched.includes("/drop.png"), "an article placed in Other must still have its media hydrated");
+  assert(result.job.result.editorial.organization.other >= 1, "organizer diagnostics should record Other placement");
+  assert(result.job.result.qa?.contentsEntries === 2, "organized delivery should pass article-title contents QA for every eligible article");
+  assert(result.job.result.media?.discovered === 2 && result.job.result.media?.embedded === 2, "production media diagnostics should include both eligible articles");
 });
