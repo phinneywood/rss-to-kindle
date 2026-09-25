@@ -62,6 +62,7 @@ async function scenario(mode: "empty" | "failed" | "partial" | "retry" | "prepar
       return new Response(`<rss><channel><item><title>Example article</title><link>https://8.8.8.8/article</link>${mode==='scheduled'?`<pubDate>${new Date(Date.now()-5*86400_000).toUTCString()}</pubDate>`:''}<content:encoded><![CDATA[<p>${"Substantial original reading text. ".repeat(24)}</p>]]></content:encoded></item></channel></rss>`);
     }
     assert(url.hostname === "database.example.invalid", "Unexpected network call " + url.hostname);
+    if (url.pathname.includes("/rpc/kick_digest_worker")) return Response.json(1);
     const table = url.pathname.split('/').at(-1);
     const body = req.method === "GET" ? null : await req.json();
     let rows: any[] = [];
@@ -92,12 +93,16 @@ async function scenario(mode: "empty" | "failed" | "partial" | "retry" | "prepar
     return Response.json(req.headers.get("accept")?.includes("vnd.pgrst.object") ? rows[0] : rows);
   }) as typeof fetch;
   try {
-    const first = await processJob(structuredClone(job));
+    const initial = await processJob(structuredClone(job));
+    const sendsAfterInitial = sends;
+    const manifestsAfterInitial = manifestWrites.length;
+    let first = initial;
+    if (initial?.continuation === "frozen-manifest") first = await processJob(structuredClone(job));
     if (mode === "retry" || mode === "prepare_retry") {
       assert(first?.status === "queued", JSON.stringify(first));
       await processJob(structuredClone(job));
     }
-    return { first, job, outbox, sends, feedUpdates, snapshots, fetched, articleDeliveryReads, articleDeliveryWrites, manifestWrites };
+    return { initial, first, sendsAfterInitial, manifestsAfterInitial, job, outbox, sends, feedUpdates, snapshots, fetched, articleDeliveryReads, articleDeliveryWrites, manifestWrites };
   } finally { globalThis.fetch = original; }
 }
 
@@ -107,8 +112,11 @@ Deno.test("worker distinguishes an empty edition from failed sources", async () 
   assert(empty.sends === 0 && failed.sends === 0);assert(failed.job.error.includes("Broken source"));
 });
 
-Deno.test("worker submits partial editions and persists source omissions", async () => {
+Deno.test("worker splits agentic preparation from deterministic packaging and submits the frozen issue", async () => {
   const result = await scenario("partial");
+  assert(result.initial?.continuation === "frozen-manifest", "fresh v2 preparation should stop after freezing the manifest");
+  assert(result.sendsAfterInitial === 0, "the agentic preparation invocation must not package or send");
+  assert(result.manifestsAfterInitial === 1, "the manifest must be frozen before continuation");
   assert(result.job.status === "partial", JSON.stringify(result.first));assert(result.sends === 1);
   assert(result.job.result.articles === 1);assert(result.job.result.issues.some((x: string) => x.includes("Broken source")));
   assert(result.job.result.editorial?.organization?.status === "edited", "organizer diagnostics must survive outbox freezing");
