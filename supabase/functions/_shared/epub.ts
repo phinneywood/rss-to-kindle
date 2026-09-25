@@ -95,99 +95,184 @@ function datePart(date: Date, timezone: string, type: Intl.DateTimeFormatPartTyp
   return parts.find((part) => part.type === type)?.value || "";
 }
 
-export async function makeCoverPng(options: EpubOptions, articleCount: number) {
+type CoverLine = { section: string; story: string };
+
+function displaySectionName(value: string | null | undefined) {
+  const name = String(value || "").trim();
+  if (!name) return "Saved articles";
+  if (/^other$/i.test(name)) return "Elsewhere";
+  return name;
+}
+
+function sectionDeck(value: string | null | undefined) {
+  const name = String(value || "").trim();
+  if (name === "Related Discovery") return "Further reading on ideas running through this issue.";
+  if (name === "Open Discovery") return "A deliberate detour.";
+  return "";
+}
+
+function coverSectionName(value: string | null | undefined) {
+  const name = displaySectionName(value);
+  if (name === "Related Discovery") return "Further reading";
+  if (name === "Open Discovery") return "A deliberate detour";
+  return name;
+}
+
+function compactCoverText(value: string, max = 88) {
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (text.length <= max) return text;
+  const clipped = text.slice(0, max - 1).replace(/\s+\S*$/, "").trim();
+  return (clipped || text.slice(0, max - 1)).trim() + "…";
+}
+
+function coverLinesFor(articles: EpubArticle[]): CoverLine[] {
+  const groups = new Map<string, EpubArticle[]>();
+  for (const article of articles) {
+    const raw = String(article.section_name || "Other").trim() || "Other";
+    if (!groups.has(raw)) groups.set(raw, []);
+    groups.get(raw)!.push(article);
+  }
+  const primary = [...groups.entries()].filter(([name]) => name !== "Related Discovery" && name !== "Open Discovery");
+  const discovery = [...groups.entries()].filter(([name]) => name === "Related Discovery" || name === "Open Discovery");
+  return [...primary, ...discovery].slice(0, 3).map(([name, items]) => ({
+    section: coverSectionName(name),
+    story: compactCoverText(items[0]?.title || "", 92),
+  }));
+}
+
+function coverSectionSize(value: string, lead = false) {
+  const length = value.length;
+  if (lead) return length > 34 ? 72 : length > 25 ? 82 : 94;
+  return length > 34 ? 34 : length > 25 ? 39 : 44;
+}
+
+export async function makeCoverPng(options: EpubOptions, articleCount: number, coverLines: CoverLine[] = []) {
   const element = React.createElement;
   const monthLong = new Intl.DateTimeFormat("en-US", { timeZone: options.timezone, month: "long" }).format(options.date).toUpperCase();
+  const weekday = new Intl.DateTimeFormat("en-US", { timeZone: options.timezone, weekday: "long" }).format(options.date).toUpperCase();
   const day = datePart(options.date, options.timezone, "day");
   const year = datePart(options.date, options.timezone, "year");
-  const titleSize = options.name.length <= 14 ? 132 : options.name.length <= 28 ? 108 : options.name.length <= 46 ? 84 : 68;
-  const paper = "#ffffff", ink = "#000000";
+  const paper = "#ffffff", ink = "#080808", muted = "#5c5c5c";
+  const lead = coverLines[0] || { section: "Morning reading", story: "A personal edition assembled for the day." };
+  const secondary = coverLines.slice(1, 3);
+  const label = (options.label || "DAILY EDITION").toUpperCase();
+
   const cover = element("div", {
     style: {
       width: "100%", height: "100%", display: "flex", flexDirection: "column",
-      background: paper, color: ink, fontFamily: "serif",
+      background: paper, color: ink, fontFamily: "serif", border: `10px solid ${ink}`,
+      padding: "56px 62px 48px",
+    },
+  },
+  element("div", {
+    style: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 24 },
+  },
+  element("div", { style: { display: "flex", flexDirection: "column" } },
+    element("div", {
+      style: { fontFamily: "monospace", fontSize: 17, fontWeight: 800, letterSpacing: 4.2, textTransform: "uppercase" },
+    }, "A PERSONAL DAILY READER"),
+    element("div", {
+      style: { fontSize: 118, fontWeight: 700, lineHeight: .88, letterSpacing: -5, marginTop: 18 },
+    }, "Morning"),
+    element("div", {
+      style: { fontSize: 118, fontWeight: 700, lineHeight: .88, letterSpacing: -5 },
+    }, "Reader")
+  ),
+  element("div", {
+    style: {
+      fontFamily: "monospace", fontSize: 14, fontWeight: 800, letterSpacing: 1.6,
+      border: `2px solid ${ink}`, padding: "11px 13px 9px", textTransform: "uppercase",
+    },
+  }, label)),
+  element("div", { style: { borderTop: `5px solid ${ink}`, marginTop: 38 } }),
+  element("div", {
+    style: {
+      display: "flex", alignItems: "stretch", minHeight: 360,
+      borderBottom: `2px solid ${ink}`,
     },
   },
   element("div", {
     style: {
-      display: "flex", alignItems: "center", justifyContent: "space-between",
-      borderTop: `16px solid ${ink}`, borderBottom: `3px solid ${ink}`, padding: "35px 68px 31px",
-      fontFamily: "monospace", textTransform: "uppercase",
+      width: 390, display: "flex", alignItems: "center", justifyContent: "center",
+      fontSize: 272, fontWeight: 700, lineHeight: .9, letterSpacing: -14, paddingRight: 22,
     },
-  },
-  element("div", { style: { fontSize: 23, fontWeight: 900, letterSpacing: 4 } }, "MORNING READER"),
+  }, day),
   element("div", {
     style: {
-      background: ink, color: paper, padding: "10px 17px 9px",
-      fontSize: 15, fontWeight: 800, letterSpacing: 2,
-    },
-  }, (options.label || "KINDLE EDITION").toUpperCase())),
-  element("div", {
-    style: { display: "flex", flexDirection: "column", padding: "54px 68px 48px", flex: 1 },
-  },
-  element("div", {
-    style: {
-      fontSize: titleSize, fontWeight: 700, lineHeight: 0.94, letterSpacing: -3,
-      maxWidth: 1064, minHeight: 330, display: "flex", alignItems: "flex-start",
-    },
-  }, options.name),
-  element("div", {
-    style: {
-      display: "flex", flexDirection: "column", background: ink,
-      paddingRight: 16, paddingBottom: 16, marginTop: 24,
+      flex: 1, display: "flex", flexDirection: "column", justifyContent: "center",
+      borderLeft: `2px solid ${ink}`, paddingLeft: 38,
     },
   },
   element("div", {
-    style: {
-      display: "flex", flexDirection: "column", height: 540,
-      background: paper, border: `5px solid ${ink}`,
-    },
-  },
+    style: { fontFamily: "monospace", fontSize: 18, fontWeight: 800, letterSpacing: 3.3, color: muted },
+  }, weekday),
   element("div", {
-    style: {
-      display: "flex", flex: 1, fontFamily: "monospace",
-    },
-  },
-  element("div", {
-    style: {
-      display: "flex", flex: 1, alignItems: "center", justifyContent: "center",
-      background: ink, color: paper, fontSize: 94, fontWeight: 900, letterSpacing: 4,
-    },
+    style: { fontSize: 58, fontWeight: 700, letterSpacing: -2, marginTop: 10 },
   }, monthLong),
   element("div", {
-    style: {
-      width: 285, display: "flex", alignItems: "center", justifyContent: "center",
-      borderLeft: `5px solid ${ink}`, fontSize: 122, fontWeight: 900, letterSpacing: -8,
-      paddingRight: 12,
-    },
-  }, day)),
+    style: { fontFamily: "monospace", fontSize: 25, fontWeight: 800, letterSpacing: 5, marginTop: 7 },
+  }, year))),
   element("div", {
     style: {
-      height: 112, display: "flex", alignItems: "center", justifyContent: "space-between",
-      borderTop: `4px solid ${ink}`, padding: "0 42px", fontFamily: "monospace",
-      fontSize: 32, fontWeight: 900, letterSpacing: 4, textTransform: "uppercase",
+      display: "flex", flexDirection: "column", background: ink, color: paper,
+      marginTop: 38, padding: "40px 42px 42px", minHeight: 430,
     },
   },
-  element("div", null, year),
-  element("div", { style: { fontSize: 17, letterSpacing: 2 } }, `${articleCount} ${articleCount === 1 ? "article" : "articles"}`))))),
+  element("div", {
+    style: { fontFamily: "monospace", fontSize: 16, fontWeight: 800, letterSpacing: 4, color: "#d6d6d6", textTransform: "uppercase" },
+  }, "LEAD"),
+  element("div", {
+    style: {
+      fontSize: coverSectionSize(lead.section, true), fontWeight: 700, lineHeight: .98,
+      letterSpacing: -2.2, marginTop: 22, maxWidth: 980,
+    },
+  }, lead.section),
+  lead.story ? element("div", {
+    style: {
+      fontFamily: "sans-serif", fontSize: 28, lineHeight: 1.24, marginTop: 28,
+      color: "#e4e4e4", maxWidth: 980,
+    },
+  }, lead.story) : null),
+  element("div", {
+    style: { display: "flex", flexDirection: "column", flex: 1, justifyContent: "flex-start", marginTop: 26 },
+  },
+  ...secondary.map((line, index) => element("div", {
+    key: `cover-line-${index}`,
+    style: {
+      display: "flex", gap: 26, borderTop: `2px solid ${ink}`,
+      padding: "26px 0 28px", alignItems: "flex-start",
+    },
+  },
+  element("div", {
+    style: { width: 54, fontFamily: "monospace", fontSize: 16, fontWeight: 800, color: muted, paddingTop: 7 },
+  }, String(index + 2).padStart(2, "0")),
+  element("div", { style: { display: "flex", flexDirection: "column", flex: 1 } },
+    element("div", {
+      style: { fontSize: coverSectionSize(line.section), fontWeight: 700, lineHeight: 1.02, letterSpacing: -1.1 },
+    }, line.section),
+    line.story ? element("div", {
+      style: { fontFamily: "sans-serif", fontSize: 22, lineHeight: 1.28, color: muted, marginTop: 9 },
+    }, line.story) : null
+  )))),
   element("div", {
     style: {
       display: "flex", justifyContent: "space-between", alignItems: "center",
-      borderTop: `3px solid ${ink}`, padding: "23px 68px 27px", fontFamily: "monospace",
-      fontSize: 15, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase",
+      borderTop: `5px solid ${ink}`, paddingTop: 22, fontFamily: "monospace",
+      fontSize: 15, fontWeight: 800, letterSpacing: 1.7, textTransform: "uppercase",
     },
-  }, element("div", null, options.displayDate), element("div", { style: { textTransform: "none" } }, "reader.antonioskilton.com")));
-  const response = new ImageResponse(cover, { width: 1200, height: 1600 });
+  },
+  element("div", null, `${articleCount} ${articleCount === 1 ? "story" : "stories"}`),
+  element("div", { style: { textTransform: "none", letterSpacing: .4 } }, "reader.antonioskilton.com")));
+
+  const response = new ImageResponse(cover, { width: 1200, height: 1920 });
   if (!response.ok) throw new Error("Could not render the cover image.");
   return new Uint8Array(await response.arrayBuffer());
 }
 
-export async function makeCoverJpeg(options: EpubOptions, articleCount: number) {
-  // Decode only our fixed-size, opaque cover render, never publisher images.
-  // This packaging was confirmed to produce a thumbnail in Kindle iOS.
-  const png = await makeCoverPng(options, articleCount);
+export async function makeCoverJpeg(options: EpubOptions, articleCount: number, coverLines: CoverLine[] = []) {
+  const png = await makeCoverPng(options, articleCount, coverLines);
   const pixels = PNG.sync.read(Buffer.from(png));
-  return new Uint8Array(jpeg.encode({ width: pixels.width, height: pixels.height, data: pixels.data }, 95).data);
+  return new Uint8Array(jpeg.encode({ width: pixels.width, height: pixels.height, data: pixels.data }, 94).data);
 }
 
 function replaceOmittedImage(body: string, href: string) {
@@ -201,7 +286,7 @@ export async function makeEpub(options: EpubOptions, articles: EpubArticle[]) {
   zip.folder("META-INF")!.file("container.xml", `<?xml version="1.0" encoding="UTF-8"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>`);
   const output = zip.folder("OEBPS")!;
-  const cover = await makeCoverJpeg(options, articles.length);
+  const cover = await makeCoverJpeg(options, articles.length, coverLinesFor(articles));
   output.file("cover.jpg", cover);
 
   const maxAssetBytes = options.maxAssetBytes || 18_000_000;
