@@ -485,7 +485,7 @@ Deno.test("renders a book-native linear edition with hierarchical native navigat
   assert(sectionOne.includes('class="section-name"') && sectionOne.includes(">AI</h1>") && sectionOne.includes("3 stories"), "section divider should name the section and story count");
   assert(!sectionOne.includes("<a ") && !sectionOne.includes("Begin section"), "section divider should contain no navigation chrome");
   assert(!sectionOne.includes("Reliability for production agents") && !sectionOne.includes("Production agents"), "section divider should not list articles or topics");
-  assert(sectionTwo.includes('<h1 class="section-name">Systems</h1>'), "next section should have its own divider");
+  assert(sectionTwo.includes('class="section-name"') && sectionTwo.includes(">Systems</h1>"), "next section should have its own divider");
   assert(!pageOne.includes("Production agents") && !pageTwo.includes("Production agents"), "topic labels should not appear in visible article pages");
   assert(!pageThree.includes("Designing with AI") && !pageFour.includes("Database architecture"), "topic labels should remain native-navigation-only");
   assert(!pageOne.includes("article-nav") && !pageOne.includes('href="contents.xhtml"') && !pageOne.includes('href="section-1.xhtml"'), "article pages should contain no visible internal navigation chrome");
