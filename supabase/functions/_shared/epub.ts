@@ -132,9 +132,10 @@ function coverLinesFor(articles: EpubArticle[]): CoverLine[] {
     if (!groups.has(raw)) groups.set(raw, []);
     groups.get(raw)!.push(article);
   }
-  const primary = [...groups.entries()].filter(([name]) => name !== "Related Discovery" && name !== "Open Discovery");
+  const primary = [...groups.entries()].filter(([name]) => name !== "Related Discovery" && name !== "Open Discovery" && !/^other$/i.test(name));
+  const elsewhere = [...groups.entries()].filter(([name]) => /^other$/i.test(name));
   const discovery = [...groups.entries()].filter(([name]) => name === "Related Discovery" || name === "Open Discovery");
-  return [...primary, ...discovery].slice(0, 3).map(([name, items]) => ({
+  return [...primary, ...elsewhere, ...discovery].slice(0, 3).map(([name, items]) => ({
     section: coverSectionName(name),
     story: compactCoverText(items[0]?.title || "", 92),
   }));
