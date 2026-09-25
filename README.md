@@ -1,20 +1,26 @@
 # Morning Reader
 
-Morning Reader turns websites, RSS, and Atom feeds into one daily Kindle issue (an EPUB file), organized into sections. Readers can also add 1–20 article URLs to the next issue under a reading-list name.
+Morning Reader turns a user's websites, RSS, and Atom feeds into one daily Kindle issue (an EPUB file). Readers manage a flat source list; at issue time an AI editor organizes every eligible subscribed-feed article into dynamic sections, using a fixed **Other** section when no coherent grouping fits. The editor never drops an otherwise eligible RSS article. Readers can also add 1–20 article URLs to the next issue under a reading-list name.
 
 Article pages are reduced to their readable body while preserving headings, lists, links, tables, code, quotations, captions, and supported images. The opening contents page shows Section → Topic → Article title, with each article title linking directly to the article; EPUB 3 and legacy Kindle navigation expose the same hierarchy. Every EPUB also includes reflowable styling, publisher metadata, and a dated cover designed to remain recognizable as a Kindle home-screen thumbnail.
 
 Covers use a 1200×1600 JPEG with both EPUB 3 and legacy cover metadata, without an additional HTML cover page. This packaging was confirmed in Kindle iOS on September 19, 2026. Article anchors that EPUB rejects are repaired with their local links preserved. Existing delivered documents are not updated; the change applies when a new EPUB is built.
 
-## Daily issue and section frequency
+## Daily issue and AI editor
 
-The account has one delivery time and time zone. Each section selects which weekdays it appears inside the daily issue; it does not send separately. The worker checks every five minutes and queues one due issue per account. Manual sends and scheduled sends share the daily idempotency key, so repeated attempts do not produce a second daily issue. Explicit test sends remain separate.
+The account has one delivery time and time zone. The worker checks every five minutes and queues one due issue per account. Manual sends and scheduled sends share the daily idempotency key, so repeated attempts do not produce a second daily issue. Explicit test sends remain separate.
 
-Section frequency uses `delivery_days` (unique integers, Sunday = 0 through Saturday = 6). Account delivery time and time zone live in settings. Pausing delivery retains these preferences. Already delivered articles are suppressed, and one-off article selections are consumed by the next issue.
+Recurring source eligibility remains deterministic: enabled source, lookback/freshness, successful extraction, duplicate suppression, prior recurring delivery suppression, and hard safety/resource limits. Every article that survives those rules is passed to the issue organizer and must be placed exactly once in a dynamic section or **Other**.
+
+The editor also has two bounded, non-blocking discovery lanes:
+- **Related Discovery** searches beyond subscribed RSS for up to two articles that materially extend themes already present in the organized RSS issue.
+- **Open Discovery** searches beyond both RSS and today's themes for up to two strong articles that fit the user's explicit editorial brief. It is skipped when no brief exists.
+
+Discovery failure never blocks the core RSS issue. Already delivered RSS articles are suppressed deterministically, and one-off article selections are consumed by the next issue.
 
 ## Source warnings
 
-Dashboard warnings identify each affected source and section. Review source opens the source controls and expands its section. Active source failures also appear on collapsed section headers; paused source failures remain visible as historical errors inside the section. Article browsing and System health link errors to the same source controls.
+Dashboard warnings identify each affected recurring source directly. Paused source failures remain visible as historical errors on the source row. Article browsing and System health link errors to the same source controls.
 
 `POST /feeds/:id/check` rechecks one non-archived source owned by the signed-in account. It reuses the normal feed preview and persisted health tracking, returns the updated dashboard, does not resume paused feeds, and never queues a Kindle delivery. Publisher failures remain actionable in the dialog; recovered sources lose their warning.
 
@@ -55,16 +61,18 @@ Production:
 The MCP exposes a narrow Morning Reader tool surface rather than generic database or HTTP access:
 
 - `get_profile`
-- `list_editions`
-- `create_edition`
+- `get_profile`
+- `list_sources`
 - `find_feeds`
 - `add_source`
-- `preview_edition`
+- `preview_sources`
+- `get_editorial_brief`
+- `update_editorial_brief`
 - `send_now`
 
 OAuth scopes:
-- `reader:read` — profile, editions, feed discovery, previews
-- `reader:write` — edition/source changes and delivery actions
+- `reader:read` — profile, source list, feed discovery, previews, editorial brief
+- `reader:write` — source changes, editorial-brief updates, and delivery actions
 
 OAuth metadata is published at:
 - `/.well-known/oauth-protected-resource`
@@ -97,7 +105,7 @@ The Vercel `morning-reader` project is connected to this GitHub repository. Push
 
 ## Verification
 
-CI type-checks the API and worker, parses the browser scripts, and tests extraction, metadata, sanitization, EPUB output, article-title contents completeness, media fallbacks/diagnostics, editorial regression fixtures, network limits, private-address rejection, delivery fault recovery, and interface regressions. Run `deno test --allow-env --allow-read supabase/tests` and `node --test tests/*.test.mjs` after `npm ci`. HTTP in worker tests is mocked; no emails or production records are created by the suite.
+CI type-checks the API and worker, parses the browser scripts, and tests extraction, metadata, sanitization, EPUB output, article-title contents completeness, media fallbacks/diagnostics, all-eligible editorial organization, both discovery lanes, network limits, private-address rejection, frozen-manifest delivery fault recovery, and interface regressions. Run `deno test --allow-env --allow-read supabase/tests` and `node --test tests/*.test.mjs` after `npm ci`. HTTP in worker tests is mocked; no emails or production records are created by the suite.
 
 ## Delivery reliability and limits
 
