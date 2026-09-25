@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#f4efe5">
-  <meta name="description" content="Turn RSS and Atom feeds into one daily Kindle issue, organized into sections.">
+  <meta name="description" content="Turn RSS and Atom feeds into one daily Kindle issue, dynamically organized by an AI editor.">
   <title>Morning Reader</title>
   <style>
     :root{
@@ -604,7 +604,6 @@ const modal=document.querySelector('#modal');
 const toastEl=document.querySelector('#toast');
 let token=localStorage.morningReaderToken||'';
 let state=null;
-const expandedSections=new Set();
 let toastTimer=null;
 let modalVersion=0,modalReturnFocus=null,modalDirty=false;
 let oneTimeDraft=null;
@@ -988,43 +987,10 @@ function feedRow(feed){
     </div>
   </div>`;
 }
-const WEEKDAYS=[{day:1,short:'Mon',name:'Monday'},{day:2,short:'Tue',name:'Tuesday'},{day:3,short:'Wed',name:'Wednesday'},{day:4,short:'Thu',name:'Thursday'},{day:5,short:'Fri',name:'Friday'},{day:6,short:'Sat',name:'Saturday'},{day:0,short:'Sun',name:'Sunday'}];
-function sectionDaysSummary(section){
-  const days=section.delivery_days||[0,1,2,3,4,5,6];
-  return days.length===7?'Every issue':days.length===5&&[1,2,3,4,5].every(d=>days.includes(d))?'Weekdays only':WEEKDAYS.filter(d=>days.includes(d.day)).map(d=>d.short).join(', ');
-}
 function nextIssueDelivery(){
   if(state.settings.paused)return 'Delivery paused';
   if(!state.settings.onboarding_complete||!state.settings.kindle_email)return 'Connect your Kindle';
   return state.settings.next_run_at?new Intl.DateTimeFormat('en-US',{timeZone:state.settings.timezone,weekday:'short',hour:'numeric',minute:'2-digit'}).format(new Date(state.settings.next_run_at)):'Not scheduled';
-}
-function sectionDaysModal(id){
-  const section=state.sections.find(s=>s.id===id);if(!section)return;
-  const selected=section.delivery_days||[0,1,2,3,4,5,6];
-  openModal(`<div class="row"><h2>Section frequency</h2><button class="btn small-btn" id="close-modal">Close</button></div><p><strong>${esc(section.name)}</strong> appears inside the daily issue on these days.</p><form id="section-days-form"><fieldset class="schedule-days"><legend>Include this section</legend><div class="day-options">${WEEKDAYS.map(d=>`<label class="day-option"><input type="checkbox" name="delivery_days" value="${d.day}" ${selected.includes(d.day)?'checked':''}><span>${d.short}</span></label>`).join('')}</div></fieldset><div class="notice error" id="schedule-error" hidden></div><button class="btn primary">Save</button></form>`);
-  document.querySelector('#close-modal').onclick=closeModal;
-  const form=document.querySelector('#section-days-form');
-  form.onsubmit=async e=>{e.preventDefault();const days=new FormData(form).getAll('delivery_days').map(Number);if(!days.length){const n=document.querySelector('#schedule-error');n.textContent='Choose at least one day.';n.hidden=false;return}try{state=await api('/sections/'+id,{method:'PATCH',body:{delivery_days:days}});closeModal(true);dashboard();toast('Section frequency saved')}catch(err){toast(err.message)}};
-}
-function sectionCard(section,index){
-  const expanded=expandedSections.has(section.id);
-  const problems=section.feeds.filter(feed=>sourceNeedsAttention(feed,section));
-  return `<section class="section-card">
-    <div class="section-head row">
-      <div class="edition-index">${String(index+1).padStart(2,'0')}</div>
-      <div class="section-name">
-        <h3>${esc(section.name)}</h3>
-        <span class="section-meta">${section.feeds.length} source${section.feeds.length===1?'':'s'}${section.enabled===false?' · Paused':state.settings.paused?' · Delivery paused':''}</span>
-        ${problems.length?`<button class="section-attention review-source" data-id="${esc(problems[0].id)}">${problems.length} source${problems.length===1?' needs':'s need'} attention</button>`:''}
-        <button class="section-days-link" data-id="${section.id}" aria-label="Edit issue days for ${esc(section.name)}">${esc(sectionDaysSummary(section))} <span aria-hidden="true">↗</span></button>
-      </div>
-      <button class="disclosure-btn toggle-sources" data-id="${section.id}" aria-expanded="${expanded}" aria-label="${expanded?'Collapse':'Expand'} ${esc(section.name)} section">${expanded?'⌄':'›'}</button>
-    </div>
-    <div class="edition-details" ${!expanded?'hidden':''}>
-      <div class="edition-manage"><button class="btn small-btn rename-section" data-id="${section.id}">Rename section</button>${state.sections.length>1?`<button class="btn small-btn remove-section" data-id="${section.id}">Remove section</button>`:""}</div>
-      <div class="feed-list">${section.feeds.length?section.feeds.map(feedRow).join(''):'<div class="empty">No sources in this section yet.</div>'}</div>
-    </div>
-  </section>`;
 }
 function runBadge(status){
   const cls=status==='failed'?'fail':['queued','running','partial'].includes(status)?'warn':'';
@@ -1248,28 +1214,6 @@ function renderSystemHealth(h){
   wireSourceReviews(app);
 }
 
-function sectionModal(){
-  openModal(`<div class="row"><h2>New section</h2><button class="btn small-btn" id="close-modal">Close</button></div>
-    <p class="muted small">Sections organize sources inside your single daily Kindle issue.</p>
-    <form id="section-form"><div class="field"><label for="section-name">Section name</label><input id="section-name" class="input" name="name" required maxlength="80" placeholder="Technology, Essays, Design…"></div><button class="btn primary">Create section</button></form>`);
-  document.querySelector('#close-modal').onclick=closeModal;
-  document.querySelector('#section-form').onsubmit=async e=>{e.preventDefault();try{state=await api('/sections',{method:'POST',body:{name:new FormData(e.currentTarget).get('name')}});closeModal(true);dashboard();toast('Section created')}catch(err){toast(err.message)}};
-}
-function renameSectionModal(id){
-  const section=state.sections.find(s=>s.id===id);
-  if(!section)return;
-  openModal(`<div class="row"><h2>Rename section</h2><button class="btn small-btn" id="close-modal">Close</button></div>
-    <p class="muted small">The new name will appear as a heading inside future issues.</p>
-    <form id="rename-section-form"><div class="field"><label>Section name</label><input class="input" name="name" required maxlength="80" value="${esc(section.name)}"></div><button class="btn primary">Save name</button></form>`);
-  document.querySelector('#close-modal').onclick=closeModal;
-  document.querySelector('#rename-section-form').onsubmit=async e=>{
-    e.preventDefault();
-    try{
-      state=await api('/sections/'+id,{method:'PATCH',body:{name:new FormData(e.currentTarget).get('name')}});
-      closeModal(true);dashboard();toast('Section renamed');
-    }catch(err){toast(err.message)}
-  };
-}
 function singleFeedModal(){
   openModal(`<div class="row"><div><div class="editorial-label">Add source</div><h2 style="margin-top:6px">Add a single feed</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
     <p class="muted small">Paste a publication's website or RSS address. Morning Reader will find the feed and add it to your source list.</p>
@@ -1517,12 +1461,6 @@ async function historyModal(){
   openModal(`<div class="row"><h2>Delivery history</h2><button class="btn small-btn" id="close-modal">Close</button></div><p class="muted small">Most recent 15 sends. Submitted means accepted by the email provider; Kindle arrival is not verified.</p><div class="preview-list">${(state.jobs||[]).map(job=>`<div class="preview-item"><strong>${esc(job.packet_name||job.edition_name||({scheduled:'Daily issue',manual:'Manual issue',test:'Test issue'})[job.reason]||'Issue')}</strong> ${runBadge(job.status)}<p class="small">${esc(fmtDate(job.created_at))} · ${esc(jobProgressText(job))}</p>${(job.result?.issues||[]).map(issue=>`<p class="notice info">${esc(issue)}</p>`).join('')}${job.reason==='one_time'&&job.article_urls?.length?`<button class="btn small-btn resend-packet" data-id="${job.id}">Review & add to next issue</button>`:''}</div>`).join('')||'<p>No sends yet.</p>'}</div><button class="btn small-btn" id="refresh-history">Refresh status</button>`);
   document.querySelector('#close-modal').onclick=closeModal;document.querySelector('#refresh-history').onclick=historyModal;
   modal.querySelectorAll('.resend-packet').forEach(button=>button.onclick=()=>{const job=state.jobs.find(j=>j.id===button.dataset.id);oneTimeEditionModal({name:job.packet_name,urls:job.article_urls.join('\n'),request_id:crypto.randomUUID()})});
-}
-function removeSectionModal(id){
-  const section=state.sections.find(s=>s.id===id);if(!section)return;
-  openModal(`<div class="row"><h2>Remove ${esc(section.name)}?</h2><button class="btn small-btn" id="close-modal">Cancel</button></div><p>This removes the section and its ${section.feeds.length} sources from future sends. Past deliveries remain in history.</p><button class="btn danger" id="confirm-remove-edition">Remove section</button>`);
-  document.querySelector('#close-modal').onclick=closeModal;
-  document.querySelector('#confirm-remove-edition').onclick=async event=>{event.target.disabled=true;try{state=await api('/sections/'+id,{method:'DELETE'});closeModal(true);dashboard();toast('Section removed')}catch(err){event.target.disabled=false;toast(err.message)}};
 }
 function render(){
   if(state?.settings?.onboarding_complete){dashboard();const active=(state.jobs||[]).find(j=>['queued','running'].includes(j.status));if(active)void watchJob(active.id);return}
