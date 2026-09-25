@@ -961,18 +961,18 @@ function feedStatus(feed){
   return '<span class="status"><span class="dot"></span>Active</span>';
 }
 function sourceContext(id){
-  const section=state?.sections.find(s=>s.feeds.some(f=>f.id===id));
-  return section?{section,feed:section.feeds.find(f=>f.id===id)}:null;
+  const feed=allSources().find(source=>source.id===id);
+  return feed?{feed}:null;
 }
-function sourceNeedsAttention(feed,section){return Boolean(feed.last_error&&feed.enabled!==false&&section.enabled!==false)}
+function sourceNeedsAttention(feed){return Boolean(feed.last_error&&feed.enabled!==false)}
 function sourceProblemLink(id){
   const context=sourceContext(id);if(!context)return '';
-  return `<button class="source-problem-link review-source" data-id="${esc(id)}"><strong>${esc(context.feed.name||context.feed.url)}</strong><span class="source-problem-context">${esc(context.section.name)} section</span><span class="source-problem-action">Review source →</span></button>`;
+  return `<button class="source-problem-link review-source" data-id="${esc(id)}"><strong>${esc(context.feed.name||context.feed.url)}</strong><span class="source-problem-context">Recurring source</span><span class="source-problem-action">Review source →</span></button>`;
 }
 function wireSourceReviews(root=document){root.querySelectorAll('.review-source').forEach(button=>button.onclick=()=>reviewSource(button.dataset.id))}
 function reviewSource(id){
   const context=sourceContext(id);if(!context){toast('This source is no longer available.');return}
-  closeModal(true);expandedSections.add(context.section.id);dashboard();
+  closeModal(true);dashboard();
   const row=document.getElementById('feed-'+id);row?.scrollIntoView({block:'center'});row?.focus();
   feedActionsModal(id);
 }
@@ -1033,10 +1033,10 @@ function runBadge(status){
 
 function dashboard(){
   const settings=state.settings;
-  const allFeeds=state.sections.flatMap(s=>s.feeds);
-  const problemFeeds=state.sections.flatMap(section=>section.feeds.filter(feed=>sourceNeedsAttention(feed,section)));
+  const sources=allSources();
+  const problemFeeds=sources.filter(sourceNeedsAttention);
   const latestJob=(state.jobs||[])[0];
-  const editionCount=state.sections.length;
+  const brief=String(settings.editorial_brief||'').trim();
 
   app.innerHTML=shell(`
     <div class="grid editorial-grid">
@@ -1065,6 +1065,14 @@ function dashboard(){
         </section>
 
         <section class="side-card compact-panel">
+          <div class="editorial-label">Your editor</div>
+          <div class="kindle-state" style="margin-top:8px">Editorial brief</div>
+          <div class="small muted" style="margin-top:6px;line-height:1.5">${esc(brief||'No brief yet. Related Discovery still works; Open Discovery waits until you add one.')}</div>
+          <button class="btn small-btn" id="edit-editorial-brief" style="margin-top:12px">${brief?'Edit brief':'Add brief'} →</button>
+          <div class="technical-note" style="margin-top:10px">The brief guides organization and Open Discovery. It never removes an eligible RSS article.</div>
+        </section>
+
+        <section class="side-card compact-panel">
           <div class="editorial-label">Kindle</div>
           <div class="kindle-status-row">
             <div>
@@ -1084,13 +1092,13 @@ function dashboard(){
         <section class="editorial-section">
           <div class="editorial-head editions-heading">
             <div>
-              <div class="editorial-label">Issue sections</div>
-              <h2>Your sections</h2>
+              <div class="editorial-label">Recurring inputs</div>
+              <h2>Your sources</h2>
             </div>
-            <div class="edition-total">${editionCount} section${editionCount===1?'':'s'} · ${allFeeds.length} sources</div>
+            <div class="edition-total">${sources.length} source${sources.length===1?'':'s'}</div>
           </div>
-          <div class="editions-list">${state.sections.map((section,index)=>sectionCard(section,index)).join('')}</div>
-          <div class="new-edition-row"><button class="btn" id="add-section">+ New section</button></div>
+          <p class="muted small">Every eligible article from these sources is included. The editor creates fresh sections for each issue; articles without a coherent fit appear under Other.</p>
+          <div class="feed-list sources-list">${sources.length?sources.map(feedRow).join(''):'<div class="empty">No recurring sources yet.</div>'}</div>
         </section>
 
         <section class="editorial-section source-management">
@@ -1122,28 +1130,37 @@ function dashboard(){
 function wireDashboard(){
   wireSourceReviews(app);
   document.querySelector('#account-menu').onclick=accountMenuModal;
-  document.querySelector('#add-section').onclick=()=>sectionModal();
   document.querySelector('#add-single-feed').onclick=e=>{e.preventDefault();singleFeedModal()};
   document.querySelector('#import-opml').onclick=e=>{e.preventDefault();opmlImportModal()};
+  document.querySelector('#edit-editorial-brief').onclick=editorialBriefModal;
 
   const sendNow=document.querySelector('#send-now');if(sendNow)sendNow.onclick=()=>queueSend('/send-now','Issue queued');
   document.querySelector('#one-time-send').onclick=()=>oneTimeEditionModal();
   document.querySelector('#delivery-history').onclick=historyModal;
-  document.querySelectorAll('.remove-section').forEach(button=>button.onclick=()=>removeSectionModal(button.dataset.id));
-  document.querySelectorAll('.section-days-link').forEach(button=>button.onclick=()=>sectionDaysModal(button.dataset.id));
   const preview=document.querySelector('#preview');if(preview)preview.onclick=previewModal;
   const deliveryMenu=document.querySelector('#delivery-menu');if(deliveryMenu)deliveryMenu.onclick=deliveryMenuModal;
   const manageKindle=document.querySelector('#manage-kindle');if(manageKindle)manageKindle.onclick=kindleManageModal;
   const connectKindle=document.querySelector('#connect-kindle');if(connectKindle)connectKindle.onclick=onboarding;
   const connectKindleSecondary=document.querySelector('#connect-kindle-secondary');if(connectKindleSecondary)connectKindleSecondary.onclick=onboarding;
-
-  document.querySelectorAll('.toggle-sources').forEach(button=>button.onclick=()=>{
-    const id=button.dataset.id;
-    if(expandedSections.has(id))expandedSections.delete(id);else expandedSections.add(id);
-    dashboard();
-  });
-  document.querySelectorAll('.rename-section').forEach(button=>button.onclick=()=>renameSectionModal(button.dataset.id));
   document.querySelectorAll('.manage-feed').forEach(button=>button.onclick=()=>feedActionsModal(button.dataset.id));
+}
+
+function editorialBriefModal(){
+  const brief=String(state.settings.editorial_brief||'');
+  openModal(`<div class="row"><div><div class="editorial-label">Your editor</div><h2 style="margin-top:6px">Editorial brief</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
+    <p class="muted small">Describe broad interests and stable reading preferences. This guides organization and Open Discovery. It never filters otherwise eligible RSS articles.</p>
+    <form id="editorial-brief-form">
+      <div class="field"><label for="editorial-brief">Brief</label><textarea class="input article-urls" id="editorial-brief" name="editorial_brief" maxlength="3000" placeholder="I value deep, original writing about…">${esc(brief)}</textarea></div>
+      <div class="notice info">Related Discovery extends themes already in the day's RSS issue. Open Discovery deliberately looks beyond those themes and uses this brief.</div>
+      <div style="margin-top:16px"><button class="btn primary">Save brief</button></div>
+    </form>`);
+  document.querySelector('#close-modal').onclick=closeModal;
+  document.querySelector('#editorial-brief-form').onsubmit=async e=>{
+    e.preventDefault();
+    const value=String(new FormData(e.currentTarget).get('editorial_brief')||'').trim();
+    try{state=await api('/settings',{method:'PATCH',body:{editorial_brief:value}});closeModal(true);dashboard();toast('Editorial brief saved')}
+    catch(err){toast(err.message)}
+  };
 }
 
 function deliveryMenuModal(){
