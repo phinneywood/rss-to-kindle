@@ -42,6 +42,10 @@ async function scenario(mode: "empty" | "failed" | "partial" | "retry" | "prepar
       if (format === "morning_reader_related_discovery" || format === "morning_reader_open_discovery") {
         return Response.json({ output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify({ articles: [] }) }] }], usage: { input_tokens: 10, output_tokens: 2 } });
       }
+      if (format === "morning_reader_issue_introduction") {
+        const paragraph = "A small issue can still contain a useful argument: tools acquire boundaries, teams acquire rituals, and systems become legible only when something pushes against their edges. The stories here keep circling that pressure from different directions, from software that needs supervision to organizations that discover their real shape through failure. Even the quieter pieces feel less like detours than reminders that structure is often easiest to see from the side. What ties the morning together is not a single subject so much as a recurring question: once a system starts acting on its own, who gets to decide where it stops?";
+        return Response.json({ output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify({ paragraph }) }] }], usage: { input_tokens: 40, output_tokens: 110 } });
+      }
       return new Response("unexpected OpenAI request", { status: 400 });
     }
     if (url.hostname === "8.8.8.8") {
@@ -117,9 +121,11 @@ Deno.test("worker splits agentic preparation from deterministic packaging and su
   assert(result.initial?.continuation === "frozen-manifest", "fresh v2 preparation should stop after freezing the manifest");
   assert(result.sendsAfterInitial === 0, "the agentic preparation invocation must not package or send");
   assert(result.manifestsAfterInitial === 1, "the manifest must be frozen before continuation");
+  assert(typeof result.manifestWrites[0].introduction === "string" && result.manifestWrites[0].introduction.length > 200, "the Luna introduction should be frozen with the manifest");
   assert(result.job.status === "partial", JSON.stringify(result.first));assert(result.sends === 1);
   assert(result.job.result.articles === 1);assert(result.job.result.issues.some((x: string) => x.includes("Broken source")));
   assert(result.job.result.editorial?.organization?.status === "edited", "organizer diagnostics must survive outbox freezing");
+  assert(result.job.result.editorial?.introduction?.status === "written", "Luna introduction diagnostics must survive outbox freezing");
   assert(result.job.result.editorial?.discovery?.related?.status === "discovered", "related-discovery diagnostics must survive outbox freezing");
   assert(result.outbox.payload.editorial?.organization?.status === "edited", "frozen outbox must retain organizer diagnostics");
   assert(result.outbox.payload.editorial?.discovery?.open?.status === "discovered", "frozen outbox must retain discovery diagnostics");
@@ -191,7 +197,13 @@ Deno.test("explicit test sends are uniquely reviewable on Kindle without consumi
   const zip = await JSZip.loadAsync(bytes);
   const opf = await zip.file("OEBPS/content.opf")!.async("string");
   const contents = await zip.file("OEBPS/contents.xhtml")!.async("string");
+  const introduction = await zip.file("OEBPS/introduction.xhtml")!.async("string");
+  const nav = await zip.file("OEBPS/nav.xhtml")!.async("string");
   assert(/<dc:title>Morning Reader · TEST \d{2}:\d{2}:\d{2} · JOB1<\/dc:title>/.test(opf), "Kindle library metadata should distinguish every test run");
+  assert(introduction.includes('<p class="intro-kicker">Editor&#39;s note</p>'), "the first editorial page should identify itself as the editor note");
+  assert(introduction.includes("A small issue can still contain a useful argument"), "the EPUB should contain the exact frozen Luna introduction");
+  assert(opf.indexOf('<itemref idref="introduction"/>') < opf.indexOf('<itemref idref="contents"/>'), "the Luna introduction must precede contents in reading order");
+  assert(nav.includes('href="introduction.xhtml">Editor&#39;s note</a>'), "native navigation should expose the editor note");
   assert(contents.includes("<h1 class=\"publication-title\">Morning Reader</h1>"), "test interior should keep the production publication title");
   assert(!contents.includes("TEST "), "test identity should not pollute the production-like reading interior");
   for (let index = 1; index <= 5; index++) {
