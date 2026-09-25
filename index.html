@@ -724,7 +724,7 @@ function landing(error=''){
       <div class="auth-hero">
         <div class="auth-kicker">RSS → EPUB → KINDLE</div>
         <h1>Good things to read.<br>Every morning.</h1>
-        <div class="auth-lede">Choose a starter section or bring the sites you already follow. Morning Reader combines them into one daily Kindle issue.</div>
+        <div class="auth-lede">Choose some starter sources or bring the sites you already follow. Morning Reader's editor organizes every eligible article into one daily Kindle issue.</div>
       </div>
 
       <section class="auth-form-section">
@@ -801,16 +801,18 @@ async function signOut(){
   token=''; localStorage.removeItem('morningReaderToken'); localStorage.removeItem('morningReaderSkipStarters'); state=null; landing();
 }
 
-function feedCount(){
-  return state.sections.reduce((n,section)=>n+(section.feeds||[]).length,0);
+function allSources(){
+  if(Array.isArray(state?.sources))return state.sources;
+  return (state?.sections||[]).flatMap(section=>section.feeds||[]);
 }
+function feedCount(){return allSources().length}
 
 function starterPicker(){
   app.innerHTML=shell(`
     <section class="starter-page">
       <div class="editorial-label">Start reading first</div>
       <h1>Build your first morning paper.</h1>
-      <div class="editorial-copy">You don't need to know anything about RSS. Pick a starter section and Morning Reader will assemble it for you. Every source can be changed later.</div>
+      <div class="editorial-copy">You don't need to know anything about RSS. Pick a starter pack or bring your own sources. Morning Reader will organize the articles for each issue automatically.</div>
 
       <button class="btn primary" id="starter-one-time" style="margin-top:20px">Add articles to next issue →</button><div class="starter-deck">
         ${STARTER_EDITIONS.map(pack=>`<div class="starter-option">
@@ -819,12 +821,12 @@ function starterPicker(){
             <p>${esc(pack.description)}</p>
             <div class="starter-sources">${pack.sources.map(source=>esc(source.name)).join(' · ')}</div>
           </div>
-          <button class="btn starter-add add-starter" data-id="${pack.id}" aria-label="Add ${esc(pack.name)}">+</button>
+          <button class="btn starter-add add-starter" data-id="${pack.id}" aria-label="Add ${esc(pack.name)} sources">+</button>
         </div>`).join('')}
       </div>
 
       <div class="starter-footer">
-        <span class="technical-note">One tap adds a section with live feeds.</span>
+        <span class="technical-note">One tap adds these live sources. No categories to maintain.</span>
         <button class="btn small-btn" id="bring-own-feeds">I already have feeds →</button>
       </div>
     </section>`,
@@ -844,21 +846,12 @@ async function installStarter(id,button){
   if(!pack)return;
   const old=button.textContent;button.disabled=true;button.textContent='…';
   try{
-    const existingCount=feedCount();
-    let payload;
-    if(existingCount===0&&state.sections.length){
-      const section=state.sections[0];
-      state=await api('/sections/'+section.id,{method:'PATCH',body:{name:pack.name}});
-      const renamed=state.sections.find(s=>s.id===section.id)||state.sections[0];
-      payload=pack.sources.map(source=>({url:source.url,name:source.name,section_id:renamed.id}));
-    }else{
-      payload=pack.sources.map(source=>({url:source.url,name:source.name,section_name:pack.name}));
-    }
+    const payload=pack.sources.map(source=>({url:source.url,name:source.name}));
     const result=await api('/feeds/bulk',{method:'POST',body:{feeds:payload}});
     state=result.dashboard;
     const summary=result.summary||{};
     const usable=(summary.added||0)+(summary.restored||0)+(summary.duplicate||0);
-    if(!usable)throw new Error('Those starter feeds could not be added right now. Try another section.');
+    if(!usable)throw new Error('Those starter feeds could not be added right now. Try another pack.');
     starterReady(pack,summary);
   }catch(err){
     button.disabled=false;button.textContent=old;toast(err.message);
@@ -866,17 +859,16 @@ async function installStarter(id,button){
 }
 
 function starterReady(pack,summary={}){
-  const section=state.sections.find(s=>s.name.toLowerCase()===pack.name.toLowerCase())||state.sections.find(s=>s.feeds?.length);
-  const count=section?.feeds?.length||((summary.added||0)+(summary.restored||0));
+  const count=feedCount()||((summary.added||0)+(summary.restored||0));
   app.innerHTML=shell(`
     <section class="starter-ready">
-      <div class="editorial-label">Your first section</div>
+      <div class="editorial-label">Your sources</div>
       <h1>Your morning paper has something in it.</h1>
-      <div class="editorial-copy">Browse recent headlines from your sources before setting up your Kindle. This list is not a preview of the final Kindle document.</div>
+      <div class="editorial-copy">Browse recent headlines before setting up your Kindle. The finished issue will organize eligible articles into fresh sections automatically.</div>
 
       <div class="ready-edition">
         <div class="ready-edition-name">${esc(pack.name)}</div>
-        <div class="technical-note">${count} source${count===1?'':'s'} · editable anytime</div>
+        <div class="technical-note">${count} source${count===1?'':'s'} total · editable anytime</div>
       </div>
 
       <div class="ready-actions">
@@ -929,7 +921,7 @@ function onboarding(){
           <div class="setup-num">03</div>
           <div>
             <h3>Choose when your issue arrives</h3>
-            <p>Morning Reader sends one issue per day. Your sections appear inside it.</p>
+            <p>Morning Reader sends one issue per day. Its editor creates the issue sections from that day's eligible articles.</p>
             <div class="row wrap">
               <div class="field" style="flex:1;min-width:145px"><label for="delivery-time">Time</label><input id="delivery-time" class="input" type="time" value="${esc((settings.delivery_time||'06:00').slice(0,5))}"></div>
               <div class="field" style="flex:2;min-width:210px"><label for="timezone">Timezone</label><input id="timezone" class="input" value="${esc(timezone)}"></div>
