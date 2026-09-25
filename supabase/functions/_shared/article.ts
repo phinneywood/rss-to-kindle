@@ -268,6 +268,34 @@ function stripDuplicateTitle(html: string, title: string) {
   }).trim();
 }
 
+function dateKeyFromText(value: string | null | undefined) {
+  const cleaned = plainText(String(value || ""))
+    .replace(/^note\s+on\s+/i, "")
+    .replace(/\b(\d{1,2})(?:st|nd|rd|th)\b/gi, "$1")
+    .replace(/^\s*(?:published|posted|updated)\s*[:—–-]?\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned || cleaned.length > 80) return null;
+  if (!/(?:\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b|\d{4}[-/]\d{1,2}[-/]\d{1,2})/i.test(cleaned)) return null;
+  const date = new Date(cleaned);
+  return Number.isNaN(+date) ? null : date.toISOString().slice(0, 10);
+}
+
+function stripRedundantLeadingDate(html: string, title: string, publishedAt?: string | null) {
+  const titleDate = dateKeyFromText(title);
+  const publishedDate = publishedAt ? isoDate(publishedAt)?.slice(0, 10) || null : null;
+  if (!titleDate && !publishedDate) return html;
+  let removed = false;
+  return html.replace(/<(h[2-6]|p)\b[^>]*>([\s\S]*?)<\/\1>/gi, (full, _tag, inner, offset) => {
+    if (removed || offset > 1200) return full;
+    const candidateText = plainText(inner).trim();
+    const candidateDate = dateKeyFromText(candidateText);
+    if (!candidateDate || (candidateDate !== titleDate && candidateDate !== publishedDate)) return full;
+    removed = true;
+    return "";
+  }).trim();
+}
+
 function meta(document: any, selectors: string[]): string {
   for (const selector of selectors) {
     const node = document.querySelector(selector);
@@ -687,14 +715,16 @@ export async function extractArticle(input: ExtractArticleInput): Promise<Articl
   if (pageError && feedBody) warnings.push("The publisher page was unavailable, so Morning Reader used the feed version.");
 
   const title = normalizeTitle(page?.title || input.title || "Untitled") || "Untitled";
+  const effectivePublishedAt = page?.publishedAt || isoDate(input.publishedAt) || null;
   body = stripDuplicateTitle(body, title);
+  body = stripRedundantLeadingDate(body, title, effectivePublishedAt);
   const canonicalUrl = page?.canonicalUrl || finalUrl;
   // Publisher-page metadata is authoritative when we fetched the linked article.
   // Feed metadata describes how Morning Reader discovered the article and may name
   // the curator/reposter rather than the actual author or publication.
   const source = normalizeTitle(page?.source || input.source || new URL(canonicalUrl).hostname.replace(/^www\./, ""));
   const author = normalizeTitle(page?.author || input.author || "") || null;
-  const publishedAt = page?.publishedAt || isoDate(input.publishedAt) || null;
+  const publishedAt = effectivePublishedAt;
   const excerpt = (page?.excerpt || plainText(body)).slice(0, 320);
   let assets: ArticleAsset[] = [];
   if (input.includeImages !== false) {
