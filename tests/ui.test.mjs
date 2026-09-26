@@ -116,13 +116,14 @@ test('account settings contain the one daily delivery time',async()=>{
   assert.equal(result.time,true);assert.equal(result.zone,true);assert.match(result.text,/Every enabled source participates/);
 });
 
-test('primary controls are quiet ink while the editorial accent is reserved for hierarchy and attention',async()=>{
-  const css=html.match(/<style>([\s\S]*?)<\/style>/)?.[1]||'';
-  assert.match(css,/--accent:#cf1f2c/);
-  assert.match(css,/\.btn\.primary\{background:var\(--ink\);border-color:var\(--ink\);color:#fff\}/);
-  assert.match(css,/\.micro-label\{[\s\S]*?color:var\(--accent\)/);
-  assert.match(css,/\.attention-row\{[\s\S]*?background:var\(--accent-soft\)/);
-  assert.match(css,/\.notice\.error\{background:var\(--red-soft\);color:var\(--red\)/);
+test('one shared visual system replaces the old inline redesign layers',()=>{
+  const css=readFileSync(new URL('../styles.css',import.meta.url),'utf8');
+  assert.doesNotMatch(html,/<style>| style=/);
+  assert.match(html,/href="\/styles.css"/);
+  for(const token of ['--paper: #f7f5f0','--ink: #28342e','--accent: #913d30'])assert.ok(css.includes(token));
+  assert.doesNotMatch(css,/gradient\(|backdrop-filter|box-shadow|border-radius:\s*(?:20|22|999)px/);
+  assert.match(css,/:focus-visible/);
+  assert.match(css,/prefers-reduced-motion/);
 });
 
 test('source attention is contextual inside the library and identifies the source without legacy section state',async()=>{

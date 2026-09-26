@@ -50,22 +50,22 @@ function renderOpmlPreview(feeds,fileName){
   const knownUrls=new Set(allSources().map(f=>String(f.url).replace(/\/$/,"")));
   const feedHtml=feeds.map(feed=>{
     const known=knownUrls.has(String(feed.url).replace(/\/$/,""));
-    return '<div class="card" style="box-shadow:none">'+
+    return '<div class="import-row card">'+
       '<strong>'+esc(feed.name||feed.url)+'</strong>'+(known?' <span class="status off">Already present</span>':'')+
-      (feed.folder?'<div class="tiny muted" style="margin-top:3px">OPML folder: '+esc(feed.folder)+' · folder will not become a section</div>':'')+
-      '<div class="tiny muted" style="margin-top:4px;word-break:break-all">'+esc(feed.url)+'</div>'+
+      (feed.folder?'<div class="mt-1 tiny muted">OPML folder: '+esc(feed.folder)+' · folder will not become a section</div>':'')+
+      '<div class="source-address mt-1 tiny muted">'+esc(feed.url)+'</div>'+
       '</div>';
   }).join("");
 
-  modal.querySelector(".modal-card").innerHTML=
+  openModal(
     '<div class="row"><div><h2>Review OPML import</h2><div class="tiny muted">'+esc(fileName)+' · '+feeds.length+
       ' feed'+(feeds.length===1?"":"s")+'</div></div><button class="btn small-btn" id="close-modal">Close</button></div>'+
     '<p class="muted small">Long Form will validate every feed, add it to your source list, and ignore any OPML folder taxonomy.</p>'+
-    '<div class="stack" style="margin-top:16px">'+feedHtml+'</div>'+
-    '<div class="row wrap" style="justify-content:flex-start;margin-top:18px">'+
+    '<div class="mt-4 stack">'+feedHtml+'</div>'+
+    '<div class="align-start mt-5 row wrap">'+
       '<button class="btn primary" id="confirm-opml-import">Import '+feeds.length+' feed'+(feeds.length===1?"":"s")+'</button>'+
       '<span class="tiny muted">Feeds are checked in batches of five.</span>'+
-    '</div>';
+    '</div>');
 
   document.querySelector("#close-modal").onclick=closeModal;
   document.querySelector("#confirm-opml-import").onclick=async()=>{
@@ -87,15 +87,15 @@ function renderOpmlPreview(feeds,fileName){
       const failureHtml=failed.length
         ? '<div class="notice error"><strong>'+failed.length+' failed.</strong>'+
           failed.slice(0,12).map(x=>
-            '<div class="tiny" style="margin-top:7px">'+esc(x.name||x.input)+' — '+esc(x.error||"Import failed")+'</div>'
+            '<div class="mt-2 tiny">'+esc(x.name||x.input)+' — '+esc(x.error||"Import failed")+'</div>'
           ).join("")+
-          (failed.length>12?'<div class="tiny" style="margin-top:7px">…and '+(failed.length-12)+' more.</div>':"")+
+          (failed.length>12?'<div class="mt-2 tiny">…and '+(failed.length-12)+' more.</div>':"")+
           '</div>'
         : '<div class="notice info">All selected feeds were processed successfully.</div>';
 
       openModal(
         '<div class="row"><h2>Import complete</h2><button class="btn small-btn" id="close-modal">Close</button></div>'+
-        '<div class="stat-grid" style="margin:18px 0">'+
+        '<div class="my-5 stat-grid">'+
           '<div class="stat"><div class="tiny muted">Added</div><div class="value">'+(summary.added||0)+'</div></div>'+
           '<div class="stat"><div class="tiny muted">Already present</div><div class="value">'+(summary.duplicate||0)+'</div></div>'+
           '<div class="stat"><div class="tiny muted">Restored</div><div class="value">'+(summary.restored||0)+'</div></div>'+
