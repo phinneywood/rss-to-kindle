@@ -480,8 +480,9 @@ Deno.test("renders a book-native linear edition with hierarchical native navigat
   assert(contents.includes('<span class="section-index-name">AI</span>') && contents.includes('<span class="section-index-name">Systems</span>'), "visible contents should retain clear section hierarchy");
   assert(!/<(?:ol|li)(?:\s|>)/.test(contents), "reader-facing contents should avoid Kindle auto-numbered list markup");
   assert(contents.includes('<h3 class="contents-topic-name">Production agents</h3>'), "visible contents should expose topic labels");
-  assert(contents.includes('href="article-1.xhtml">Reliability for production agents</a>'), "visible contents should link each article title directly to its article");
-  assert(contents.includes('href="article-2.xhtml">Observability for long-running agents</a>') && contents.includes('href="article-3.xhtml">Design Engineering with Maggie Appleton</a>') && contents.includes('href="article-4.xhtml">Database internals in practice</a>'), "every retained article title must appear in the opening contents");
+  assert(contents.includes('<span class="contents-article">Reliability for production agents</span>'), "visible contents should list each article title as editorial text");
+  assert(contents.includes('<span class="contents-article">Observability for long-running agents</span>') && contents.includes('<span class="contents-article">Design Engineering with Maggie Appleton</span>') && contents.includes('<span class="contents-article">Database internals in practice</span>'), "every retained article title must appear in the opening contents");
+  assert(!contents.includes('href="article-'), "reader-facing contents should not use article hyperlinks because Kindle overrides their typography");
   assert(sectionOne.includes('class="section-name"') && sectionOne.includes(">AI</h1>") && sectionOne.includes("3 stories"), "section divider should name the section and story count");
   assert(!sectionOne.includes("<a ") && !sectionOne.includes("Begin section"), "section divider should contain no navigation chrome");
   assert(!sectionOne.includes("Reliability for production agents") && !sectionOne.includes("Production agents"), "section divider should not list articles or topics");
