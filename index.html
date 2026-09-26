@@ -322,113 +322,6 @@
       .ready-actions .btn,.setup-actions .btn{width:100%}
     }
 
-    /* Compact dashboard pass */
-    .dashboard-main .editorial-section{padding:20px 0}
-    .dashboard-main .editorial-section:first-child{padding-top:4px}
-    .dashboard-main .editorial-head{margin-bottom:10px}
-    .dashboard-main .editorial-head h2{font-size:31px}
-    .dashboard-main .editorial-copy{font-size:15px;max-width:560px}
-    .dashboard-main .add-sources-head h2{font-size:25px}
-    .dashboard-main .add-sources-head .editorial-copy{margin-top:5px;font-size:14px}
-    .source-actions.compact-actions{
-      display:flex;flex-direction:column;gap:0;max-width:none;margin-top:10px;
-      border-top:1px solid var(--line)
-    }
-    .source-actions.compact-actions .source-action{
-      -webkit-appearance:none;appearance:none;color:var(--ink);font:inherit;cursor:pointer;
-      width:100%;min-height:0;padding:12px 0;border:0;border-bottom:1px solid var(--line);
-      background:transparent;display:flex;align-items:center;justify-content:space-between;
-      text-align:left
-    }
-    .source-actions.compact-actions .source-action:hover{background:transparent;color:var(--red)}
-    .source-actions.compact-actions .source-action strong{
-      font-family:Georgia,"Times New Roman",serif;font-size:16px;font-weight:600
-    }
-    .source-action-arrow{font-family:Georgia,"Times New Roman",serif;font-size:22px;line-height:1;color:var(--ink)}
-    .source-action:hover .source-action-arrow{color:var(--red)}
-    .editions-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
-    .editions-heading .edition-total{
-      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;
-      letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding-bottom:4px
-    }
-    .section-head{padding:13px 0}
-    .section-name h3{font-size:25px}
-    .section-meta{font-size:10px;letter-spacing:.04em;text-transform:uppercase}
-    .disclosure-btn{
-      color:var(--ink)!important;font-family:Georgia,"Times New Roman",serif;
-      font-size:23px!important;font-weight:400;border:0!important
-    }
-    .new-edition-row{padding-top:10px}
-    .new-edition-row .btn{border:0;padding:7px 0;background:transparent}
-    .new-edition-row .btn:hover{color:var(--red);background:transparent}
-    .dashboard-main{grid-column:1;grid-row:1}
-    .dashboard-side{grid-column:2;grid-row:1;display:flex;flex-direction:column;gap:0}
-    .side-card.compact-panel{padding:16px 0;margin:0;border-top:1px solid var(--ink)}
-    .compact-panel + .compact-panel{margin-top:16px}
-    .delivery-main.compact-delivery{display:block}
-    .delivery-time{font-size:46px}
-    .delivery-meta{margin-top:5px}
-    .delivery-actions.compact-delivery-actions{
-      margin-top:14px;display:flex;gap:7px;justify-content:flex-start;align-items:center
-    }
-    .delivery-actions.compact-delivery-actions .overflow-btn{
-      min-width:44px;height:44px;padding:0 12px!important;font-size:12px;display:grid;place-items:center
-    }
-    .reading-list-action{
-      width:100%;margin-top:15px;padding:13px 0 12px;border:0;border-top:1px solid var(--line-soft);
-      background:transparent;color:var(--ink);text-align:left;cursor:pointer
-    }
-    .reading-list-action:hover .reading-list-title{color:var(--green)}
-    .reading-list-title{display:block;margin-top:4px;font-family:Georgia,"Times New Roman",serif;font-size:18px;font-weight:600}
-    .reading-list-meta{display:block;margin-top:4px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;color:var(--muted)}
-    .latest-run.human-run{
-      margin-top:13px;padding-top:11px;border-top:1px solid var(--line-soft);
-      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;
-      line-height:1.45;color:var(--muted)
-    }
-    .kindle-status-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-top:12px}
-    .kindle-state{font-family:Georgia,"Times New Roman",serif;font-size:18px;font-weight:600}
-    .kindle-address{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;color:var(--muted);margin-top:5px}
-    .kindle-manage{border:0!important;background:transparent!important;padding:4px 0!important;white-space:nowrap}
-    .kindle-manage:hover{color:var(--red)}
-    .account-menu-btn{
-      min-width:44px;height:44px;padding:0 11px!important;border:1px solid var(--line)!important;background:transparent!important;
-      font-size:12px;letter-spacing:0
-    }
-    .account-menu-btn:hover{color:var(--ink);border-color:var(--ink)!important}
-    .menu-list{display:flex;flex-direction:column;border-top:1px solid var(--line);margin-top:14px}
-    .menu-action{
-      border:0;border-bottom:1px solid var(--line);background:transparent;padding:13px 0;
-      text-align:left;font-weight:700
-    }
-    .menu-action:hover{color:var(--red)}
-    @media(max-width:760px){
-      .dashboard-main .editorial-section{padding:17px 0}
-      .dashboard-main .editorial-section:last-child{border-bottom:0}
-      .dashboard-main .editorial-head h2{font-size:28px}
-      .dashboard-main .add-sources-head h2{font-size:22px}
-      .dashboard-main .add-sources-head .editorial-copy{display:none}
-      .source-actions.compact-actions{margin-top:7px}
-      .source-actions.compact-actions .source-action{padding:11px 0}
-      .section-head{padding:12px 0}
-      .section-name h3{font-size:23px}
-      .editions-heading{display:block}
-      .editions-heading .edition-total{font-size:10px;margin-top:7px;padding-bottom:0}
-      .dashboard-main,.dashboard-side{grid-column:auto;grid-row:auto}
-      .dashboard-side{margin-top:2px}
-      .side-card.compact-panel{padding:17px 0}
-      .delivery-time{font-size:43px}
-      .delivery-actions.compact-delivery-actions .btn{width:auto}
-      .kindle-status-row{align-items:center}
-      .btn.small-btn{min-height:44px;padding:9px 12px}
-      .disclosure-btn{width:44px;height:44px}
-      .feed-manage{min-width:44px;min-height:44px}
-      .section-days-link{min-height:44px;padding:10px 0}
-      .source-index-meta,.delivery-meta,.kindle-address,.latest-run.human-run{font-size:11px}
-      .modal.flow{padding:0;place-items:stretch}
-      .modal.flow .modal-card{width:100%;height:100%;max-height:none;border:0;border-radius:0;padding:20px 16px 32px}
-    }
-
     /* Editorial auth + source-action refinement */
     .auth-page{max-width:760px;padding:44px 0 10px}
     .auth-page .auth-hero{padding:0 0 34px;border-bottom:1px solid var(--ink)}
@@ -580,476 +473,21 @@
     .source-context{font-size:14px;color:var(--muted);margin-top:7px;overflow-wrap:anywhere}
     .notice{overflow-wrap:anywhere}
 
-    /* Long Form: compact source management and mobile hierarchy */
-    .sources-panel{padding-top:16px!important}
-    .sources-header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
-    .sources-header h2{margin:4px 0 0;font-size:31px}
-    .sources-header .edition-total{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding-bottom:4px}
-    .sources-toolbar{display:flex;gap:8px;margin:14px 0 12px}
-    .source-list-toggle{width:100%;min-height:48px;padding:12px 0;border:0;border-top:1px solid var(--ink);border-bottom:1px solid var(--line);background:transparent;color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;font-weight:700;cursor:pointer}
-    .source-list-toggle:hover{color:var(--red)}
-    .source-list-toggle-state{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
-    .preferences-panel{padding-bottom:0!important}
-    .preference-row{width:100%;min-height:54px;padding:12px 0;border:0;border-top:1px solid var(--line);background:transparent;color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:14px;text-align:left;cursor:pointer}
-    .preferences-panel .preference-row:first-of-type{margin-top:10px;border-top:1px solid var(--ink)}
-    .preference-row:hover .preference-title,.preference-row:focus-visible .preference-title{color:var(--red)}
-    .preference-title,.preference-meta{display:block}
-    .preference-title{font-weight:700}
-    .preference-meta{margin-top:3px;font-size:11px;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .preference-action{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
-    #sources-body .feed-list{border-top:0}
-    #sources-body .feed:first-child{border-top:0}
-    @media(max-width:760px){
-      .shell{padding:14px 14px 40px}
-      .topbar{align-items:center;padding-bottom:12px}
-      .brand{font-size:25px}
-      .brand-kicker{margin-top:4px;font-size:8px;letter-spacing:.12em}
-      .account-menu-btn{height:40px;min-width:40px;padding:0 9px!important}
-      .grid.editorial-grid{display:flex;flex-direction:column;margin-top:12px}
-      .dashboard-side{display:contents}
-      .delivery-panel{order:1}
-      .dashboard-main{order:2}
-      .preferences-panel{order:3}
-      .dashboard-main .editorial-section{padding:14px 0}
-      .sources-header h2{font-size:27px}
-      .sources-toolbar{margin:12px 0 10px}
-      .sources-toolbar .btn{flex:1;min-height:44px;padding:8px 10px}
-      .source-list-toggle{min-height:48px}
-      .feed{grid-template-columns:minmax(0,1fr) auto;align-items:start;padding:11px 0}
-      .feed-actions{justify-content:flex-end}
-      .feed-url{max-width:62vw}
-      .side-card.compact-panel{padding:14px 0}
-      .dashboard-side .compact-panel:not(.delivery-panel) .technical-note{display:none}
-      .reading-list-action{margin-top:11px;padding:11px 0 9px}
-      .problem-banner{margin-bottom:12px;padding:9px 10px;border-left-width:2px}
-      .problem-banner,.source-problem-context,.source-problem-action{font-size:12px}
-    }
-
-    /* Long Form visual reset — September 2026 */
-    :root{
-      --bg:#f3f3ef;
-      --paper:#ffffff;
-      --ink:#171714;
-      --muted:#74736c;
-      --line:#deded8;
-      --line-soft:#ecece7;
-      --accent:#cf1f2c;
-      --accent-soft:#fff1f2;
-      --success:#16624b;
-      --green:#16624b;
-      --green-2:#0f4c3a;
-      --green-soft:#edf5f1;
-      --red:#b51f28;
-      --red-soft:#fff0f1;
-      --shadow:0 1px 2px rgba(20,20,16,.03),0 18px 50px rgba(20,20,16,.055);
-      --radius:20px;
-      --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
-      --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
-      --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
-    }
-    html,body{background:var(--bg)}
-    body{
-      color:var(--ink);
-      font-family:var(--sans);
-      -webkit-font-smoothing:antialiased;
-      text-rendering:optimizeLegibility;
-    }
-    .shell{max-width:980px;margin:0 auto;padding:22px 20px 56px}
-    .topbar{
-      border:0;
-      padding:0 0 18px;
-      min-height:54px;
-      align-items:center;
-    }
-    .brand{font-family:var(--serif);font-size:31px;font-weight:700;letter-spacing:-.045em;line-height:.95}
-    .brand-kicker{
-      margin-top:5px;
-      font-family:var(--sans);
-      font-size:11px;
-      line-height:1.2;
-      letter-spacing:.01em;
-      text-transform:none;
-      color:var(--muted);
-    }
-    .account-menu-btn{
-      height:38px!important;
-      min-width:0!important;
-      border:0!important;
-      border-radius:999px!important;
-      background:#e8e8e2!important;
-      padding:0 14px!important;
-      font-size:13px!important;
-      font-weight:700!important;
-    }
-    .account-menu-btn:hover{background:#dfdfd8!important}
-    .btn{
-      min-height:44px;
-      border-radius:11px;
-      border:1px solid var(--line);
-      background:#fff;
-      padding:10px 14px;
-      font-size:14px;
-      font-weight:720;
-      letter-spacing:-.01em;
-      transition:background .16s ease,border-color .16s ease,transform .16s ease,box-shadow .16s ease;
-    }
-    .btn:hover{transform:none;background:#f8f8f5;border-color:#cbcbc4}
-    .btn:active{transform:scale(.985)}
-    .btn.primary{background:var(--ink);border-color:var(--ink);color:#fff}
-    .btn.primary:hover{background:#000;border-color:#000}
-    .btn.small-btn{min-height:40px;padding:8px 12px;font-size:13px}
-    .input,.select{
-      border-radius:12px;
-      border-color:var(--line);
-      background:#fff;
-      padding:12px 13px;
-    }
-    .input:focus,.select:focus{border-color:#96968e;box-shadow:0 0 0 3px rgba(20,20,16,.07)}
-    .editorial-label,.eyebrow,.side-title{
-      font-family:var(--mono);
-      font-size:10px;
-      line-height:1.2;
-      letter-spacing:.11em;
-      text-transform:uppercase;
-      font-weight:700;
-      color:var(--muted);
-    }
-
-    .home-dashboard{
-      display:grid;
-      grid-template-columns:minmax(0,.88fr) minmax(0,1.12fr);
-      gap:18px;
-      align-items:start;
-      padding-top:14px;
-    }
-    .issue-card,.library-card{
-      background:var(--paper);
-      border:1px solid rgba(23,23,20,.07);
-      border-radius:22px;
-      box-shadow:var(--shadow);
-    }
-    .issue-card{padding:24px}
-    .issue-topline,.library-header{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:14px;
-    }
-    .micro-label{
-      font-family:var(--mono);
-      font-size:10px;
-      letter-spacing:.11em;
-      text-transform:uppercase;
-      font-weight:700;
-      color:var(--accent);
-    }
-    .quiet-state{
-      display:inline-flex;
-      align-items:center;
-      min-height:25px;
-      padding:0 9px;
-      border-radius:999px;
-      background:#f1f1ed;
-      color:var(--muted);
-      font-size:11px;
-      font-weight:700;
-    }
-    .issue-time{
-      margin-top:22px;
-      font-family:var(--serif);
-      font-size:43px;
-      line-height:.98;
-      letter-spacing:-.045em;
-      font-weight:650;
-    }
-    .issue-schedule{
-      margin-top:9px;
-      color:var(--muted);
-      font-size:13px;
-      line-height:1.45;
-    }
-    .issue-actions{
-      display:grid;
-      grid-template-columns:minmax(0,1fr) minmax(0,1fr) 44px;
-      gap:8px;
-      margin-top:22px;
-    }
-    .issue-actions .btn{width:100%}
-    .issue-actions .icon-btn{padding:0;font-size:17px;letter-spacing:.08em}
-    .issue-status{
-      display:flex;
-      gap:8px;
-      align-items:flex-start;
-      margin-top:16px;
-      padding-top:14px;
-      border-top:1px solid var(--line-soft);
-      color:var(--muted);
-      font-size:12px;
-      line-height:1.45;
-    }
-    .issue-status-dot{
-      width:7px;height:7px;border-radius:50%;
-      background:#b8b8b0;
-      margin-top:5px;
-      flex:0 0 auto;
-    }
-    .issue-status-dot.problem{background:var(--accent)}
-    .issue-links{
-      margin-top:16px;
-      border-top:1px solid var(--line-soft);
-    }
-    .issue-link{
-      width:100%;
-      min-height:49px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      border:0;
-      border-bottom:1px solid var(--line-soft);
-      background:transparent;
-      color:var(--ink);
-      padding:0;
-      text-align:left;
-      cursor:pointer;
-    }
-    .issue-link:last-child{border-bottom:0}
-    .issue-link strong{font-size:14px}
-    .issue-link span:last-child{color:var(--muted)}
-    .issue-link:hover strong{color:var(--accent)}
-
-    .library-card{padding:24px}
-    .library-title{
-      margin:5px 0 0;
-      font-family:var(--serif);
-      font-size:34px;
-      line-height:1;
-      letter-spacing:-.04em;
-      font-weight:650;
-    }
-    .library-count{
-      min-width:34px;
-      height:34px;
-      display:grid;
-      place-items:center;
-      border-radius:999px;
-      background:#f1f1ed;
-      font-family:var(--mono);
-      font-size:11px;
-      font-weight:700;
-      color:var(--muted);
-    }
-    .library-actions{
-      display:flex;
-      gap:8px;
-      margin-top:20px;
-    }
-    .library-actions .btn{flex:1}
-    .attention-row{
-      width:100%;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:14px;
-      margin-top:16px;
-      padding:13px 14px;
-      border:1px solid #f0d6d9;
-      border-radius:13px;
-      background:var(--accent-soft);
-      color:var(--ink);
-      text-align:left;
-      cursor:pointer;
-    }
-    .attention-row-copy{min-width:0}
-    .attention-row strong{display:block;font-size:13px}
-    .attention-row span{
-      display:block;
-      margin-top:3px;
-      color:#7d565a;
-      font-size:12px;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-    .attention-row-action{
-      color:var(--accent);
-      font-size:12px;
-      font-weight:750;
-      flex:0 0 auto;
-    }
-    .source-list-toggle{
-      width:100%;
-      min-height:52px;
-      margin-top:16px;
-      padding:0 2px;
-      border:0;
-      border-top:1px solid var(--line-soft);
-      border-bottom:1px solid var(--line-soft);
-      background:transparent;
-      color:var(--ink);
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      text-align:left;
-      cursor:pointer;
-      font-size:14px;
-      font-weight:720;
-    }
-    .source-list-toggle:hover{color:var(--ink)}
-    .source-list-toggle-state{
-      font-family:var(--mono);
-      font-size:10px;
-      letter-spacing:.04em;
-      text-transform:none;
-      color:var(--muted);
-      white-space:nowrap;
-    }
-    #sources-body{padding-top:2px}
-    #sources-body .feed-list{border:0}
-    #sources-body .feed{
-      grid-template-columns:minmax(0,1fr) 44px;
-      align-items:start;
-      padding:14px 2px;
-      border-top:1px solid var(--line-soft);
-    }
-    #sources-body .feed:first-child{border-top:0}
-    .feed-title{
-      font-family:var(--sans);
-      font-size:14px;
-      font-weight:720;
-      line-height:1.3;
-      letter-spacing:-.01em;
-    }
-    .feed-url{
-      margin-top:4px;
-      font-family:var(--mono);
-      font-size:10px;
-      line-height:1.4;
-      color:var(--muted);
-    }
-    .feed-manage{
-      width:40px;
-      min-width:40px;
-      height:40px;
-      display:grid;
-      place-items:center;
-      border:0;
-      border-radius:10px;
-      background:transparent;
-      color:var(--muted);
-      font-size:17px;
-    }
-    .feed-manage:hover{background:#f3f3ef;color:var(--ink)}
-    .feed-error{margin-top:7px;font-size:12px;line-height:1.45}
-    .section-attention{font-size:12px;padding:5px 0}
-    .empty{padding:18px 2px;font-size:13px}
-
-    footer{
-      margin-top:34px;
-      padding-top:14px;
-      border-top:0;
-      color:#9a9992;
-      font-size:11px;
-    }
-
-    .modal{
-      background:rgba(18,18,15,.34);
-      backdrop-filter:blur(10px);
-      -webkit-backdrop-filter:blur(10px);
-      padding:18px;
-    }
-    .modal-card{
-      width:min(620px,100%);
-      max-height:calc(100dvh - 36px);
-      border:0;
-      border-radius:22px;
-      background:#fff;
-      box-shadow:0 26px 90px rgba(0,0,0,.22);
-      padding:24px;
-    }
-    .modal-card h2{font-family:var(--serif);font-size:29px;letter-spacing:-.035em}
-    .menu-list{border-top:1px solid var(--line-soft);margin-top:16px}
-    .menu-action{
-      min-height:52px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      width:100%;
-      border:0;
-      border-bottom:1px solid var(--line-soft);
-      background:transparent;
-      padding:0;
-      color:var(--ink);
-      text-align:left;
-      font-size:14px;
-      font-weight:700;
-      text-decoration:none;
-      cursor:pointer;
-    }
-    .menu-action:hover{color:var(--accent)}
-    .menu-action.danger{color:#9d3139}
-    .account-sheet-copy{margin-top:5px;color:var(--muted);font-size:12px}
-    .account-sheet-meta{color:var(--muted);font-size:11px;font-weight:600}
-
-    @media(max-width:760px){
-      .shell{
-        padding:max(16px,env(safe-area-inset-top)) 16px calc(42px + env(safe-area-inset-bottom));
-      }
-      .topbar{padding-bottom:14px}
-      .brand{font-size:30px}
-      .brand-kicker{font-size:10px}
-      .home-dashboard{grid-template-columns:1fr;gap:14px;padding-top:8px}
-      .issue-card,.library-card{border-radius:19px}
-      .issue-card{padding:21px 19px 18px}
-      .library-card{padding:21px 19px 17px}
-      .issue-time{font-size:40px;margin-top:19px}
-      .issue-actions{grid-template-columns:1fr 1fr 44px;margin-top:19px}
-      .issue-actions .btn{min-height:46px}
-      .library-title{font-size:31px}
-      .library-actions{margin-top:17px}
-      .library-actions .btn{min-height:44px}
-      .attention-row{margin-top:14px}
-      .source-list-toggle{margin-top:14px}
-      #sources-body .feed{padding:13px 1px}
-      .modal{padding:0;place-items:end center}
-      .modal-card{
-        width:100%;
-        max-height:92dvh;
-        border-radius:22px 22px 0 0;
-        padding:24px 18px calc(24px + env(safe-area-inset-bottom));
-      }
-      .modal.flow{place-items:stretch}
-      .modal.flow .modal-card{
-        height:100dvh;
-        max-height:none;
-        border-radius:0;
-        padding:20px 16px calc(28px + env(safe-area-inset-bottom));
-      }
-      footer{margin-top:25px}
-    }
-    @media(max-width:390px){
-      .issue-actions{grid-template-columns:1fr 1fr 42px}
-      .btn{padding-left:11px;padding-right:11px}
-      .library-actions .btn{font-size:13px}
-    }
-    @media(prefers-reduced-motion:reduce){
-      *,*:before,*:after{scroll-behavior:auto!important;transition:none!important}
-    }
-
 
     :root{
       --bg:#f4f1e9;
       --surface:#fbfaf6;
-      --surface-strong:#ffffff;
+      --surface-strong:#fff;
       --ink:#171614;
       --muted:#747169;
-      --muted-2:#969188;
-      --hair:#dfdbd1;
-      --hair-strong:#c5c0b6;
-      --accent:#e3120b;
-      --accent-soft:#fff0ee;
-      --shadow-soft:0 1px 1px rgba(23,22,20,.035),0 12px 32px rgba(23,22,20,.055);
+      --muted-2:#98938a;
+      --line:#dfdbd1;
+      --line-strong:#c5c0b6;
+      --accent:#cf1f2c;
+      --accent-soft:#fff0f1;
+      --red:#a51d25;
+      --red-soft:#f8e9e9;
+      --shadow-soft:0 1px 1px rgba(23,22,20,.035),0 12px 34px rgba(23,22,20,.055);
       --radius:18px;
     }
     html,body{background:var(--bg)}
@@ -1060,19 +498,10 @@
       -webkit-font-smoothing:antialiased;
       text-rendering:optimizeLegibility;
     }
-    .shell{max-width:900px;margin:0 auto;padding:22px 22px 76px}
-    .topbar{border:0;padding:0 0 30px;align-items:center}
+    .shell{max-width:860px;margin:0 auto;padding:22px 20px 72px}
+    .topbar{border:0;padding:0 0 28px;align-items:center}
     .brand-wrap{position:relative;padding-left:13px}
-    .brand-wrap:before{
-      content:"";
-      position:absolute;
-      left:0;
-      top:1px;
-      width:3px;
-      height:40px;
-      border-radius:2px;
-      background:var(--accent);
-    }
+    .brand-wrap:before{content:"";position:absolute;left:0;top:1px;width:3px;height:40px;border-radius:2px;background:var(--accent)}
     .brand{
       font-family:Charter,"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
       font-size:34px;
@@ -1090,405 +519,195 @@
       color:var(--muted);
     }
     .account-menu-btn{
-      min-width:auto!important;
-      height:auto!important;
-      padding:10px 0 10px 18px!important;
-      border:0!important;
-      background:transparent!important;
-      color:var(--muted)!important;
-      font-size:13px!important;
-      font-weight:650!important;
+      min-width:auto!important;height:auto!important;padding:10px 0 10px 18px!important;
+      border:0!important;background:transparent!important;color:var(--muted)!important;
+      font-size:13px!important;font-weight:650!important
     }
     .account-menu-btn:hover{color:var(--ink)!important}
+    .btn.primary{background:var(--ink);border-color:var(--ink);color:#fff}
     .home-dashboard{display:flex;flex-direction:column;gap:14px}
-    .home-kicker{
-      display:block;
-      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-      font-size:10px;
-      line-height:1.2;
-      letter-spacing:.12em;
-      text-transform:uppercase;
-      color:var(--muted);
-      font-weight:700;
-    }
-    .issue-hero,.reading-block,.source-section{
-      background:rgba(255,255,255,.68);
+    .issue-card,.library-card{
+      background:rgba(255,255,255,.7);
       border:1px solid rgba(151,145,132,.28);
       border-radius:var(--radius);
       box-shadow:var(--shadow-soft);
     }
-    .issue-hero{padding:24px}
-    .issue-eyebrow{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:14px;
+    .issue-card{padding:24px}
+    .issue-top{display:flex;align-items:center;justify-content:space-between;gap:14px}
+    .micro-label{
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+      font-size:10px;line-height:1.2;letter-spacing:.12em;text-transform:uppercase;
+      color:var(--accent);font-weight:800
     }
     .issue-state{
-      display:inline-flex;
-      align-items:center;
-      gap:6px;
-      color:#2f6d57;
-      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-      font-size:10px;
-      letter-spacing:.04em;
+      display:inline-flex;align-items:center;gap:6px;color:#2f6d57;
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;letter-spacing:.04em
     }
     .issue-state:before{
-      content:"";
-      width:7px;
-      height:7px;
-      border-radius:50%;
-      background:currentColor;
-      box-shadow:0 0 0 4px rgba(47,109,87,.1);
+      content:"";width:7px;height:7px;border-radius:50%;background:currentColor;
+      box-shadow:0 0 0 4px rgba(47,109,87,.1)
     }
     .issue-state.paused{color:var(--muted)}
     .issue-time{
-      margin:13px 0 9px;
+      margin:14px 0 9px;
       font-family:Charter,"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
-      font-size:clamp(42px,8vw,60px);
-      line-height:.96;
-      letter-spacing:-.05em;
-      font-weight:650;
+      font-size:clamp(43px,8vw,60px);line-height:.96;letter-spacing:-.05em;font-weight:650
     }
-    .issue-meta{
+    .issue-schedule{
       color:var(--muted);
       font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-      font-size:11px;
-      line-height:1.5;
-      font-variant-numeric:tabular-nums;
-      overflow-wrap:anywhere;
+      font-size:11px;line-height:1.5;font-variant-numeric:tabular-nums;overflow-wrap:anywhere
     }
-    .issue-actions{
-      display:flex;
-      align-items:center;
-      gap:8px;
-      margin-top:22px;
-      flex-wrap:wrap;
-    }
+    .issue-actions{display:flex;align-items:center;gap:8px;margin-top:22px;flex-wrap:wrap}
     .home-dashboard .btn{
-      min-height:46px;
-      border-radius:12px;
-      border:1px solid var(--hair-strong);
-      background:rgba(255,255,255,.78);
-      padding:0 16px;
-      color:var(--ink);
-      font-size:14px;
-      font-weight:700;
-      box-shadow:none;
-      transition:background .16s ease,border-color .16s ease,transform .12s ease;
+      min-height:46px;border-radius:12px;border:1px solid var(--line-strong);
+      background:rgba(255,255,255,.82);padding:0 16px;color:var(--ink);
+      font-size:14px;font-weight:700;box-shadow:none;
+      transition:background .16s ease,border-color .16s ease,transform .12s ease
     }
-    .home-dashboard .btn:hover{
-      transform:none;
-      background:var(--surface-strong);
-      border-color:#aaa49a;
-    }
+    .home-dashboard .btn:hover{transform:none;background:var(--surface-strong);border-color:#aaa49a}
     .home-dashboard .btn:active{transform:translateY(1px)}
-    .home-dashboard .btn.primary{
-      background:var(--ink);
-      border-color:var(--ink);
-      color:#fff;
-      padding-left:19px;
-      padding-right:19px;
-    }
+    .home-dashboard .btn.primary{padding-left:19px;padding-right:19px}
     .home-dashboard .btn.primary:hover{background:#000;border-color:#000}
     .home-dashboard .icon-button{
-      width:46px;
-      padding:0;
-      border-color:transparent;
-      background:transparent;
-      color:var(--muted);
-      letter-spacing:.06em;
+      width:46px;padding:0;border-color:transparent;background:transparent;
+      color:var(--muted);letter-spacing:.06em
     }
-    .home-dashboard .icon-button:hover{border-color:var(--hair);color:var(--ink)}
-    .latest-run-clean{
-      margin-top:19px;
-      padding-top:14px;
-      border-top:1px solid var(--hair);
-      color:var(--muted);
-      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-      font-size:10px;
-      line-height:1.5;
+    .home-dashboard .icon-button:hover{border-color:var(--line);color:var(--ink)}
+    .issue-status{
+      margin-top:19px;padding-top:14px;border-top:1px solid var(--line);
+      color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+      font-size:10px;line-height:1.5
     }
-    .attention-banner{
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      gap:14px;
-      padding:14px 16px;
-      border:1px solid rgba(227,18,11,.18);
-      border-radius:14px;
-      background:var(--accent-soft);
+    .issue-reading{margin-top:16px;border-top:1px solid var(--line)}
+    .reading-action{
+      appearance:none;width:100%;border:0;background:transparent;padding:16px 0 13px;color:var(--ink);
+      display:flex;align-items:center;justify-content:space-between;gap:16px;text-align:left;cursor:pointer
     }
-    .attention-copy{min-width:0}
-    .attention-title{font-size:14px;line-height:1.35;font-weight:750;color:#61100d}
-    .attention-links{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:5px}
-    .attention-source{
-      appearance:none;
-      border:0;
-      background:transparent;
-      padding:0;
-      color:#9f1711;
-      font:600 12px/1.4 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-      text-align:left;
-      text-decoration:underline;
-      text-decoration-color:rgba(159,23,17,.35);
-      text-underline-offset:3px;
-      cursor:pointer;
-      overflow-wrap:anywhere;
-    }
-    .attention-source:hover{color:var(--accent)}
-    .reading-block{overflow:hidden}
-    .reading-card{
-      appearance:none;
-      width:100%;
-      border:0;
-      background:transparent;
-      padding:19px 20px;
-      color:var(--ink);
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:18px;
-      text-align:left;
-      cursor:pointer;
-    }
-    .reading-card:hover{background:rgba(255,255,255,.52)}
+    .reading-action:hover .reading-title{color:var(--accent)}
     .reading-copy{display:block;min-width:0}
-    .reading-title{
-      display:block;
-      margin-top:5px;
-      font-size:18px;
-      line-height:1.25;
-      letter-spacing:-.015em;
-      font-weight:700;
+    .reading-kicker{
+      display:block;color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+      font-size:9px;letter-spacing:.09em;text-transform:uppercase;font-weight:700
     }
-    .reading-sub{display:block;margin-top:4px;color:var(--muted);font-size:12px;line-height:1.4}
+    .reading-title{display:block;margin-top:4px;font-size:17px;line-height:1.25;letter-spacing:-.012em;font-weight:700}
+    .reading-meta{display:block;margin-top:4px;color:var(--muted);font-size:11px;line-height:1.35}
     .reading-plus{
-      width:36px;
-      height:36px;
-      flex:0 0 36px;
-      display:grid;
-      place-items:center;
-      border:1px solid var(--hair);
-      border-radius:50%;
-      background:#fff;
-      font-size:23px;
-      line-height:1;
-      font-weight:350;
-      transition:transform .16s ease,border-color .16s ease;
+      width:34px;height:34px;flex:0 0 34px;display:grid;place-items:center;
+      border:1px solid var(--line);border-radius:50%;background:#fff;font-size:22px;line-height:1;
+      transition:transform .16s ease,border-color .16s ease
     }
-    .reading-card:hover .reading-plus{transform:rotate(90deg);border-color:var(--hair-strong)}
-    .reading-block-footer{border-top:1px solid var(--hair);padding:0 20px}
+    .reading-action:hover .reading-plus{transform:rotate(90deg);border-color:var(--line-strong)}
+    .issue-footer{display:flex;justify-content:flex-start;border-top:1px solid var(--line)}
     .quiet-link{
-      appearance:none;
-      border:0;
-      background:transparent;
-      padding:12px 0;
-      color:var(--muted);
-      font-size:12px;
-      font-weight:650;
-      cursor:pointer;
+      appearance:none;border:0;background:transparent;padding:12px 0 0;color:var(--muted);
+      font-size:11px;font-weight:650;cursor:pointer
     }
     .quiet-link:hover{color:var(--ink)}
-    .source-section{overflow:hidden}
-    .source-disclosure{
-      appearance:none;
-      width:100%;
-      border:0;
-      background:transparent;
-      padding:20px 20px 12px;
-      color:var(--ink);
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:18px;
-      text-align:left;
-      cursor:pointer;
+    .library-card{overflow:hidden}
+    .library-head{padding:20px 20px 14px}
+    .library-head h2{
+      margin:4px 0 0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      font-size:22px;line-height:1.15;letter-spacing:-.025em;font-weight:760
     }
-    .source-disclosure:hover{background:rgba(255,255,255,.42)}
-    .source-title{display:block;margin-top:4px;font-size:22px;line-height:1.15;letter-spacing:-.025em;font-weight:750}
-    .source-summary{display:block;margin-top:4px;color:var(--muted);font-size:12px;line-height:1.4}
-    .source-chevron{
-      width:34px;
-      height:34px;
-      flex:0 0 34px;
-      display:grid;
-      place-items:center;
-      color:var(--muted);
-      font-size:22px;
-      font-weight:350;
+    .library-summary{margin-top:5px;color:var(--muted);font-size:12px;line-height:1.4}
+    .attention-row{
+      width:calc(100% - 24px);margin:0 12px 10px;padding:12px 13px;
+      border:1px solid rgba(207,31,44,.18);border-radius:12px;background:var(--accent-soft);
+      color:#65141a;display:flex;align-items:center;justify-content:space-between;gap:12px;
+      text-align:left;cursor:pointer
     }
-    .source-actions-row{display:flex;align-items:center;gap:18px;padding:0 20px 17px}
+    .attention-row:hover{border-color:rgba(207,31,44,.3)}
+    .attention-copy{min-width:0}
+    .attention-title{display:block;font-size:13px;line-height:1.35;font-weight:760}
+    .attention-source-name{display:block;margin-top:3px;font-size:11px;line-height:1.35;color:#8d1b24;overflow-wrap:anywhere}
+    .attention-arrow{flex:0 0 auto;color:var(--accent);font-size:16px}
+    .source-controls{display:flex;align-items:center;gap:18px;padding:2px 20px 15px}
     .link-action{
-      appearance:none;
-      border:0;
-      background:transparent;
-      padding:3px 0;
-      color:var(--ink);
-      font-size:12px;
-      font-weight:700;
-      cursor:pointer;
+      appearance:none;border:0;background:transparent;padding:3px 0;color:var(--ink);
+      font-size:12px;font-weight:700;cursor:pointer
     }
     .link-action:hover{color:var(--accent)}
-    #sources-body{border-top:1px solid var(--hair)}
+    .source-list-toggle{
+      appearance:none;width:100%;min-height:50px;padding:13px 20px;
+      border:0;border-top:1px solid var(--line);background:transparent;color:var(--ink);
+      display:flex;align-items:center;justify-content:space-between;gap:14px;text-align:left;
+      font-size:13px;font-weight:700;cursor:pointer
+    }
+    .source-list-toggle:hover{background:rgba(255,255,255,.48)}
+    .source-list-toggle-state{
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9px;
+      letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap
+    }
+    #sources-body{border-top:1px solid var(--line)}
     #sources-body .feed-list{border:0}
     #sources-body .feed{
-      padding:14px 20px;
-      border-top:1px solid var(--hair);
-      display:grid;
-      grid-template-columns:minmax(0,1fr) auto;
-      gap:14px;
-      align-items:start;
+      padding:14px 20px;border-top:1px solid var(--line);
+      display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:start
     }
     #sources-body .feed:first-child{border-top:0}
     #sources-body .feed-title{
       font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-      font-size:14px;
-      line-height:1.35;
-      font-weight:700;
-      letter-spacing:0;
+      font-size:14px;line-height:1.35;font-weight:700;letter-spacing:0
     }
     #sources-body .feed-url{
-      margin-top:4px;
-      color:var(--muted-2);
-      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-      font-size:9px;
-      line-height:1.45;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      max-width:620px;
+      margin-top:4px;color:var(--muted-2);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+      font-size:9px;line-height:1.45;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:620px
     }
     #sources-body .feed-error{margin-top:7px;color:#a7211a;font-size:11px;line-height:1.45}
-    #sources-body .section-attention{
-      min-height:auto;
-      padding:5px 0 0;
-      color:#a7211a;
-      font-size:11px;
-      text-underline-offset:3px;
-    }
+    #sources-body .section-attention{min-height:auto;padding:5px 0 0;color:#a7211a;font-size:11px;text-underline-offset:3px}
     #sources-body .feed-manage{
-      min-width:40px;
-      min-height:40px;
-      border:0;
-      background:transparent;
-      border-radius:10px;
-      color:var(--muted);
-      font-size:17px;
+      min-width:40px;min-height:40px;border:0;background:transparent;border-radius:10px;
+      color:var(--muted);font-size:17px
     }
     #sources-body .feed-manage:hover{background:rgba(23,22,20,.05);color:var(--ink)}
-    .settings-strip{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:2px 1px 0}
-    .setting-tile{
-      appearance:none;
-      min-width:0;
-      border:0;
-      background:transparent;
-      padding:12px 4px;
-      color:var(--ink);
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      text-align:left;
-      cursor:pointer;
-      border-radius:10px;
-    }
-    .setting-tile:hover{background:rgba(255,255,255,.45)}
-    .setting-title{display:block;font-size:13px;line-height:1.3;font-weight:700}
-    .setting-meta{
-      display:block;
-      margin-top:3px;
-      color:var(--muted);
-      font-size:10px;
-      line-height:1.4;
-      overflow:hidden;
-      text-overflow:ellipsis;
-      white-space:nowrap;
-      max-width:240px;
-    }
-    .setting-arrow{color:var(--muted);font-size:16px}
-    footer{margin-top:46px;padding-top:0;border:0;color:var(--muted-2);font-size:10px}
+    footer{margin-top:44px;padding-top:0;border:0;color:var(--muted-2);font-size:10px}
     footer a{margin-right:14px;text-decoration:none}
     footer a:hover{color:var(--ink)}
-    .modal{
-      background:rgba(20,19,17,.34);
-      backdrop-filter:blur(14px);
-      -webkit-backdrop-filter:blur(14px);
-    }
+    .modal{background:rgba(20,19,17,.34);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
     .modal-card{
-      background:var(--surface);
-      border:1px solid rgba(255,255,255,.55);
-      border-radius:20px;
-      box-shadow:0 28px 90px rgba(20,19,17,.22);
-      padding:23px;
+      background:var(--surface);border:1px solid rgba(255,255,255,.55);border-radius:20px;
+      box-shadow:0 28px 90px rgba(20,19,17,.22);padding:23px
     }
     .modal-card h2{
       font-family:Charter,"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
-      font-size:30px;
-      line-height:1.05;
-      letter-spacing:-.035em;
-      font-weight:650;
+      font-size:30px;line-height:1.05;letter-spacing:-.035em;font-weight:650
     }
     .modal-card .btn{border-radius:10px}
-    .modal-card .input,.modal-card .select{border-radius:10px;border-color:var(--hair-strong);background:#fff}
-    .modal-card .menu-list{border-color:var(--hair)}
-    .modal-card .menu-action{border-color:var(--hair)}
-    .toast{
-      right:16px;
-      bottom:16px;
-      border-radius:12px;
-      background:#171614;
-      color:#fff;
-      box-shadow:0 18px 60px rgba(0,0,0,.18);
-    }
+    .modal-card .input,.modal-card .select{border-radius:10px;border-color:var(--line-strong);background:#fff}
+    .toast{right:16px;bottom:16px;border-radius:12px;background:#171614;color:#fff;box-shadow:0 18px 60px rgba(0,0,0,.18)}
     @media(max-width:760px){
-      .shell{padding:18px 14px 54px}
-      .topbar{padding-bottom:24px}
+      .shell{padding:18px 14px 52px}
+      .topbar{padding-bottom:23px}
       .brand-wrap{padding-left:11px}
       .brand-wrap:before{height:35px;width:3px}
       .brand{font-size:30px}
       .brand-kicker{font-size:8px;letter-spacing:.11em}
       .account-menu-btn{padding-right:2px!important}
       .home-dashboard{gap:12px}
-      .issue-hero{padding:21px 18px}
+      .issue-card{padding:20px 18px}
       .issue-time{font-size:44px;margin-top:12px}
-      .issue-meta{font-size:10px}
-      .issue-actions{margin-top:20px;gap:7px}
+      .issue-schedule{font-size:10px}
+      .issue-actions{margin-top:19px;gap:7px}
       .home-dashboard .btn{min-height:45px;padding:0 14px}
       .home-dashboard .btn.primary{flex:1}
       .home-dashboard .icon-button{width:44px;flex:0 0 44px}
-      .latest-run-clean{font-size:10px}
-      .attention-banner{padding:13px 14px}
-      .reading-card{padding:18px}
-      .reading-block-footer{padding:0 18px}
-      .source-disclosure{padding:18px 18px 11px}
-      .source-actions-row{padding:0 18px 16px}
+      .issue-status{font-size:10px}
+      .library-head{padding:18px 18px 13px}
+      .source-controls{padding:2px 18px 14px}
+      .source-list-toggle{padding:13px 18px}
       #sources-body .feed{padding:13px 18px}
       #sources-body .feed-url{max-width:66vw}
-      .settings-strip{grid-template-columns:1fr 1fr;gap:3px}
-      .setting-tile{padding:11px 8px}
-      .setting-meta{max-width:130px}
       .modal{padding:0;place-items:end center}
       .modal .modal-card{
-        width:100%;
-        max-height:88vh;
-        border-radius:22px 22px 0 0;
-        border-bottom:0;
-        padding:22px 17px 30px;
+        width:100%;max-height:88vh;border-radius:22px 22px 0 0;border-bottom:0;padding:22px 17px 30px
       }
       .modal.flow{place-items:stretch}
-      .modal.flow .modal-card{
-        height:100%;
-        max-height:none;
-        border-radius:0;
-        padding:20px 16px 32px;
-      }
+      .modal.flow .modal-card{height:100%;max-height:none;border-radius:0;padding:20px 16px 32px}
     }
     @media(max-width:420px){
       .issue-actions #preview{padding-left:12px;padding-right:12px}
-      .reading-title{font-size:17px}
-      .source-title{font-size:21px}
-      .attention-banner{display:block}
+      .reading-title{font-size:16px}
     }
     @media(prefers-reduced-motion:reduce){
       *,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}
@@ -1530,7 +749,7 @@ const activeWatchers=new Set();
 const safeHref=value=>{try{const u=new URL(value);return ["http:","https:"].includes(u.protocol)?u.href:"#"}catch{return "#"}};
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
-const displayText=value=>{const node=document.createElement('textarea');node.innerHTML=String(value??'');return node.value};
+const displayText=value=>{const node=document.createElement('textarea');node.innerHTML=String(value??'').replaceAll('<','&lt;').replaceAll('>','&gt;');return node.value};
 const fmtDate=value=>{try{return new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(value))}catch{return ''}};
 const fmtTime=value=>{try{return new Intl.DateTimeFormat(undefined,{hour:'numeric',minute:'2-digit'}).format(new Date(value))}catch{return ''}};
 const fmtDuration=ms=>ms==null?'—':ms<1000?Math.round(ms)+'ms':(ms/1000).toFixed(ms<10000?1:0)+'s';
@@ -1542,17 +761,19 @@ function maskEmail(value){
   return shown+'••••••@'+domain;
 }
 
+
 function latestRunText(job){
-  if(!job)return '';
+  if(!job)return 'No deliveries yet';
   const when=fmtTime(job.finished_at||job.updated_at||job.created_at);
   const articles=job.result?.articles;
-  const title=job.packet_name||job.edition_name||'Issue';
-  if(job.status==='sent'||job.status==='partial')return `${title} submitted at ${when}${articles!=null?' · '+articles+' article'+(articles===1?'':'s'):''}${job.status==='partial'?' · some omissions':''}`;
-  if(job.status==='empty')return `Checked at ${when} · no new articles`;
-  if(job.status==='failed')return `Last send failed at ${when}`;
+  const articleText=articles!=null?` · ${articles} article${articles===1?'':'s'}`:'';
+  if(job.status==='partial')return `Submitted with omissions · ${when}${articleText}`;
+  if(job.status==='sent')return `Submitted · ${when}${articleText}`;
+  if(job.status==='empty')return `Checked · ${when} · no new articles`;
+  if(job.status==='failed')return `Last send failed · ${when}`;
   if(job.status==='running')return 'Building your issue…';
   if(job.status==='queued')return 'Send queued…';
-  return `Last run ${when} · ${String(job.status||'').toLowerCase()}`;
+  return `Last run · ${when} · ${String(job.status||'').toLowerCase()}`;
 }
 
 const shell=(body,actions='')=>`<div class="shell">
@@ -1921,25 +1142,25 @@ function runBadge(status){
 }
 
 
+
 function dashboard(){
   const settings=state.settings;
   const sources=allSources();
   const problemFeeds=sources.filter(sourceNeedsAttention);
   const latestJob=(state.jobs||[])[0];
-  const brief=String(settings.editorial_brief||'').trim();
   const busy=(state.jobs||[]).some(job=>job.reason!=='one_time'&&['queued','running'].includes(job.status));
   const issueState=settings.paused?'Paused':(!settings.onboarding_complete||!settings.kindle_email?'Setup needed':'Scheduled');
-  const kindleActionId=settings.onboarding_complete?'manage-kindle':'connect-kindle-secondary';
+  const firstProblem=problemFeeds[0];
 
   app.innerHTML=shell(`
     <main class="home-dashboard">
-      <section class="issue-hero" aria-labelledby="next-issue-heading">
-        <div class="issue-eyebrow">
-          <span class="home-kicker">Next issue</span>
+      <section class="issue-card" aria-labelledby="next-issue-heading">
+        <div class="issue-top">
+          <span class="micro-label">Next issue</span>
           <span class="issue-state ${settings.paused?'paused':''}">${esc(issueState)}</span>
         </div>
         <h1 class="issue-time" id="next-issue-heading">${esc(nextIssueDelivery())}</h1>
-        <div class="issue-meta">Daily · ${esc((settings.delivery_time||'06:00').slice(0,5))} · ${esc(settings.timezone)}</div>
+        <div class="issue-schedule">Daily at ${esc((settings.delivery_time||'06:00').slice(0,5))} · ${esc(settings.timezone)}</div>
         <div class="issue-actions">
           ${settings.onboarding_complete?`
             <button class="btn primary" id="send-now" ${busy?'disabled':''}>Send now</button>
@@ -1950,62 +1171,50 @@ function dashboard(){
             <button class="btn" id="preview">Browse articles</button>
           `}
         </div>
-        ${latestJob?`<div class="latest-run-clean">${esc(latestRunText(latestJob))}</div>`:''}
+        <div class="issue-status">${esc(latestRunText(latestJob))}</div>
+        <div class="issue-reading">
+          <button class="reading-action" id="one-time-send">
+            <span class="reading-copy">
+              <span class="reading-kicker">Reading list</span>
+              <span class="reading-title">Add articles to this issue</span>
+              <span class="reading-meta">One-off reading · no recurring subscription</span>
+            </span>
+            <span class="reading-plus" aria-hidden="true">+</span>
+          </button>
+        </div>
+        <div class="issue-footer"><button class="quiet-link" id="delivery-history">Delivery history →</button></div>
       </section>
 
-      ${problemFeeds.length?`<section class="attention-banner" aria-label="Sources needing attention">
-        <div class="attention-copy">
-          <div class="attention-title">${problemFeeds.length} source${problemFeeds.length===1?' needs':'s need'} attention</div>
-          <div class="attention-links">${problemFeeds.map(feed=>`<button class="attention-source review-source" data-id="${esc(feed.id)}">${esc(displayText(feed.name||feed.url))}</button>`).join('')}</div>
+      <section class="library-card" aria-labelledby="sources-heading">
+        <div class="library-head">
+          <span class="micro-label">Library</span>
+          <h2 id="sources-heading">Sources</h2>
+          <div class="library-summary">${sources.length} recurring source${sources.length===1?'':'s'}${problemFeeds.length?' · '+problemFeeds.length+' need attention':''}</div>
         </div>
-      </section>`:''}
-
-      <section class="reading-block">
-        <button class="reading-card" id="one-time-send">
-          <span class="reading-copy">
-            <span class="home-kicker">Reading list</span>
-            <span class="reading-title">Add articles to the next issue</span>
-            <span class="reading-sub">One-off reading, delivered with your next issue</span>
+        ${firstProblem?`<button class="attention-row review-source" data-id="${esc(firstProblem.id)}">
+          <span class="attention-copy">
+            <span class="attention-title">${problemFeeds.length} source${problemFeeds.length===1?' needs':'s need'} attention</span>
+            <span class="attention-source-name">${esc(displayText(firstProblem.name||firstProblem.url))}${problemFeeds.length>1?` · +${problemFeeds.length-1} more`:''}</span>
           </span>
-          <span class="reading-plus" aria-hidden="true">+</span>
-        </button>
-        <div class="reading-block-footer">
-          <button class="quiet-link" id="delivery-history">Delivery history →</button>
-        </div>
-      </section>
-
-      <section class="source-section">
-        <button class="source-disclosure" id="toggle-sources" type="button" aria-expanded="${sourcesExpanded}" aria-controls="sources-body">
-          <span>
-            <span class="home-kicker">Recurring sources</span>
-            <span class="source-title">Sources</span>
-            <span class="source-summary">${sources.length} subscription${sources.length===1?'':'s'}${problemFeeds.length?' · '+problemFeeds.length+' need attention':''}</span>
-          </span>
-          <span class="source-chevron" aria-hidden="true">${sourcesExpanded?'−':'+'}</span>
-        </button>
-        <div class="source-actions-row">
+          <span class="attention-arrow" aria-hidden="true">→</span>
+        </button>`:''}
+        <div class="source-controls">
           <button class="link-action" id="add-single-feed">+ Add source</button>
           <button class="link-action" id="import-opml">Import OPML</button>
         </div>
+        <button class="source-list-toggle" id="toggle-sources" type="button" aria-expanded="${sourcesExpanded}" aria-controls="sources-body">
+          <span>Subscribed sources</span>
+          <span class="source-list-toggle-state">${sourcesExpanded?'Hide':'Show'} ${sources.length} ${sourcesExpanded?'⌃':'⌄'}</span>
+        </button>
         <div id="sources-body" ${!sourcesExpanded?'hidden':''}>
           <div class="feed-list sources-list">${sources.length?sources.map(feedRow).join(''):'<div class="empty">No recurring sources yet.</div>'}</div>
         </div>
-      </section>
-
-      <section class="settings-strip" aria-label="Preferences">
-        <button class="setting-tile" id="edit-editorial-brief">
-          <span><span class="setting-title">Editorial brief</span><span class="setting-meta">${brief?'Configured':'Not set'}</span></span>
-          <span class="setting-arrow" aria-hidden="true">→</span>
-        </button>
-        <button class="setting-tile" id="${kindleActionId}">
-          <span><span class="setting-title">Kindle</span><span class="setting-meta">${settings.kindle_email?esc(maskEmail(settings.kindle_email)):'Not connected'}</span></span>
-          <span class="setting-arrow" aria-hidden="true">→</span>
-        </button>
       </section>
     </main>`,
     '<button class="btn account-menu-btn" id="account-menu" aria-label="Account menu">Account</button>');
   wireDashboard();
 }
+
 
 function wireDashboard(){
   wireSourceReviews(app);
@@ -2013,17 +1222,13 @@ function wireDashboard(){
   document.querySelector('#add-single-feed').onclick=e=>{e.preventDefault();singleFeedModal()};
   document.querySelector('#import-opml').onclick=e=>{e.preventDefault();opmlImportModal()};
   document.querySelector('#toggle-sources').onclick=()=>{sourcesExpanded=!sourcesExpanded;dashboard();document.querySelector('#toggle-sources')?.focus()};
-  const editBrief=document.querySelector('#edit-editorial-brief');if(editBrief)editBrief.onclick=editorialBriefModal;
 
   const sendNow=document.querySelector('#send-now');if(sendNow)sendNow.onclick=()=>queueSend('/send-now','Issue queued');
   document.querySelector('#one-time-send').onclick=()=>oneTimeEditionModal();
   document.querySelector('#delivery-history').onclick=historyModal;
   const preview=document.querySelector('#preview');if(preview)preview.onclick=previewModal;
   const deliveryMenu=document.querySelector('#delivery-menu');if(deliveryMenu)deliveryMenu.onclick=deliveryMenuModal;
-  const manageKindle=document.querySelector('#manage-kindle');if(manageKindle)manageKindle.onclick=kindleManageModal;
   const connectKindle=document.querySelector('#connect-kindle');if(connectKindle)connectKindle.onclick=onboarding;
-  const connectKindleSecondary=document.querySelector('#connect-kindle-secondary');if(connectKindleSecondary)connectKindleSecondary.onclick=onboarding;
-  document.querySelectorAll('.manage-feed').forEach(button=>button.onclick=()=>feedActionsModal(button.dataset.id));
 }
 
 function editorialBriefModal(){
@@ -2075,18 +1280,18 @@ function kindleManageModal(){
   document.querySelector('#kindle-edit-settings').onclick=settingsModal;
 }
 
+
 function accountMenuModal(){
-  const brief=String(state.settings.editorial_brief||'').trim();
-  openModal(`<div class="row"><div><div class="editorial-label">Long Form</div><h2 style="margin-top:6px">Account</h2><div class="account-sheet-copy">${esc(maskEmail(state.settings.kindle_email||''))}</div></div><button class="btn small-btn" id="close-modal">Close</button></div>
+  openModal(`<div class="row"><div><div class="editorial-label">Long Form</div><h2 style="margin-top:6px">Account</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
     <div class="menu-list">
-      <button class="menu-action" id="account-editorial-brief"><span>Editorial brief</span><span class="account-sheet-meta">${brief?'Set':'Not set'} →</span></button>
-      <button class="menu-action" id="account-delivery-settings"><span>Kindle & delivery</span><span class="account-sheet-meta">Manage →</span></button>
-      <button class="menu-action" id="account-system-health"><span>System health</span><span class="account-sheet-meta">View →</span></button>
-      <button class="menu-action danger" id="account-sign-out"><span>Sign out</span><span aria-hidden="true">→</span></button>
+      <button class="menu-action" id="account-editorial-brief">Editorial brief</button>
+      <button class="menu-action" id="account-kindle">${state.settings.onboarding_complete?'Kindle & delivery':'Connect Kindle'}</button>
+      <button class="menu-action" id="account-system-health">System health</button>
+      <button class="menu-action" id="account-sign-out">Sign out</button>
     </div>`);
   document.querySelector('#close-modal').onclick=closeModal;
   document.querySelector('#account-editorial-brief').onclick=editorialBriefModal;
-  document.querySelector('#account-delivery-settings').onclick=state.settings.onboarding_complete?settingsModal:onboarding;
+  document.querySelector('#account-kindle').onclick=()=>state.settings.onboarding_complete?kindleManageModal():onboarding();
   document.querySelector('#account-system-health').onclick=()=>{closeModal();systemHealthPage()};
   document.querySelector('#account-sign-out').onclick=()=>{closeModal();signOut()};
 }
