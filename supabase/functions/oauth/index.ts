@@ -87,7 +87,7 @@ function hidden(fields: Record<string,string>) {
   return Object.entries(fields).map(([k,v]) => `<input type="hidden" name="${esc(k)}" value="${esc(v)}">`).join("");
 }
 function page(title: string, inner: string) {
-  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} · Morning Reader</title>
+  return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)} · Long Form</title>
 <style>
 :root{font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#201f1a;background:#f5f1e8}
 *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px}
@@ -97,7 +97,7 @@ h1{font-family:Georgia,serif;font-size:32px;line-height:1.05;margin:0 0 12px}p{l
 label{display:block;font-size:13px;font-weight:750;margin:18px 0 7px}.input{width:100%;padding:13px 14px;border:1px solid #cbc3b3;border-radius:12px;font:inherit;background:white}
 .btn{margin-top:18px;width:100%;border:0;border-radius:12px;padding:13px 16px;background:#174f3c;color:white;font:inherit;font-weight:800;cursor:pointer}
 .permissions{margin:18px 0;padding:14px 16px;background:#f4efe5;border-radius:12px}.permissions div{margin:6px 0}.muted{font-size:13px;color:#756e63}.error{padding:12px 14px;border-radius:10px;background:#fdebe8;color:#8f2d24;margin:14px 0}
-</style></head><body><main class="card"><div class="brand">Morning Reader</div>${inner}</main></body></html>`;
+</style></head><body><main class="card"><div class="brand">Long Form</div>${inner}</main></body></html>`;
 }
 async function appApi(path: string, method = "GET", body?: unknown, bearer?: string) {
   const r = await fetch(APP_API + path, {
@@ -119,7 +119,7 @@ async function clientMetadata(clientId: string) {
   if (clientId === TEST_CLIENT) {
     return {
       client_id: TEST_CLIENT,
-      client_name: "Morning Reader MCP Test Client",
+      client_name: "Long Form MCP Test Client",
       redirect_uris: [`${ISSUER}/oauth/test-callback`],
       grant_types: ["authorization_code", "refresh_token"],
       response_types: ["code"],
@@ -155,8 +155,8 @@ function authFieldsFromForm(form: FormData) {
 function consentHtml(f: Record<string,string>, clientName: string, error = "") {
   const scopeList = parseScopes(f.scope);
   return page("Connect ChatGPT", `
-    <h1>Connect ${esc(clientName)} to Morning Reader</h1>
-    <p>Sign in to your Morning Reader account. You’ll approve the requested access after entering the email code.</p>
+    <h1>Connect ${esc(clientName)} to Long Form</h1>
+    <p>Sign in to your Long Form account. You’ll approve the requested access after entering the email code.</p>
     ${error ? `<div class="error">${esc(error)}</div>` : ""}
     <div class="permissions">
       <strong>Requested access</strong>
@@ -168,7 +168,7 @@ function consentHtml(f: Record<string,string>, clientName: string, error = "") {
       <label>Email</label><input class="input" type="email" name="email" autocomplete="email" required>
       <button class="btn" type="submit">Email me a sign-in code</button>
     </form>
-    <p class="muted">Morning Reader never gives ChatGPT your Kindle email address as an input credential. Access can be revoked by expiring the OAuth connection.</p>
+    <p class="muted">Long Form never gives ChatGPT your Kindle email address as an input credential. Access can be revoked by expiring the OAuth connection.</p>
   `);
 }
 function verifyHtml(f: Record<string,string>, email: string, clientName: string, error = "") {
@@ -178,14 +178,14 @@ function verifyHtml(f: Record<string,string>, email: string, clientName: string,
     <p>Enter the 6-digit code sent to <strong>${esc(email)}</strong>.</p>
     ${error ? `<div class="error">${esc(error)}</div>` : ""}
     <div class="permissions">
-      ${scopeList.includes("reader:read") ? "<div>✓ Read Morning Reader account data</div>" : ""}
-      ${scopeList.includes("reader:write") ? "<div>✓ Make Morning Reader changes and trigger sends</div>" : ""}
+      ${scopeList.includes("reader:read") ? "<div>✓ Read Long Form account data</div>" : ""}
+      ${scopeList.includes("reader:write") ? "<div>✓ Make Long Form changes and trigger sends</div>" : ""}
     </div>
     <form method="post" action="${ISSUER}/oauth/verify-code">
       ${hidden(f)}
       <input type="hidden" name="email" value="${esc(email)}">
       <label>Sign-in code</label><input class="input" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" name="code" required>
-      <button class="btn" type="submit">Connect to Morning Reader</button>
+      <button class="btn" type="submit">Connect to Long Form</button>
     </form>
   `);
 }
