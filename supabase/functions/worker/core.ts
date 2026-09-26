@@ -612,7 +612,7 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
       media_omitted: media.omitted,
     });
     attachments.push({
-      filename: testIdentity?.filename || `morning-reader-${filenameDate}.epub`,
+      filename: testIdentity?.filename || `long-form-${filenameDate}.epub`,
       content: base64(bytes),
       content_type: "application/epub+zip",
     });
