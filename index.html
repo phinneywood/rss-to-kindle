@@ -589,6 +589,14 @@
     .source-list-toggle{width:100%;min-height:48px;padding:12px 0;border:0;border-top:1px solid var(--ink);border-bottom:1px solid var(--line);background:transparent;color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;font-weight:700;cursor:pointer}
     .source-list-toggle:hover{color:var(--red)}
     .source-list-toggle-state{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+    .preferences-panel{padding-bottom:0!important}
+    .preference-row{width:100%;min-height:54px;padding:12px 0;border:0;border-top:1px solid var(--line);background:transparent;color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:14px;text-align:left;cursor:pointer}
+    .preferences-panel .preference-row:first-of-type{margin-top:10px;border-top:1px solid var(--ink)}
+    .preference-row:hover .preference-title,.preference-row:focus-visible .preference-title{color:var(--red)}
+    .preference-title,.preference-meta{display:block}
+    .preference-title{font-weight:700}
+    .preference-meta{margin-top:3px;font-size:11px;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .preference-action{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
     #sources-body .feed-list{border-top:0}
     #sources-body .feed:first-child{border-top:0}
     @media(max-width:760px){
@@ -597,7 +605,11 @@
       .brand{font-size:25px}
       .brand-kicker{margin-top:4px;font-size:8px;letter-spacing:.12em}
       .account-menu-btn{height:40px;min-width:40px;padding:0 9px!important}
-      .grid.editorial-grid{margin-top:12px}
+      .grid.editorial-grid{display:flex;flex-direction:column;margin-top:12px}
+      .dashboard-side{display:contents}
+      .delivery-panel{order:1}
+      .dashboard-main{order:2}
+      .preferences-panel{order:3}
       .dashboard-main .editorial-section{padding:14px 0}
       .sources-header h2{font-size:27px}
       .sources-toolbar{margin:12px 0 10px}
@@ -1066,25 +1078,16 @@ function dashboard(){
           <button class="one-time-action" id="delivery-history">Delivery history →</button>
         </section>
 
-        <section class="side-card compact-panel">
-          <div class="editorial-label">Your editor</div>
-          <div class="kindle-state" style="margin-top:8px">Editorial brief</div>
-          <div class="small muted" style="margin-top:6px;line-height:1.5">${esc(brief||'No brief yet. Related Discovery still works; Open Discovery waits until you add one.')}</div>
-          <button class="btn small-btn" id="edit-editorial-brief" style="margin-top:12px">${brief?'Edit brief':'Add brief'} →</button>
-          <div class="technical-note" style="margin-top:10px">The brief guides organization and Open Discovery. It never removes an eligible RSS article.</div>
-        </section>
-
-        <section class="side-card compact-panel">
-          <div class="editorial-label">Kindle</div>
-          <div class="kindle-status-row">
-            <div>
-              <div class="kindle-state">Kindle · ${settings.kindle_email?'Address saved':'No address saved'}</div>
-              <div class="kindle-address">${esc(maskEmail(settings.kindle_email))}</div>
-            </div>
-            ${settings.onboarding_complete
-              ?'<button class="btn small-btn kindle-manage" id="manage-kindle">Manage →</button>'
-              :'<button class="btn small-btn kindle-manage" id="connect-kindle-secondary">Connect →</button>'}
-          </div>
+        <section class="side-card compact-panel preferences-panel">
+          <div class="editorial-label">Preferences</div>
+          <button class="preference-row" id="edit-editorial-brief">
+            <span><span class="preference-title">Editorial brief</span><span class="preference-meta">${brief?'Set':'Not set'}</span></span>
+            <span class="preference-action">${brief?'Edit':'Add'} →</span>
+          </button>
+          <button class="preference-row" id="${settings.onboarding_complete?'manage-kindle':'connect-kindle-secondary'}">
+            <span><span class="preference-title">Kindle</span><span class="preference-meta">${settings.kindle_email?esc(maskEmail(settings.kindle_email)):'Not connected'}</span></span>
+            <span class="preference-action">${settings.onboarding_complete?'Manage':'Connect'} →</span>
+          </button>
         </section>
       </aside>
 
