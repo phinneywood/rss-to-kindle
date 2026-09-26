@@ -1037,6 +1037,463 @@
       *,*:before,*:after{scroll-behavior:auto!important;transition:none!important}
     }
 
+
+    :root{
+      --bg:#f4f1e9;
+      --surface:#fbfaf6;
+      --surface-strong:#ffffff;
+      --ink:#171614;
+      --muted:#747169;
+      --muted-2:#969188;
+      --hair:#dfdbd1;
+      --hair-strong:#c5c0b6;
+      --accent:#e3120b;
+      --accent-soft:#fff0ee;
+      --shadow-soft:0 1px 1px rgba(23,22,20,.035),0 12px 32px rgba(23,22,20,.055);
+      --radius:18px;
+    }
+    html,body{background:var(--bg)}
+    body{
+      color:var(--ink);
+      background:radial-gradient(circle at 50% -20%,rgba(255,255,255,.9),transparent 36rem),var(--bg);
+      font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      -webkit-font-smoothing:antialiased;
+      text-rendering:optimizeLegibility;
+    }
+    .shell{max-width:900px;margin:0 auto;padding:22px 22px 76px}
+    .topbar{border:0;padding:0 0 30px;align-items:center}
+    .brand-wrap{position:relative;padding-left:13px}
+    .brand-wrap:before{
+      content:"";
+      position:absolute;
+      left:0;
+      top:1px;
+      width:3px;
+      height:40px;
+      border-radius:2px;
+      background:var(--accent);
+    }
+    .brand{
+      font-family:Charter,"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+      font-size:34px;
+      line-height:.96;
+      letter-spacing:-.045em;
+      font-weight:700;
+    }
+    .brand-kicker{
+      margin-top:6px;
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+      font-size:9px;
+      line-height:1.2;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      color:var(--muted);
+    }
+    .account-menu-btn{
+      min-width:auto!important;
+      height:auto!important;
+      padding:10px 0 10px 18px!important;
+      border:0!important;
+      background:transparent!important;
+      color:var(--muted)!important;
+      font-size:13px!important;
+      font-weight:650!important;
+    }
+    .account-menu-btn:hover{color:var(--ink)!important}
+    .home-dashboard{display:flex;flex-direction:column;gap:14px}
+    .home-kicker{
+      display:block;
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+      font-size:10px;
+      line-height:1.2;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      color:var(--muted);
+      font-weight:700;
+    }
+    .issue-hero,.reading-block,.source-section{
+      background:rgba(255,255,255,.68);
+      border:1px solid rgba(151,145,132,.28);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow-soft);
+    }
+    .issue-hero{padding:24px}
+    .issue-eyebrow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+    }
+    .issue-state{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      color:#2f6d57;
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+      font-size:10px;
+      letter-spacing:.04em;
+    }
+    .issue-state:before{
+      content:"";
+      width:7px;
+      height:7px;
+      border-radius:50%;
+      background:currentColor;
+      box-shadow:0 0 0 4px rgba(47,109,87,.1);
+    }
+    .issue-state.paused{color:var(--muted)}
+    .issue-time{
+      margin:13px 0 9px;
+      font-family:Charter,"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+      font-size:clamp(42px,8vw,60px);
+      line-height:.96;
+      letter-spacing:-.05em;
+      font-weight:650;
+    }
+    .issue-meta{
+      color:var(--muted);
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+      font-size:11px;
+      line-height:1.5;
+      font-variant-numeric:tabular-nums;
+      overflow-wrap:anywhere;
+    }
+    .issue-actions{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      margin-top:22px;
+      flex-wrap:wrap;
+    }
+    .home-dashboard .btn{
+      min-height:46px;
+      border-radius:12px;
+      border:1px solid var(--hair-strong);
+      background:rgba(255,255,255,.78);
+      padding:0 16px;
+      color:var(--ink);
+      font-size:14px;
+      font-weight:700;
+      box-shadow:none;
+      transition:background .16s ease,border-color .16s ease,transform .12s ease;
+    }
+    .home-dashboard .btn:hover{
+      transform:none;
+      background:var(--surface-strong);
+      border-color:#aaa49a;
+    }
+    .home-dashboard .btn:active{transform:translateY(1px)}
+    .home-dashboard .btn.primary{
+      background:var(--ink);
+      border-color:var(--ink);
+      color:#fff;
+      padding-left:19px;
+      padding-right:19px;
+    }
+    .home-dashboard .btn.primary:hover{background:#000;border-color:#000}
+    .home-dashboard .icon-button{
+      width:46px;
+      padding:0;
+      border-color:transparent;
+      background:transparent;
+      color:var(--muted);
+      letter-spacing:.06em;
+    }
+    .home-dashboard .icon-button:hover{border-color:var(--hair);color:var(--ink)}
+    .latest-run-clean{
+      margin-top:19px;
+      padding-top:14px;
+      border-top:1px solid var(--hair);
+      color:var(--muted);
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+      font-size:10px;
+      line-height:1.5;
+    }
+    .attention-banner{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:14px;
+      padding:14px 16px;
+      border:1px solid rgba(227,18,11,.18);
+      border-radius:14px;
+      background:var(--accent-soft);
+    }
+    .attention-copy{min-width:0}
+    .attention-title{font-size:14px;line-height:1.35;font-weight:750;color:#61100d}
+    .attention-links{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:5px}
+    .attention-source{
+      appearance:none;
+      border:0;
+      background:transparent;
+      padding:0;
+      color:#9f1711;
+      font:600 12px/1.4 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      text-align:left;
+      text-decoration:underline;
+      text-decoration-color:rgba(159,23,17,.35);
+      text-underline-offset:3px;
+      cursor:pointer;
+      overflow-wrap:anywhere;
+    }
+    .attention-source:hover{color:var(--accent)}
+    .reading-block{overflow:hidden}
+    .reading-card{
+      appearance:none;
+      width:100%;
+      border:0;
+      background:transparent;
+      padding:19px 20px;
+      color:var(--ink);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:18px;
+      text-align:left;
+      cursor:pointer;
+    }
+    .reading-card:hover{background:rgba(255,255,255,.52)}
+    .reading-copy{display:block;min-width:0}
+    .reading-title{
+      display:block;
+      margin-top:5px;
+      font-size:18px;
+      line-height:1.25;
+      letter-spacing:-.015em;
+      font-weight:700;
+    }
+    .reading-sub{display:block;margin-top:4px;color:var(--muted);font-size:12px;line-height:1.4}
+    .reading-plus{
+      width:36px;
+      height:36px;
+      flex:0 0 36px;
+      display:grid;
+      place-items:center;
+      border:1px solid var(--hair);
+      border-radius:50%;
+      background:#fff;
+      font-size:23px;
+      line-height:1;
+      font-weight:350;
+      transition:transform .16s ease,border-color .16s ease;
+    }
+    .reading-card:hover .reading-plus{transform:rotate(90deg);border-color:var(--hair-strong)}
+    .reading-block-footer{border-top:1px solid var(--hair);padding:0 20px}
+    .quiet-link{
+      appearance:none;
+      border:0;
+      background:transparent;
+      padding:12px 0;
+      color:var(--muted);
+      font-size:12px;
+      font-weight:650;
+      cursor:pointer;
+    }
+    .quiet-link:hover{color:var(--ink)}
+    .source-section{overflow:hidden}
+    .source-disclosure{
+      appearance:none;
+      width:100%;
+      border:0;
+      background:transparent;
+      padding:20px 20px 12px;
+      color:var(--ink);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:18px;
+      text-align:left;
+      cursor:pointer;
+    }
+    .source-disclosure:hover{background:rgba(255,255,255,.42)}
+    .source-title{display:block;margin-top:4px;font-size:22px;line-height:1.15;letter-spacing:-.025em;font-weight:750}
+    .source-summary{display:block;margin-top:4px;color:var(--muted);font-size:12px;line-height:1.4}
+    .source-chevron{
+      width:34px;
+      height:34px;
+      flex:0 0 34px;
+      display:grid;
+      place-items:center;
+      color:var(--muted);
+      font-size:22px;
+      font-weight:350;
+    }
+    .source-actions-row{display:flex;align-items:center;gap:18px;padding:0 20px 17px}
+    .link-action{
+      appearance:none;
+      border:0;
+      background:transparent;
+      padding:3px 0;
+      color:var(--ink);
+      font-size:12px;
+      font-weight:700;
+      cursor:pointer;
+    }
+    .link-action:hover{color:var(--accent)}
+    #sources-body{border-top:1px solid var(--hair)}
+    #sources-body .feed-list{border:0}
+    #sources-body .feed{
+      padding:14px 20px;
+      border-top:1px solid var(--hair);
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      gap:14px;
+      align-items:start;
+    }
+    #sources-body .feed:first-child{border-top:0}
+    #sources-body .feed-title{
+      font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      font-size:14px;
+      line-height:1.35;
+      font-weight:700;
+      letter-spacing:0;
+    }
+    #sources-body .feed-url{
+      margin-top:4px;
+      color:var(--muted-2);
+      font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+      font-size:9px;
+      line-height:1.45;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width:620px;
+    }
+    #sources-body .feed-error{margin-top:7px;color:#a7211a;font-size:11px;line-height:1.45}
+    #sources-body .section-attention{
+      min-height:auto;
+      padding:5px 0 0;
+      color:#a7211a;
+      font-size:11px;
+      text-underline-offset:3px;
+    }
+    #sources-body .feed-manage{
+      min-width:40px;
+      min-height:40px;
+      border:0;
+      background:transparent;
+      border-radius:10px;
+      color:var(--muted);
+      font-size:17px;
+    }
+    #sources-body .feed-manage:hover{background:rgba(23,22,20,.05);color:var(--ink)}
+    .settings-strip{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:2px 1px 0}
+    .setting-tile{
+      appearance:none;
+      min-width:0;
+      border:0;
+      background:transparent;
+      padding:12px 4px;
+      color:var(--ink);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      text-align:left;
+      cursor:pointer;
+      border-radius:10px;
+    }
+    .setting-tile:hover{background:rgba(255,255,255,.45)}
+    .setting-title{display:block;font-size:13px;line-height:1.3;font-weight:700}
+    .setting-meta{
+      display:block;
+      margin-top:3px;
+      color:var(--muted);
+      font-size:10px;
+      line-height:1.4;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+      max-width:240px;
+    }
+    .setting-arrow{color:var(--muted);font-size:16px}
+    footer{margin-top:46px;padding-top:0;border:0;color:var(--muted-2);font-size:10px}
+    footer a{margin-right:14px;text-decoration:none}
+    footer a:hover{color:var(--ink)}
+    .modal{
+      background:rgba(20,19,17,.34);
+      backdrop-filter:blur(14px);
+      -webkit-backdrop-filter:blur(14px);
+    }
+    .modal-card{
+      background:var(--surface);
+      border:1px solid rgba(255,255,255,.55);
+      border-radius:20px;
+      box-shadow:0 28px 90px rgba(20,19,17,.22);
+      padding:23px;
+    }
+    .modal-card h2{
+      font-family:Charter,"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+      font-size:30px;
+      line-height:1.05;
+      letter-spacing:-.035em;
+      font-weight:650;
+    }
+    .modal-card .btn{border-radius:10px}
+    .modal-card .input,.modal-card .select{border-radius:10px;border-color:var(--hair-strong);background:#fff}
+    .modal-card .menu-list{border-color:var(--hair)}
+    .modal-card .menu-action{border-color:var(--hair)}
+    .toast{
+      right:16px;
+      bottom:16px;
+      border-radius:12px;
+      background:#171614;
+      color:#fff;
+      box-shadow:0 18px 60px rgba(0,0,0,.18);
+    }
+    @media(max-width:760px){
+      .shell{padding:18px 14px 54px}
+      .topbar{padding-bottom:24px}
+      .brand-wrap{padding-left:11px}
+      .brand-wrap:before{height:35px;width:3px}
+      .brand{font-size:30px}
+      .brand-kicker{font-size:8px;letter-spacing:.11em}
+      .account-menu-btn{padding-right:2px!important}
+      .home-dashboard{gap:12px}
+      .issue-hero{padding:21px 18px}
+      .issue-time{font-size:44px;margin-top:12px}
+      .issue-meta{font-size:10px}
+      .issue-actions{margin-top:20px;gap:7px}
+      .home-dashboard .btn{min-height:45px;padding:0 14px}
+      .home-dashboard .btn.primary{flex:1}
+      .home-dashboard .icon-button{width:44px;flex:0 0 44px}
+      .latest-run-clean{font-size:10px}
+      .attention-banner{padding:13px 14px}
+      .reading-card{padding:18px}
+      .reading-block-footer{padding:0 18px}
+      .source-disclosure{padding:18px 18px 11px}
+      .source-actions-row{padding:0 18px 16px}
+      #sources-body .feed{padding:13px 18px}
+      #sources-body .feed-url{max-width:66vw}
+      .settings-strip{grid-template-columns:1fr 1fr;gap:3px}
+      .setting-tile{padding:11px 8px}
+      .setting-meta{max-width:130px}
+      .modal{padding:0;place-items:end center}
+      .modal .modal-card{
+        width:100%;
+        max-height:88vh;
+        border-radius:22px 22px 0 0;
+        border-bottom:0;
+        padding:22px 17px 30px;
+      }
+      .modal.flow{place-items:stretch}
+      .modal.flow .modal-card{
+        height:100%;
+        max-height:none;
+        border-radius:0;
+        padding:20px 16px 32px;
+      }
+    }
+    @media(max-width:420px){
+      .issue-actions #preview{padding-left:12px;padding-right:12px}
+      .reading-title{font-size:17px}
+      .source-title{font-size:21px}
+      .attention-banner{display:block}
+    }
+    @media(prefers-reduced-motion:reduce){
+      *,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}
+    }
+
 </style>
 </head>
 <body>
@@ -1073,6 +1530,7 @@ const activeWatchers=new Set();
 const safeHref=value=>{try{const u=new URL(value);return ["http:","https:"].includes(u.protocol)?u.href:"#"}catch{return "#"}};
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const displayText=value=>{const node=document.createElement('textarea');node.innerHTML=String(value??'');return node.value};
 const fmtDate=value=>{try{return new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(value))}catch{return ''}};
 const fmtTime=value=>{try{return new Intl.DateTimeFormat(undefined,{hour:'numeric',minute:'2-digit'}).format(new Date(value))}catch{return ''}};
 const fmtDuration=ms=>ms==null?'—':ms<1000?Math.round(ms)+'ms':(ms/1000).toFixed(ms<10000?1:0)+'s';
@@ -1083,18 +1541,20 @@ function maskEmail(value){
   const shown=local.slice(0,Math.min(2,local.length));
   return shown+'••••••@'+domain;
 }
+
 function latestRunText(job){
   if(!job)return '';
   const when=fmtTime(job.finished_at||job.updated_at||job.created_at);
   const articles=job.result?.articles;
-  const label=job.packet_name||job.edition_name?`“${job.packet_name||job.edition_name}”`:'issue';
-  if(job.status==='sent'||job.status==='partial')return `${job.status==='partial'?'Submitted with omissions':'Submitted for delivery'} ${label} ${when}${articles!=null?' · '+articles+' article'+(articles===1?'':'s'):''}`;
-  if(job.status==='empty')return `Last checked ${when} · No new articles`;
-  if(job.status==='failed')return `Last send failed ${when}`;
+  const title=job.packet_name||job.edition_name||'Issue';
+  if(job.status==='sent'||job.status==='partial')return `${title} submitted at ${when}${articles!=null?' · '+articles+' article'+(articles===1?'':'s'):''}${job.status==='partial'?' · some omissions':''}`;
+  if(job.status==='empty')return `Checked at ${when} · no new articles`;
+  if(job.status==='failed')return `Last send failed at ${when}`;
   if(job.status==='running')return 'Building your issue…';
   if(job.status==='queued')return 'Send queued…';
   return `Last run ${when} · ${String(job.status||'').toLowerCase()}`;
 }
+
 const shell=(body,actions='')=>`<div class="shell">
   <div class="topbar">
     <div class="brand-wrap"><div class="brand">Long Form</div><div class="brand-kicker">Long-form media, on your terms</div></div>
@@ -1427,7 +1887,7 @@ function sourceContext(id){
 function sourceNeedsAttention(feed){return Boolean(feed.last_error&&feed.enabled!==false)}
 function sourceProblemLink(id){
   const context=sourceContext(id);if(!context)return '';
-  return `<button class="source-problem-link review-source" data-id="${esc(id)}"><strong>${esc(context.feed.name||context.feed.url)}</strong><span class="source-problem-context">Recurring source</span><span class="source-problem-action">Review source →</span></button>`;
+  return `<button class="source-problem-link review-source" data-id="${esc(id)}"><strong>${esc(displayText(context.feed.name||context.feed.url))}</strong><span class="source-problem-context">Recurring source</span><span class="source-problem-action">Review source →</span></button>`;
 }
 function wireSourceReviews(root=document){root.querySelectorAll('.review-source').forEach(button=>button.onclick=()=>reviewSource(button.dataset.id))}
 function reviewSource(id){
@@ -1439,94 +1899,108 @@ function reviewSource(id){
 function feedRow(feed){
   return `<div class="feed" id="feed-${esc(feed.id)}" tabindex="-1">
     <div>
-      <div class="feed-title">${esc(feed.name)} ${!feed.enabled?feedStatus(feed):''}</div>
+      <div class="feed-title">${esc(displayText(feed.name))} ${!feed.enabled?feedStatus(feed):''}</div>
       <div class="feed-url">${esc(feed.url)}</div>
       ${feed.last_error?`<div class="feed-error">${feed.enabled===false?'Last check failed (source paused)':'Last check failed'}: ${esc(feed.last_error)}</div><button class="section-attention review-source" data-id="${esc(feed.id)}">Review source →</button>`:''}
     </div>
     <div class="feed-actions">
-      <button class="feed-manage manage-feed" data-id="${feed.id}" aria-label="Manage ${esc(feed.name)}">•••</button>
+      <button class="feed-manage manage-feed" data-id="${feed.id}" aria-label="Manage ${esc(displayText(feed.name))}">•••</button>
     </div>
   </div>`;
 }
+
 function nextIssueDelivery(){
   if(state.settings.paused)return 'Delivery paused';
   if(!state.settings.onboarding_complete||!state.settings.kindle_email)return 'Connect your Kindle';
-  return state.settings.next_run_at?new Intl.DateTimeFormat('en-US',{timeZone:state.settings.timezone,weekday:'short',hour:'numeric',minute:'2-digit'}).format(new Date(state.settings.next_run_at)):'Not scheduled';
+  return state.settings.next_run_at?new Intl.DateTimeFormat('en-US',{timeZone:state.settings.timezone,weekday:'long',hour:'numeric',minute:'2-digit'}).format(new Date(state.settings.next_run_at)):'Not scheduled';
 }
+
 function runBadge(status){
   const cls=status==='failed'?'fail':['queued','running','partial'].includes(status)?'warn':'';
   return `<span class="status ${cls}"><span class="dot"></span>${esc(({sent:'Submitted',partial:'Submitted with omissions',empty:'No new articles',queued:'Queued',running:'Preparing',failed:'Failed'})[status]||status)}</span>`;
 }
+
 
 function dashboard(){
   const settings=state.settings;
   const sources=allSources();
   const problemFeeds=sources.filter(sourceNeedsAttention);
   const latestJob=(state.jobs||[])[0];
+  const brief=String(settings.editorial_brief||'').trim();
   const busy=(state.jobs||[]).some(job=>job.reason!=='one_time'&&['queued','running'].includes(job.status));
-  const firstProblem=problemFeeds[0];
+  const issueState=settings.paused?'Paused':(!settings.onboarding_complete||!settings.kindle_email?'Setup needed':'Scheduled');
+  const kindleActionId=settings.onboarding_complete?'manage-kindle':'connect-kindle-secondary';
 
   app.innerHTML=shell(`
     <main class="home-dashboard">
-      <section class="issue-card" aria-labelledby="next-issue-heading">
-        <div class="issue-topline">
-          <div class="micro-label" id="next-issue-heading">Next issue</div>
-          ${settings.paused?'<span class="quiet-state">Paused</span>':''}
+      <section class="issue-hero" aria-labelledby="next-issue-heading">
+        <div class="issue-eyebrow">
+          <span class="home-kicker">Next issue</span>
+          <span class="issue-state ${settings.paused?'paused':''}">${esc(issueState)}</span>
         </div>
-
-        <div class="issue-time">${esc(nextIssueDelivery())}</div>
-        <div class="issue-schedule">Daily at ${esc((settings.delivery_time||'06:00').slice(0,5))} · ${esc(settings.timezone)}</div>
-
+        <h1 class="issue-time" id="next-issue-heading">${esc(nextIssueDelivery())}</h1>
+        <div class="issue-meta">Daily · ${esc((settings.delivery_time||'06:00').slice(0,5))} · ${esc(settings.timezone)}</div>
         <div class="issue-actions">
-          <button class="btn" id="preview">Browse</button>
           ${settings.onboarding_complete?`
             <button class="btn primary" id="send-now" ${busy?'disabled':''}>Send now</button>
-            <button class="btn icon-btn" id="delivery-menu" aria-label="More delivery options">•••</button>
-          `:`<button class="btn primary" id="connect-kindle">Connect Kindle</button><span></span>`}
+            <button class="btn" id="preview">Browse articles</button>
+            <button class="btn icon-button" id="delivery-menu" aria-label="More delivery options">•••</button>
+          `:`
+            <button class="btn primary" id="connect-kindle">Connect Kindle</button>
+            <button class="btn" id="preview">Browse articles</button>
+          `}
         </div>
+        ${latestJob?`<div class="latest-run-clean">${esc(latestRunText(latestJob))}</div>`:''}
+      </section>
 
-        ${latestJob?`<div class="issue-status"><span class="issue-status-dot ${['failed','partial'].includes(latestJob.status)?'problem':''}"></span><span>${esc(latestRunText(latestJob))}</span></div>`:''}
+      ${problemFeeds.length?`<section class="attention-banner" aria-label="Sources needing attention">
+        <div class="attention-copy">
+          <div class="attention-title">${problemFeeds.length} source${problemFeeds.length===1?' needs':'s need'} attention</div>
+          <div class="attention-links">${problemFeeds.map(feed=>`<button class="attention-source review-source" data-id="${esc(feed.id)}">${esc(displayText(feed.name||feed.url))}</button>`).join('')}</div>
+        </div>
+      </section>`:''}
 
-        <div class="issue-links">
-          <button class="issue-link" id="one-time-send">
-            <strong>Add articles to this issue</strong><span aria-hidden="true">→</span>
-          </button>
-          <button class="issue-link" id="delivery-history">
-            <strong>Delivery history</strong><span aria-hidden="true">→</span>
-          </button>
+      <section class="reading-block">
+        <button class="reading-card" id="one-time-send">
+          <span class="reading-copy">
+            <span class="home-kicker">Reading list</span>
+            <span class="reading-title">Add articles to the next issue</span>
+            <span class="reading-sub">One-off reading, delivered with your next issue</span>
+          </span>
+          <span class="reading-plus" aria-hidden="true">+</span>
+        </button>
+        <div class="reading-block-footer">
+          <button class="quiet-link" id="delivery-history">Delivery history →</button>
         </div>
       </section>
 
-      <section class="library-card" aria-labelledby="sources-heading">
-        <div class="library-header">
-          <div>
-            <div class="micro-label">Library</div>
-            <h2 class="library-title" id="sources-heading">Sources</h2>
-          </div>
-          <div class="library-count" aria-label="${sources.length} subscribed sources">${sources.length}</div>
-        </div>
-
-        <div class="library-actions">
-          <button class="btn" id="add-single-feed">Add source</button>
-          <button class="btn" id="import-opml">Import OPML</button>
-        </div>
-
-        ${problemFeeds.length?`<button class="attention-row review-source" data-id="${esc(firstProblem.id)}">
-          <span class="attention-row-copy">
-            <strong>${problemFeeds.length} source${problemFeeds.length===1?' needs':'s need'} attention</strong>
-            <span>${esc(firstProblem.name||firstProblem.url)}${problemFeeds.length>1?` · +${problemFeeds.length-1} more`:''}</span>
+      <section class="source-section">
+        <button class="source-disclosure" id="toggle-sources" type="button" aria-expanded="${sourcesExpanded}" aria-controls="sources-body">
+          <span>
+            <span class="home-kicker">Recurring sources</span>
+            <span class="source-title">Sources</span>
+            <span class="source-summary">${sources.length} subscription${sources.length===1?'':'s'}${problemFeeds.length?' · '+problemFeeds.length+' need attention':''}</span>
           </span>
-          <span class="attention-row-action">Review</span>
-        </button>`:''}
-
-        <button class="source-list-toggle" id="toggle-sources" type="button" aria-expanded="${sourcesExpanded}" aria-controls="sources-body">
-          <span>Subscribed sources</span>
-          <span class="source-list-toggle-state">${sourcesExpanded?'Hide':'Show'} ${sources.length} <span aria-hidden="true">${sourcesExpanded?'↑':'↓'}</span></span>
+          <span class="source-chevron" aria-hidden="true">${sourcesExpanded?'−':'+'}</span>
         </button>
-
+        <div class="source-actions-row">
+          <button class="link-action" id="add-single-feed">+ Add source</button>
+          <button class="link-action" id="import-opml">Import OPML</button>
+        </div>
         <div id="sources-body" ${!sourcesExpanded?'hidden':''}>
           <div class="feed-list sources-list">${sources.length?sources.map(feedRow).join(''):'<div class="empty">No recurring sources yet.</div>'}</div>
         </div>
+      </section>
+
+      <section class="settings-strip" aria-label="Preferences">
+        <button class="setting-tile" id="edit-editorial-brief">
+          <span><span class="setting-title">Editorial brief</span><span class="setting-meta">${brief?'Configured':'Not set'}</span></span>
+          <span class="setting-arrow" aria-hidden="true">→</span>
+        </button>
+        <button class="setting-tile" id="${kindleActionId}">
+          <span><span class="setting-title">Kindle</span><span class="setting-meta">${settings.kindle_email?esc(maskEmail(settings.kindle_email)):'Not connected'}</span></span>
+          <span class="setting-arrow" aria-hidden="true">→</span>
+        </button>
       </section>
     </main>`,
     '<button class="btn account-menu-btn" id="account-menu" aria-label="Account menu">Account</button>');
@@ -1704,7 +2178,7 @@ function chooseFeedModal(feeds){
 function feedActionsModal(id,checkMessage=''){
   const context=sourceContext(id);if(!context)return;
   const {feed}=context;
-  openModal(`<div class="row"><div><div class="editorial-label">Source</div><h2 style="margin-top:6px">${esc(feed.name)}</h2><div class="source-context">${feed.enabled===false?'Source paused':'Recurring source'}</div></div><button class="btn small-btn" id="close-modal">Close</button></div>
+  openModal(`<div class="row"><div><div class="editorial-label">Source</div><h2 style="margin-top:6px">${esc(displayText(feed.name))}</h2><div class="source-context">${feed.enabled===false?'Source paused':'Recurring source'}</div></div><button class="btn small-btn" id="close-modal">Close</button></div>
     <div class="technical-note" style="word-break:break-all;margin:8px 0 18px">${esc(feed.url)}</div>
     ${feed.last_error?`<div class="notice error" style="margin-bottom:14px"><strong>Last check failed.</strong> ${esc(feed.last_error)}${feed.last_fetch_at?`<div class="source-context">Checked ${esc(fmtDate(feed.last_fetch_at))}</div>`:''}</div>`:''}
     <div id="source-check-result" role="status" ${checkMessage?'':'hidden'} class="notice info">${esc(checkMessage)}</div>
