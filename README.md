@@ -1,6 +1,6 @@
-# Morning Reader
+# Long Form
 
-Morning Reader turns a user's websites, RSS, and Atom feeds into one daily Kindle issue (an EPUB file). Readers manage a flat source list; at issue time an AI editor organizes every eligible subscribed-feed article into dynamic sections, using a fixed **Other** section when no coherent grouping fits. The editor never drops an otherwise eligible RSS article. Readers can also add 1–20 article URLs to the next issue under a reading-list name.
+Long Form puts readers back in charge of their attention by turning the long-form publications they choose into one calm daily Kindle issue (an EPUB file). Readers manage a flat source list; at issue time an AI editor organizes every eligible subscribed-feed article into dynamic sections, using a fixed **Other** section when no coherent grouping fits. The editor never drops an otherwise eligible RSS article. Readers can also add 1–20 article URLs to the next issue under a reading-list name.
 
 Article pages are reduced to their readable body while preserving headings, lists, links, tables, code, quotations, captions, and supported images. The opening contents page shows Section → Topic → Article title, with each article title linking directly to the article; EPUB 3 and legacy Kindle navigation expose the same hierarchy. Every EPUB also includes reflowable styling, publisher metadata, and a dated cover designed to remain recognizable as a Kindle home-screen thumbnail.
 
@@ -28,7 +28,7 @@ Dashboard warnings identify each affected recurring source directly. Paused sour
 
 ```
 Web browser ──────────────┐
-                         ├─> Morning Reader app-api ─> Postgres
+                         ├─> Long Form app-api ─> Postgres
 ChatGPT / MCP client      │                         │
         │                 │                         │
         └─ OAuth ─> MCP ──┘                         │
@@ -52,13 +52,13 @@ Production:
 - `supabase/functions/app-api` — browser application API and magic-code authentication
 - `supabase/functions/worker` — scheduling, feed fetching, EPUB generation, and delivery
 - `supabase/functions/_shared` — safe article extraction, image embedding, cover rendering, and EPUB packaging
-- `supabase/functions/mcp` — Morning Reader MCP server
+- `supabase/functions/mcp` — Long Form MCP server
 - `supabase/functions/oauth` — OAuth authorization server for MCP account linking
 - `supabase/migrations` — migration history matching production
 
 ## MCP
 
-The MCP exposes a narrow Morning Reader tool surface rather than generic database or HTTP access:
+The MCP exposes a narrow Long Form tool surface rather than generic database or HTTP access:
 
 - `get_profile`
 - `list_sources`
@@ -77,9 +77,9 @@ OAuth metadata is published at:
 - `/.well-known/oauth-protected-resource`
 - `/.well-known/oauth-authorization-server`
 
-The authorization flow reuses Morning Reader's email-code sign-in, requires PKCE S256, validates client metadata and redirect URIs, binds tokens to the MCP resource, stores only token/code hashes, and rotates refresh tokens.
+The authorization flow reuses Long Form's email-code sign-in, requires PKCE S256, validates client metadata and redirect URIs, binds tokens to the MCP resource, stores only token/code hashes, and rotates refresh tokens.
 
-The MCP derives the Morning Reader user from the OAuth token. Tool inputs never accept a `user_id`. Calls into the existing application API use short-lived internal delegated sessions so the web UI and MCP reuse the same tenant checks and business rules.
+The MCP derives the Long Form user from the OAuth token. Tool inputs never accept a `user_id`. Calls into the existing application API use short-lived internal delegated sessions so the web UI and MCP reuse the same tenant checks and business rules.
 
 ## Secrets
 
@@ -100,7 +100,7 @@ supabase functions deploy oauth --no-verify-jwt
 
 The worker uses custom `x-worker-secret` authentication. The MCP and OAuth functions implement their own OAuth/token validation, so Supabase JWT verification is intentionally disabled for those endpoints.
 
-The Vercel `morning-reader` project is connected to this GitHub repository. Pushes to `main` are the production deployment path.
+The Vercel `long-form` project is connected to this GitHub repository. Pushes to `main` are the production deployment path.
 
 ## Verification
 
