@@ -171,13 +171,13 @@ export async function makeCoverPng(options: EpubOptions, articleCount: number, c
   element("div", { style: { display: "flex", flexDirection: "column" } },
     element("div", {
       style: { fontFamily: "monospace", fontSize: 17, fontWeight: 800, letterSpacing: 4.2, textTransform: "uppercase" },
-    }, "A PERSONAL DAILY READER"),
+    }, "A PERSONAL DAILY PUBLICATION"),
     element("div", {
       style: { fontSize: 118, fontWeight: 700, lineHeight: .88, letterSpacing: -5, marginTop: 18 },
-    }, "Morning"),
+    }, "Long"),
     element("div", {
       style: { fontSize: 118, fontWeight: 700, lineHeight: .88, letterSpacing: -5 },
-    }, "Reader")
+    }, "Form")
   ),
   element("div", {
     style: {
