@@ -36,7 +36,7 @@ Deno.test("publication design uses a Kindle-proportioned cover and editorial sec
     article(5, "Open Discovery", "A deliberate detour into something unexpected"),
   ];
   const bytes = await makeEpub({
-    name: "Morning Reader",
+    name: "Long Form",
     displayDate: "September 25, 2026",
     date: new Date("2026-09-25T12:00:00Z"),
     timezone: "UTC",
@@ -57,7 +57,7 @@ Deno.test("publication design uses a Kindle-proportioned cover and editorial sec
   assert(!contents.includes(">Other<"), "reader-facing contents must not expose the Other fallback label");
 
   const introPage = await zip.file("OEBPS/introduction.xhtml")!.async("string");
-  assert(!introPage.includes('<h1 class="publication-title">Morning Reader</h1>'), "editor note should avoid repeating the masthead and wasting a screen");
+  assert(!introPage.includes('<h1 class="publication-title">Long Form</h1>'), "editor note should avoid repeating the masthead and wasting a screen");
   assert(introPage.includes("Editor's note"), "editor note identity should remain visible");
 
   const related = await zip.file("OEBPS/section-4.xhtml")!.async("string");
