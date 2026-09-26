@@ -21,7 +21,7 @@ function code(){const a=new Uint32Array(1);crypto.getRandomValues(a);return Stri
 async function codeHash(email:string,c:string){return sha256(`${SERVICE_ROLE}:${email}:${c}`)}
 async function mailCode(email:string,c:string){
   if(!RESEND_API_KEY)throw new Error("Email service is not configured.");
-  const r=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${RESEND_API_KEY}`,"Content-Type":"application/json"},body:JSON.stringify({from:"Morning Reader <reader@antonioskilton.com>",to:[email],subject:`${c} is your Morning Reader code`,text:`Your Morning Reader sign-in code is ${c}. It expires in 10 minutes.`,html:`<!doctype html><html><body style="font-family:Arial,Helvetica,sans-serif"><p>Your Morning Reader sign-in code is:</p><p style="font-size:34px;font-weight:700;letter-spacing:6px">${c}</p><p>It expires in 10 minutes.</p></body></html>`})});
+  const r=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${RESEND_API_KEY}`,"Content-Type":"application/json"},body:JSON.stringify({from:"Long Form <reader@antonioskilton.com>",to:[email],subject:`${c} is your Long Form code`,text:`Your Long Form sign-in code is ${c}. It expires in 10 minutes.`,html:`<!doctype html><html><body style="font-family:Arial,Helvetica,sans-serif"><p>Your Long Form sign-in code is:</p><p style="font-size:34px;font-weight:700;letter-spacing:6px">${c}</p><p>It expires in 10 minutes.</p></body></html>`})});
   if(!r.ok)throw new Error(`Email provider error (${r.status}): ${(await r.text()).slice(0,250)}`);
 }
 export async function requestCode(email:string){const since=new Date(Date.now()-600_000).toISOString();const{count}=await admin.from("login_codes").select("id",{count:"exact",head:true}).eq("email",email).gte("created_at",since);if((count||0)>=5)throw Object.assign(new Error("Too many codes requested. Try again in a few minutes."),{status:429});const c=code(),expires=new Date(Date.now()+600_000).toISOString();const{data,error}=await admin.from("login_codes").insert({email,code_hash:await codeHash(email,c),expires_at:expires}).select("id").single();if(error)throw error;try{await mailCode(email,c)}catch(e){await admin.from("login_codes").delete().eq("id",data.id);throw e}}
@@ -58,7 +58,7 @@ export async function exchangeSupabaseAuth(accessToken:string){
   if(error||!authUser?.id||!authUser.email)throw Object.assign(new Error("Supabase session is invalid or expired."),{status:401});
   if(!authUser.email_confirmed_at)throw Object.assign(new Error("Your email address must be verified before signing in."),{status:401});
   const provider=String(authUser.app_metadata?.provider||"").toLowerCase();
-  if(provider&&!["google","apple","email"].includes(provider))throw Object.assign(new Error("This sign-in provider is not enabled for Morning Reader."),{status:403});
+  if(provider&&!["google","apple","email"].includes(provider))throw Object.assign(new Error("This sign-in provider is not enabled for Long Form."),{status:403});
   const email=normEmail(authUser.email);
   let{data:user,error:userError}=await admin.from("app_users").select("id,email,auth_user_id").eq("auth_user_id",authUser.id).maybeSingle();
   if(userError)throw userError;
@@ -202,7 +202,7 @@ export async function discoverFeeds(input:string){
   }
   if(found.length)return found;
   if(originalError)throw new Error(originalError);
-  throw new Error("Morning Reader couldn't find an RSS or Atom feed for this site. Try a direct feed URL or search with Feedsearch.");
+  throw new Error("Long Form couldn't find an RSS or Atom feed for this site. Try a direct feed URL or search with Feedsearch.");
 }
 export async function probe(url:string){const feeds=await discoverFeeds(url);return feeds[0]}
 function arr(x:any){return x==null?[]:Array.isArray(x)?x:[x]}
