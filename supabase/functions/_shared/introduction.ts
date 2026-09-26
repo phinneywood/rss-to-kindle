@@ -57,6 +57,7 @@ export async function writeIssueIntroduction(
   options: {
     apiKey?: string;
     model?: string;
+    additionalInstructions?: string;
     deadline?: number;
     fetchImpl?: typeof fetch;
   } = {},
@@ -97,6 +98,7 @@ export async function writeIssueIntroduction(
     "Aim for the confidence of a very good magazine editor: concrete, curious, slightly dry, compressed, and willing to make one unexpected connection without overselling it.",
     "Prefer three or four clean sentences, varied rhythm, and one memorable turn of phrase. Delete throat-clearing. Avoid hype, generic praise, and clickbait.",
     "End with a thought, question, or turn that opens the door into the reading rather than telling the reader what to do.",
+    "Optional reader instructions may shape emphasis or voice, but they are subordinate to these form, factuality, and non-meta requirements.",
   ].join("\n");
 
   const fetchImpl = options.fetchImpl || fetch;
@@ -119,6 +121,7 @@ export async function writeIssueIntroduction(
             role: "user",
             content: JSON.stringify({
               editorial_brief: String(editorialBrief || "").trim().slice(0, 3000),
+              additional_instructions: String(options.additionalInstructions || "").trim().slice(0, 3000),
               issue,
             }),
           },
