@@ -54,3 +54,47 @@ Deno.test("source recheck persists publisher failures for the dialog and dashboa
 Deno.test("source recheck rejects anonymous, other-account and archived sources before fetching",async()=>{
   for(const mode of ["anonymous","foreign","archived"] as const){const r=await check(mode);assert(r.status===(mode==="anonymous"?401:404));assert(r.fetched===0&&r.updated===0)}
 });
+
+
+async function editSource(urlValue:string){
+  const originalFetch=globalThis.fetch;
+  const id="11111111-1111-4111-8111-111111111111";
+  const feed:any={id,user_id:"user-1",section_id:"section-1",name:"Example",url:"https://8.8.8.8/feed",enabled:true,last_error:"Old error",consecutive_failures:3,archived_at:null};
+  let publisherFetches=0,updates=0;
+  globalThis.fetch=(async(input:RequestInfo|URL,init?:RequestInit)=>{
+    const req=new Request(input,init),url=new URL(req.url);
+    if(url.hostname==="8.8.8.8"){
+      publisherFetches++;
+      return new Response('<rss><channel><title>Replacement</title><item><title>Example</title><link>https://8.8.8.8/article</link></item></channel></rss>',{headers:{"content-type":"application/rss+xml"}});
+    }
+    assert(url.hostname==="source-check.example.invalid","Unexpected external request: "+url.hostname);
+    const table=url.pathname.split('/').at(-1);
+    if(table==="authenticate_app_session")return Response.json([{session_id:"session-1",user_id:"user-1",email:"test@example.invalid"}]);
+    if(table==="feeds"){
+      if(req.method==="PATCH"){
+        updates++;Object.assign(feed,await req.json());return Response.json({id});
+      }
+      if(url.searchParams.get("select")==="id"&&url.searchParams.get("id")?.startsWith("neq."))return Response.json(null);
+      return Response.json([feed]);
+    }
+    if(table==="user_settings")return Response.json({paused:true});
+    if(table==="sections")return Response.json([{id:"section-1",name:"Reading"}]);
+    if(table==="digests"||table==="digest_jobs")return Response.json([]);
+    throw new Error("Unexpected data access: "+table);
+  }) as typeof fetch;
+  try{
+    const response=await handler!(new Request('https://source-check.example.invalid/app-api/feeds/'+id,{method:'PATCH',headers:{Authorization:'Bearer test-session',"content-type":"application/json"},body:JSON.stringify({name:"Replacement",url:urlValue})}));
+    return {status:response.status,body:await response.json(),feed,publisherFetches,updates};
+  }finally{globalThis.fetch=originalFetch}
+}
+
+Deno.test("source editing validates and saves a replacement feed while clearing stale health errors",async()=>{
+  const r=await editSource("https://8.8.8.8/new-feed");
+  assert(r.status===200,JSON.stringify(r.body));assert(r.publisherFetches>=1);assert(r.updates===1);
+  assert(r.feed.name==="Replacement");assert(r.feed.url==="https://8.8.8.8/new-feed");assert(r.feed.last_error===null);assert(r.feed.consecutive_failures===0);
+});
+
+Deno.test("source editing rejects invalid replacement URLs before touching the source",async()=>{
+  const r=await editSource("not a url");
+  assert(r.status===400);assert(r.publisherFetches===0);assert(r.updates===0);
+});

@@ -91,7 +91,7 @@ export async function writeIssueIntroduction(
     "If one subject dominates the issue, use one contrasting piece to widen the aperture rather than reciting variations on the dominant subject.",
     "Treat every section as part of one publication, including externally discovered pieces. Do not call out internal labels such as Related Discovery or Open Discovery.",
     "You may allude to article ideas, writers, institutions, or section themes, but use examples as evidence for the observation, never as a laundry list of what follows.",
-    "Never begin with phrases like 'In today's issue', 'This morning', 'Today's Morning Reader', or 'This issue includes'.",
+    "Never begin with phrases like 'In today's issue', 'This morning', 'Today's Long Form', or 'This issue includes'.",
     "Never mention AI, Luna, RSS, feeds, algorithms, personalization, selection, curation mechanics, or that you organized the issue.",
     "Do not invent facts, motives, or causal connections beyond the supplied titles, excerpts, and discovery reasons.",
     "Aim for the confidence of a very good magazine editor: concrete, curious, slightly dry, compressed, and willing to make one unexpected connection without overselling it.",

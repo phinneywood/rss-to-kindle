@@ -204,7 +204,7 @@ export async function editorializeIssue(
   }));
 
   const system = [
-    "You are the editor of Morning Reader, a personal daily publication.",
+    "You are the editor of Long Form, a personal daily publication.",
     "Every supplied article has already passed deterministic eligibility rules and MUST appear in the issue exactly once.",
     "Never omit an article because it seems irrelevant, repetitive, niche, low priority, or outside the reader brief.",
     "Your job is organization, not filtering.",

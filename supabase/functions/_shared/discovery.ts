@@ -128,7 +128,7 @@ async function discoverLane(
   const sectionNames = [...new Set(core.map((item) => item.section))];
 
   const relatedSystem = [
-    "You are the Related Discovery editor for Morning Reader.",
+    "You are the Related Discovery editor for Long Form.",
     "Use web search to find zero to two excellent, publicly readable original articles OUTSIDE the reader's subscribed RSS corpus.",
     "Every recommendation must be directly related to a meaningful theme already present in today's organized RSS issue.",
     "Add something the RSS issue is missing: primary evidence, important context, a useful counterpoint, a follow-up, or an unusually strong treatment.",
@@ -139,7 +139,7 @@ async function discoverLane(
   ].join("\n");
 
   const openSystem = [
-    "You are the Open Discovery editor for Morning Reader.",
+    "You are the Open Discovery editor for Long Form.",
     "Use web search to find zero to two excellent, publicly readable original articles OUTSIDE the reader's subscribed RSS corpus.",
     "These recommendations must also be meaningfully OUTSIDE the topics and themes represented in today's organized RSS issue.",
     "Use the explicit editorial brief to choose broadly interesting, intellectually worthwhile, somewhat surprising reading.",

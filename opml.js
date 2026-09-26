@@ -28,9 +28,9 @@ function parseOpml(text){
 function opmlImportModal(){
   openModal(
     '<div class="row"><h2>Import feeds</h2><button class="btn small-btn" id="close-modal">Close</button></div>'+
-    '<p class="muted small">Choose an OPML export from NetNewsWire or another RSS reader. Morning Reader reads the file in your browser, then imports the feeds you approve.</p>'+
+    '<p class="muted small">Choose an OPML export from NetNewsWire or another RSS reader. Long Form reads the file in your browser, then imports the feeds you approve.</p>'+
     '<div class="field"><label for="opml-file">OPML file</label><input id="opml-file" class="input" type="file" accept=".opml,.xml,text/xml,application/xml"></div>'+
-    '<div class="notice info">OPML folders are ignored. Morning Reader keeps one source list and creates fresh issue sections from the articles themselves.</div>'
+    '<div class="notice info">OPML folders are ignored. Long Form keeps one source list and creates fresh issue sections from the articles themselves.</div>'
   );
   document.querySelector("#close-modal").onclick=closeModal;
   document.querySelector("#opml-file").onchange=async e=>{
@@ -60,7 +60,7 @@ function renderOpmlPreview(feeds,fileName){
   modal.querySelector(".modal-card").innerHTML=
     '<div class="row"><div><h2>Review OPML import</h2><div class="tiny muted">'+esc(fileName)+' · '+feeds.length+
       ' feed'+(feeds.length===1?"":"s")+'</div></div><button class="btn small-btn" id="close-modal">Close</button></div>'+
-    '<p class="muted small">Morning Reader will validate every feed, add it to your source list, and ignore any OPML folder taxonomy.</p>'+
+    '<p class="muted small">Long Form will validate every feed, add it to your source list, and ignore any OPML folder taxonomy.</p>'+
     '<div class="stack" style="margin-top:16px">'+feedHtml+'</div>'+
     '<div class="row wrap" style="justify-content:flex-start;margin-top:18px">'+
       '<button class="btn primary" id="confirm-opml-import">Import '+feeds.length+' feed'+(feeds.length===1?"":"s")+'</button>'+

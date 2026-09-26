@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#f4efe5">
-  <meta name="description" content="Turn RSS and Atom feeds into one daily Kindle issue, dynamically organized by an AI editor.">
-  <title>Morning Reader</title>
+  <meta name="description" content="Long-form reading, organized into a calm daily Kindle publication that keeps you in charge of your attention.">
+  <title>Long Form</title>
   <style>
     :root{
       --bg:#f4efe5;
@@ -579,6 +579,51 @@
     .feed-title{white-space:normal;overflow-wrap:anywhere}
     .source-context{font-size:14px;color:var(--muted);margin-top:7px;overflow-wrap:anywhere}
     .notice{overflow-wrap:anywhere}
+
+    /* Long Form: compact source management and mobile hierarchy */
+    .sources-panel{padding-top:16px!important}
+    .sources-header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+    .sources-header h2{margin:4px 0 0;font-size:31px}
+    .sources-header .edition-total{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding-bottom:4px}
+    .sources-toolbar{display:flex;gap:8px;margin:14px 0 12px}
+    .source-list-toggle{width:100%;min-height:48px;padding:12px 0;border:0;border-top:1px solid var(--ink);border-bottom:1px solid var(--line);background:transparent;color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;font-weight:700;cursor:pointer}
+    .source-list-toggle:hover{color:var(--red)}
+    .source-list-toggle-state{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+    .preferences-panel{padding-bottom:0!important}
+    .preference-row{width:100%;min-height:54px;padding:12px 0;border:0;border-top:1px solid var(--line);background:transparent;color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:14px;text-align:left;cursor:pointer}
+    .preferences-panel .preference-row:first-of-type{margin-top:10px;border-top:1px solid var(--ink)}
+    .preference-row:hover .preference-title,.preference-row:focus-visible .preference-title{color:var(--red)}
+    .preference-title,.preference-meta{display:block}
+    .preference-title{font-weight:700}
+    .preference-meta{margin-top:3px;font-size:11px;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .preference-action{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+    #sources-body .feed-list{border-top:0}
+    #sources-body .feed:first-child{border-top:0}
+    @media(max-width:760px){
+      .shell{padding:14px 14px 40px}
+      .topbar{align-items:center;padding-bottom:12px}
+      .brand{font-size:25px}
+      .brand-kicker{margin-top:4px;font-size:8px;letter-spacing:.12em}
+      .account-menu-btn{height:40px;min-width:40px;padding:0 9px!important}
+      .grid.editorial-grid{display:flex;flex-direction:column;margin-top:12px}
+      .dashboard-side{display:contents}
+      .delivery-panel{order:1}
+      .dashboard-main{order:2}
+      .preferences-panel{order:3}
+      .dashboard-main .editorial-section{padding:14px 0}
+      .sources-header h2{font-size:27px}
+      .sources-toolbar{margin:12px 0 10px}
+      .sources-toolbar .btn{flex:1;min-height:44px;padding:8px 10px}
+      .source-list-toggle{min-height:48px}
+      .feed{grid-template-columns:minmax(0,1fr) auto;align-items:start;padding:11px 0}
+      .feed-actions{justify-content:flex-end}
+      .feed-url{max-width:62vw}
+      .side-card.compact-panel{padding:14px 0}
+      .dashboard-side .compact-panel:not(.delivery-panel) .technical-note{display:none}
+      .reading-list-action{margin-top:11px;padding:11px 0 9px}
+      .problem-banner{margin-bottom:12px;padding:9px 10px;border-left-width:2px}
+      .problem-banner,.source-problem-context,.source-problem-action{font-size:12px}
+    }
 </style>
 </head>
 <body>
@@ -602,8 +647,11 @@ const AMAZON_HELP='https://digprjsurvey.amazon.com/csad/help/node/GK4QXXXR76TPPV
 const app=document.querySelector('#app');
 const modal=document.querySelector('#modal');
 const toastEl=document.querySelector('#toast');
-let token=localStorage.morningReaderToken||'';
+const TOKEN_KEY='longFormToken',LEGACY_TOKEN_KEY='morningReaderToken',SKIP_STARTERS_KEY='longFormSkipStarters',LEGACY_SKIP_STARTERS_KEY='morningReaderSkipStarters';
+let token=localStorage.getItem(TOKEN_KEY)||localStorage.getItem(LEGACY_TOKEN_KEY)||'';
+if(token&&!localStorage.getItem(TOKEN_KEY))localStorage.setItem(TOKEN_KEY,token);
 let state=null;
+let sourcesExpanded=false;
 let toastTimer=null;
 let modalVersion=0,modalReturnFocus=null,modalDirty=false;
 let oneTimeDraft=null;
@@ -636,12 +684,12 @@ function latestRunText(job){
 }
 const shell=(body,actions='')=>`<div class="shell">
   <div class="topbar">
-    <div class="brand-wrap"><div class="brand">Morning Reader</div><div class="brand-kicker">Your personal morning paper</div></div>
+    <div class="brand-wrap"><div class="brand">Long Form</div><div class="brand-kicker">Long-form media, on your terms</div></div>
     <div class="top-actions">${actions}</div>
   </div>
   ${body}
   <footer>
-    <a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="https://github.com/phinneywood/rss-to-kindle">Source</a>
+    <a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="https://github.com/phinneywood/long-form">Source</a>
     <span>Free beta</span>
   </footer>
 </div>`;
@@ -655,7 +703,7 @@ function toast(message){
 function openModal(content,variant='dialog'){
   if(!modal.classList.contains('open'))modalReturnFocus=document.activeElement;
   modalVersion++;modalDirty=false;
-  modal.innerHTML=`<div class="modal-card" role="dialog" aria-modal="true" aria-label="Morning Reader dialog" tabindex="-1">${content}</div>`;
+  modal.innerHTML=`<div class="modal-card" role="dialog" aria-modal="true" aria-label="Long Form dialog" tabindex="-1">${content}</div>`;
   modal.classList.add('open');modal.classList.toggle('flow',variant==='flow');modal.setAttribute('aria-hidden','false');app.inert=true;
   const card=modal.querySelector('.modal-card'),heading=card.querySelector('h2');
   if(heading){heading.id='dialog-heading';card.setAttribute('aria-labelledby',heading.id)}
@@ -697,7 +745,7 @@ async function exchangeSupabaseSession(session){
   });
   const body=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(body.error||'Could not complete social sign-in.');
-  token=body.token;localStorage.morningReaderToken=token;state=body;
+  token=body.token;localStorage.setItem(TOKEN_KEY,token);state=body;
   try{history.replaceState({},'',location.pathname)}catch{}
   return body;
 }
@@ -722,8 +770,8 @@ function landing(error=''){
     <section class="auth-page">
       <div class="auth-hero">
         <div class="auth-kicker">RSS → EPUB → KINDLE</div>
-        <h1>Good things to read.<br>Every morning.</h1>
-        <div class="auth-lede">Choose some starter sources or bring the sites you already follow. Morning Reader's editor organizes every eligible article into one daily Kindle issue.</div>
+        <h1>Take back your attention.<br>Read something worth finishing.</h1>
+        <div class="auth-lede">Bring the publications you trust. Long Form turns their long-form writing into one calm Kindle issue, with you in charge of what gets your attention.</div>
       </div>
 
       <section class="auth-form-section">
@@ -739,7 +787,7 @@ function landing(error=''){
             <span class="auth-provider-name">Continue with Apple</span><span class="auth-provider-arrow">›</span>
           </button>
         </div>
-        <div class="auth-provider-note">Social sign-in only requests the identity information needed to create or find your Morning Reader account.</div>
+        <div class="auth-provider-note">Social sign-in only requests the identity information needed to create or find your Long Form account.</div>
 
         <div class="auth-divider">or use email</div>`:''}
 
@@ -787,7 +835,7 @@ function verify(email,error=''){
     e.preventDefault();
     try{
       const result=await api('/auth/verify-code',{method:'POST',body:{email,code:new FormData(e.currentTarget).get('code')},auth:false});
-      token=result.token; localStorage.morningReaderToken=token; state=result; render();
+      token=result.token; localStorage.setItem(TOKEN_KEY,token); state=result; render();
     }catch(err){verify(email,err.message)}
   };
 }
@@ -797,7 +845,7 @@ async function signOut(){
   }
   oneTimeDraft=null;pendingSends.clear();
   try{if(authClient)await authClient.auth.signOut()}catch{}
-  token=''; localStorage.removeItem('morningReaderToken'); localStorage.removeItem('morningReaderSkipStarters'); state=null; landing();
+  token=''; localStorage.removeItem(TOKEN_KEY);localStorage.removeItem(LEGACY_TOKEN_KEY); localStorage.removeItem(SKIP_STARTERS_KEY);localStorage.removeItem(LEGACY_SKIP_STARTERS_KEY); state=null; landing();
 }
 
 function allSources(){
@@ -810,8 +858,8 @@ function starterPicker(){
   app.innerHTML=shell(`
     <section class="starter-page">
       <div class="editorial-label">Start reading first</div>
-      <h1>Build your first morning paper.</h1>
-      <div class="editorial-copy">You don't need to know anything about RSS. Pick a starter pack or bring your own sources. Morning Reader will organize the articles for each issue automatically.</div>
+      <h1>Build your first Long Form issue.</h1>
+      <div class="editorial-copy">You don't need to know anything about RSS. Pick a starter pack or bring your own sources. Long Form will organize the articles for each issue automatically.</div>
 
       <button class="btn primary" id="starter-one-time" style="margin-top:20px">Add articles to next issue →</button><div class="starter-deck">
         ${STARTER_EDITIONS.map(pack=>`<div class="starter-option">
@@ -834,7 +882,7 @@ function starterPicker(){
   document.querySelector('#sign-out').onclick=signOut;
   document.querySelector('#starter-one-time').onclick=()=>oneTimeEditionModal();
   document.querySelector('#bring-own-feeds').onclick=()=>{
-    localStorage.morningReaderSkipStarters='1';
+    localStorage.setItem(SKIP_STARTERS_KEY,'1');
     dashboard();
   };
   document.querySelectorAll('.add-starter').forEach(button=>button.onclick=()=>installStarter(button.dataset.id,button));
@@ -862,7 +910,7 @@ function starterReady(pack,summary={}){
   app.innerHTML=shell(`
     <section class="starter-ready">
       <div class="editorial-label">Your sources</div>
-      <h1>Your morning paper has something in it.</h1>
+      <h1>Your Long Form issue has something in it.</h1>
       <div class="editorial-copy">Browse recent headlines before setting up your Kindle. The finished issue will organize eligible articles into fresh sections automatically.</div>
 
       <div class="ready-edition">
@@ -891,13 +939,13 @@ function onboarding(){
     <section class="setup-page">
       <div class="editorial-label">Final step</div>
       <h1>Send it to your Kindle.</h1>
-      <div class="editorial-copy">Amazon requires two addresses to be connected once. After that, Morning Reader can deliver your daily issue automatically.</div>
+      <div class="editorial-copy">Amazon requires two addresses to be connected once. After that, Long Form can deliver your daily issue automatically.</div>
 
       <div class="setup-list">
         <div class="setup-row">
           <div class="setup-num">01</div>
           <div>
-            <h3>Approve Morning Reader</h3>
+            <h3>Approve Long Form</h3>
             <p>Add our sender address to Amazon's <strong>Approved Personal Document E-mail List</strong>.</p>
             <div class="codebox"><code>${SENDER}</code><button class="btn small-btn" type="button" id="copy-sender">Copy</button></div>
             <div class="row wrap" style="justify-content:flex-start;margin-top:10px">
@@ -920,7 +968,7 @@ function onboarding(){
           <div class="setup-num">03</div>
           <div>
             <h3>Choose when your issue arrives</h3>
-            <p>Morning Reader sends one issue per day. Its editor creates the issue sections from that day's eligible articles.</p>
+            <p>Long Form sends one issue per day. Its editor creates the issue sections from that day's eligible articles.</p>
             <div class="row wrap">
               <div class="field" style="flex:1;min-width:145px"><label for="delivery-time">Time</label><input id="delivery-time" class="input" type="time" value="${esc((settings.delivery_time||'06:00').slice(0,5))}"></div>
               <div class="field" style="flex:2;min-width:210px"><label for="timezone">Timezone</label><input id="timezone" class="input" value="${esc(timezone)}"></div>
@@ -947,7 +995,7 @@ function onboarding(){
     const button=document.querySelector('#finish-setup');button.disabled=true;button.textContent='Saving…';
     try{
       state=await api('/settings',{method:'PATCH',body:{kindle_email:kindle,delivery_time:delivery,timezone:tz,onboarding_complete:true}});
-      localStorage.removeItem('morningReaderSkipStarters');
+      localStorage.removeItem(SKIP_STARTERS_KEY);localStorage.removeItem(LEGACY_SKIP_STARTERS_KEY);
       dashboard();
       await queueSend('/send-test','Your first test issue is queued');
     }catch(err){button.disabled=false;button.textContent='Save & send a test issue →';toast(err.message)}
@@ -971,7 +1019,7 @@ function sourceProblemLink(id){
 function wireSourceReviews(root=document){root.querySelectorAll('.review-source').forEach(button=>button.onclick=()=>reviewSource(button.dataset.id))}
 function reviewSource(id){
   const context=sourceContext(id);if(!context){toast('This source is no longer available.');return}
-  closeModal(true);dashboard();
+  closeModal(true);sourcesExpanded=true;dashboard();
   const row=document.getElementById('feed-'+id);row?.scrollIntoView({block:'center'});row?.focus();
   feedActionsModal(id);
 }
@@ -1030,61 +1078,40 @@ function dashboard(){
           <button class="one-time-action" id="delivery-history">Delivery history →</button>
         </section>
 
-        <section class="side-card compact-panel">
-          <div class="editorial-label">Your editor</div>
-          <div class="kindle-state" style="margin-top:8px">Editorial brief</div>
-          <div class="small muted" style="margin-top:6px;line-height:1.5">${esc(brief||'No brief yet. Related Discovery still works; Open Discovery waits until you add one.')}</div>
-          <button class="btn small-btn" id="edit-editorial-brief" style="margin-top:12px">${brief?'Edit brief':'Add brief'} →</button>
-          <div class="technical-note" style="margin-top:10px">The brief guides organization and Open Discovery. It never removes an eligible RSS article.</div>
-        </section>
-
-        <section class="side-card compact-panel">
-          <div class="editorial-label">Kindle</div>
-          <div class="kindle-status-row">
-            <div>
-              <div class="kindle-state">Kindle · ${settings.kindle_email?'Address saved':'No address saved'}</div>
-              <div class="kindle-address">${esc(maskEmail(settings.kindle_email))}</div>
-            </div>
-            ${settings.onboarding_complete
-              ?'<button class="btn small-btn kindle-manage" id="manage-kindle">Manage →</button>'
-              :'<button class="btn small-btn kindle-manage" id="connect-kindle-secondary">Connect →</button>'}
-          </div>
+        <section class="side-card compact-panel preferences-panel">
+          <div class="editorial-label">Preferences</div>
+          <button class="preference-row" id="edit-editorial-brief">
+            <span><span class="preference-title">Editorial brief</span><span class="preference-meta">${brief?'Set':'Not set'}</span></span>
+            <span class="preference-action">${brief?'Edit':'Add'} →</span>
+          </button>
+          <button class="preference-row" id="${settings.onboarding_complete?'manage-kindle':'connect-kindle-secondary'}">
+            <span><span class="preference-title">Kindle</span><span class="preference-meta">${settings.kindle_email?esc(maskEmail(settings.kindle_email)):'Not connected'}</span></span>
+            <span class="preference-action">${settings.onboarding_complete?'Manage':'Connect'} →</span>
+          </button>
         </section>
       </aside>
 
       <main class="dashboard-main">
         ${problemFeeds.length?`<div class="problem-banner" aria-label="Sources needing attention"><strong>${problemFeeds.length} source${problemFeeds.length===1?' needs':'s need'} attention.</strong><ul class="source-problems">${problemFeeds.map(feed=>`<li>${sourceProblemLink(feed.id)}</li>`).join('')}</ul></div>`:''}
 
-        <section class="editorial-section">
-          <div class="editorial-head editions-heading">
+        <section class="editorial-section sources-panel">
+          <div class="sources-header">
             <div>
-              <div class="editorial-label">Recurring inputs</div>
-              <h2>Your sources</h2>
+              <div class="editorial-label">Recurring sources</div>
+              <h2>Sources</h2>
             </div>
             <div class="edition-total">${sources.length} source${sources.length===1?'':'s'}</div>
           </div>
-          <p class="muted small">Every eligible article from these sources is included. The editor creates fresh sections for each issue; articles without a coherent fit appear under Other.</p>
-          <div class="feed-list sources-list">${sources.length?sources.map(feedRow).join(''):'<div class="empty">No recurring sources yet.</div>'}</div>
-        </section>
-
-        <section class="editorial-section source-management">
-          <div class="editorial-head add-sources-head">
-            <div>
-              <div class="editorial-label">Manage your paper</div>
-              <h2>Add sources</h2>
-            </div>
+          <div class="sources-toolbar">
+            <button class="btn small-btn" id="add-single-feed">+ Add source</button>
+            <button class="btn small-btn" id="import-opml">Import OPML</button>
           </div>
-          <div class="source-index-list">
-            <a href="#" class="source-index-action" id="add-single-feed">
-              <span class="source-index-number" aria-hidden="true">+</span>
-              <span class="source-index-copy"><span class="source-index-title">Add a single feed</span><span class="source-index-meta">Website or RSS address</span></span>
-              <span class="source-index-arrow">›</span>
-            </a>
-            <a href="#" class="source-index-action" id="import-opml">
-              <span class="source-index-number" aria-hidden="true">++</span>
-              <span class="source-index-copy"><span class="source-index-title">Bulk upload</span><span class="source-index-meta">Import an OPML file</span></span>
-              <span class="source-index-arrow">›</span>
-            </a>
+          <button class="source-list-toggle" id="toggle-sources" type="button" aria-expanded="${sourcesExpanded}" aria-controls="sources-body">
+            <span>Subscribed sources</span>
+            <span class="source-list-toggle-state">${sourcesExpanded?'Hide':'Show'} ${sources.length} <span aria-hidden="true">${sourcesExpanded?'⌃':'⌄'}</span></span>
+          </button>
+          <div id="sources-body" ${!sourcesExpanded?'hidden':''}>
+            <div class="feed-list sources-list">${sources.length?sources.map(feedRow).join(''):'<div class="empty">No recurring sources yet.</div>'}</div>
           </div>
         </section>
       </main>
@@ -1098,6 +1125,7 @@ function wireDashboard(){
   document.querySelector('#account-menu').onclick=accountMenuModal;
   document.querySelector('#add-single-feed').onclick=e=>{e.preventDefault();singleFeedModal()};
   document.querySelector('#import-opml').onclick=e=>{e.preventDefault();opmlImportModal()};
+  document.querySelector('#toggle-sources').onclick=()=>{sourcesExpanded=!sourcesExpanded;dashboard();document.querySelector('#toggle-sources')?.focus()};
   document.querySelector('#edit-editorial-brief').onclick=editorialBriefModal;
 
   const sendNow=document.querySelector('#send-now');if(sendNow)sendNow.onclick=()=>queueSend('/send-now','Issue queued');
@@ -1151,7 +1179,7 @@ function kindleManageModal(){
   const s=state.settings;
   openModal(`<div class="row"><div><div class="editorial-label">Kindle</div><h2 style="margin-top:6px">Address saved</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
     <div style="margin-top:14px;font-family:Georgia,'Times New Roman',serif;font-size:18px;word-break:break-word">${esc(s.kindle_email||'Not configured')}</div>
-    <div class="technical-note" style="margin-top:7px">Add ${SENDER} to Amazon’s approved sender list. Morning Reader cannot verify Amazon approval or Kindle receipt.</div>
+    <div class="technical-note" style="margin-top:7px">Add ${SENDER} to Amazon’s approved sender list. Long Form cannot verify Amazon approval or Kindle receipt.</div>
     <div class="menu-list">
       <button class="menu-action" id="kindle-edit-settings">Edit Kindle & delivery settings</button>
       <a class="menu-action" href="${AMAZON_SETTINGS}" target="_blank" rel="noopener" style="text-decoration:none">Open Amazon settings ↗</a>
@@ -1161,7 +1189,7 @@ function kindleManageModal(){
 }
 
 function accountMenuModal(){
-  openModal(`<div class="row"><div><div class="editorial-label">Morning Reader</div><h2 style="margin-top:6px">Account</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
+  openModal(`<div class="row"><div><div class="editorial-label">Long Form</div><h2 style="margin-top:6px">Account</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
     <div class="menu-list"><button class="menu-action" id="account-system-health">System health</button><button class="menu-action" id="account-sign-out">Sign out</button></div>`);
   document.querySelector('#close-modal').onclick=closeModal;
   document.querySelector('#account-system-health').onclick=()=>{closeModal();systemHealthPage()};
@@ -1180,7 +1208,7 @@ function renderSystemHealth(h){
     <section class="system-page">
       <div class="editorial-label">Observability · last ${h.window_hours||24} hours</div>
       <h1>System health.</h1>
-      <div class="system-copy">Operational health for your Morning Reader account. Job IDs tie API activity to worker logs when you need to investigate a delivery.</div>
+      <div class="system-copy">Operational health for your Long Form account. Job IDs tie API activity to worker logs when you need to investigate a delivery.</div>
 
       <div class="system-metrics">
         <div class="system-metric"><div class="system-metric-label">Delivery health</div><div class="system-metric-value">${esc(deliveryRate)}</div></div>
@@ -1216,7 +1244,7 @@ function renderSystemHealth(h){
 
 function singleFeedModal(){
   openModal(`<div class="row"><div><div class="editorial-label">Add source</div><h2 style="margin-top:6px">Add a single feed</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
-    <p class="muted small">Paste a publication's website or RSS address. Morning Reader will find the feed and add it to your source list.</p>
+    <p class="muted small">Paste a publication's website or RSS address. Long Form will find the feed and add it to your source list.</p>
     <form id="single-feed-form">
       <div class="field"><label for="single-feed-url">Website or RSS feed</label><input id="single-feed-url" class="input" name="url" required placeholder="https://example.com"></div>
       <button class="btn primary" id="single-feed-submit">Find & add feed →</button>
@@ -1261,11 +1289,13 @@ function feedActionsModal(id,checkMessage=''){
     <div id="source-check-result" role="status" ${checkMessage?'':'hidden'} class="notice info">${esc(checkMessage)}</div>
     <p class="small muted">Recheck this source without sending anything to Kindle.${feed.enabled===false?' It will remain paused.':''}</p>
     <div class="row wrap" style="justify-content:flex-start">
-      <button class="btn primary" id="manage-recheck">Check source again</button>
+      <button class="btn primary" id="manage-edit">Edit source</button>
+      <button class="btn" id="manage-recheck">Check source again</button>
       <button class="btn" id="manage-toggle">${feed.enabled?'Pause':'Resume'}</button>
       <button class="btn danger" id="manage-delete">Delete</button>
     </div>`);
   document.querySelector('#close-modal').onclick=closeModal;
+  document.querySelector('#manage-edit').onclick=()=>sourceEditModal(id);
   document.querySelector('#manage-recheck').onclick=event=>recheckSource(id,event.currentTarget);
   document.querySelector('#manage-delete').onclick=()=>deleteFeedModal(id);
   document.querySelector('#manage-toggle').onclick=async()=>{
@@ -1273,6 +1303,28 @@ function feedActionsModal(id,checkMessage=''){
     catch(err){toast(err.message)}
   };
 }
+function sourceEditModal(id){
+  const context=sourceContext(id);if(!context)return;
+  const {feed}=context;
+  openModal(`<div class="row"><div><div class="editorial-label">Source</div><h2 style="margin-top:6px">Edit source</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
+    <p class="muted small">Correct the name or feed address. Long Form validates the feed before saving it.</p>
+    <form id="source-edit-form">
+      <div class="field"><label for="source-edit-name">Name</label><input class="input" id="source-edit-name" name="name" maxlength="120" required value="${esc(feed.name||'')}"></div>
+      <div class="field"><label for="source-edit-url">Website or RSS feed</label><input class="input" id="source-edit-url" name="url" type="url" required value="${esc(feed.url||'')}"></div>
+      <div style="margin-top:16px"><button class="btn primary" id="source-edit-submit">Save source</button></div>
+    </form>`);
+  document.querySelector('#close-modal').onclick=closeModal;
+  document.querySelector('#source-edit-form').onsubmit=async e=>{
+    e.preventDefault();
+    const form=new FormData(e.currentTarget),button=document.querySelector('#source-edit-submit');
+    button.disabled=true;button.textContent='Checking…';
+    try{
+      state=await api('/feeds/'+id,{method:'PATCH',body:{name:String(form.get('name')||'').trim(),url:String(form.get('url')||'').trim()}});
+      closeModal(true);sourcesExpanded=true;dashboard();toast('Source updated');
+    }catch(err){button.disabled=false;button.textContent='Save source';toast(err.message)}
+  };
+}
+
 async function recheckSource(id,button){
   const version=modalVersion,sessionToken=token;
   button.disabled=true;button.textContent='Checking…';
@@ -1464,14 +1516,14 @@ async function historyModal(){
 }
 function render(){
   if(state?.settings?.onboarding_complete){dashboard();const active=(state.jobs||[]).find(j=>['queued','running'].includes(j.status));if(active)void watchJob(active.id);return}
-  if(feedCount()===0&&localStorage.morningReaderSkipStarters!=='1')return starterPicker();
+  if(feedCount()===0&&(localStorage.getItem(SKIP_STARTERS_KEY)||localStorage.getItem(LEGACY_SKIP_STARTERS_KEY))!=='1')return starterPicker();
   if(feedCount()===0)return dashboard();
   return onboarding();
 }
 
 function sessionUnavailable(){
   app.innerHTML=shell(`<section class="auth-page"><div class="auth-hero">
-    <h1>Couldn’t load Morning Reader.</h1>
+    <h1>Couldn’t load Long Form.</h1>
     <p>Your sign-in is saved. Check your connection and try again.</p>
     <button class="btn primary" id="retry-session">Try again</button>
   </div></section>`);
@@ -1488,7 +1540,7 @@ async function startApp(){
     try{state=await api('/me')}
     catch(err){
       if(err.status!==401){sessionUnavailable();return}
-      token='';localStorage.removeItem('morningReaderToken');state=null;
+      token='';localStorage.removeItem(TOKEN_KEY);localStorage.removeItem(LEGACY_TOKEN_KEY);state=null;
       landing('Your session has ended. Sign in to continue.');return;
     }
     render();return;

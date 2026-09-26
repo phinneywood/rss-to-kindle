@@ -153,7 +153,7 @@ Deno.test("scheduled issues ignore legacy section frequency and read all enabled
   const r=await scenario("scheduled");assert(r.job.status==='partial',JSON.stringify(r.first));assert(r.sends===1);
   assert(r.fetched.includes('/broken'),"legacy section schedules must not suppress enabled sources");
   assert(r.outbox.payload.email.attachments.length===1,"daily issue must have exactly one EPUB");
-  assert(r.outbox.payload.email.attachments[0].filename.startsWith("morning-reader-"));
+  assert(r.outbox.payload.email.attachments[0].filename.startsWith("long-form-"),`Unexpected recurring filename: ${r.outbox.payload.email.attachments[0].filename}`);
   assert(r.job.result.articles===1);
 });
 
@@ -190,8 +190,8 @@ Deno.test("explicit test sends are uniquely reviewable on Kindle without consumi
   assert(result.articleDeliveryWrites === 0, "test send should not consume articles from future recurring issues");
 
   const email = result.outbox.payload.email;
-  assert(/^Morning Reader · TEST \d{2}:\d{2}:\d{2} · JOB1 · /.test(email.subject), "test email subject should carry a timestamped review identity");
-  assert(/^morning-reader-test-\d{4}-\d{2}-\d{2}-\d{6}-job1\.epub$/.test(email.attachments[0].filename), "test attachment filename should be unique and sortable");
+  assert(/^Long Form · TEST \d{2}:\d{2}:\d{2} · JOB1 · /.test(email.subject), "test email subject should carry a timestamped review identity");
+  assert(/^long-form-test-\d{4}-\d{2}-\d{2}-\d{6}-job1\.epub$/.test(email.attachments[0].filename), "test attachment filename should be unique and sortable");
 
   const bytes = Uint8Array.from(atob(email.attachments[0].content), (char) => char.charCodeAt(0));
   const zip = await JSZip.loadAsync(bytes);
@@ -199,12 +199,12 @@ Deno.test("explicit test sends are uniquely reviewable on Kindle without consumi
   const contents = await zip.file("OEBPS/contents.xhtml")!.async("string");
   const introduction = await zip.file("OEBPS/introduction.xhtml")!.async("string");
   const nav = await zip.file("OEBPS/nav.xhtml")!.async("string");
-  assert(/<dc:title>Morning Reader · TEST \d{2}:\d{2}:\d{2} · JOB1<\/dc:title>/.test(opf), "Kindle library metadata should distinguish every test run");
+  assert(/<dc:title>Long Form · TEST \d{2}:\d{2}:\d{2} · JOB1<\/dc:title>/.test(opf), "Kindle library metadata should distinguish every test run");
   assert(introduction.includes('<p class="intro-kicker">Editor\'s note</p>'), "the first editorial page should identify itself as the editor note");
   assert(introduction.includes("Tools acquire boundaries, teams acquire rituals"), "the EPUB should contain the exact frozen Luna introduction");
   assert(opf.indexOf('<itemref idref="introduction"/>') < opf.indexOf('<itemref idref="contents"/>'), "the Luna introduction must precede contents in reading order");
   assert(nav.includes('href="introduction.xhtml">Editor&#39;s note</a>'), "native navigation should expose the editor note");
-  assert(contents.includes("<h1 class=\"publication-title\">Morning Reader</h1>"), "test interior should keep the production publication title");
+  assert(contents.includes("<h1 class=\"publication-title\">Long Form</h1>"), "test interior should keep the production publication title");
   assert(!contents.includes("TEST "), "test identity should not pollute the production-like reading interior");
   assert(!contents.includes('href="article-'), "reader-facing test contents should remain non-linked so Kindle cannot restyle article titles");
   for (let index = 1; index <= 5; index++) {

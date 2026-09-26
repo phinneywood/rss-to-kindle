@@ -164,10 +164,10 @@ function testArtifactIdentity(job: any, now: Date, timezone: string, displayDate
   const reviewLabel = `TEST ${clock} · ${code}`;
   return {
     reviewLabel,
-    libraryTitle: `Morning Reader · ${reviewLabel}`,
+    libraryTitle: `Long Form · ${reviewLabel}`,
     coverLabel: reviewLabel,
-    subject: `Morning Reader · ${reviewLabel} · ${displayDate}`,
-    filename: `morning-reader-test-${filenameDate}-${clockSlug}-${code.toLowerCase()}.epub`,
+    subject: `Long Form · ${reviewLabel} · ${displayDate}`,
+    filename: `long-form-test-${filenameDate}-${clockSlug}-${code.toLowerCase()}.epub`,
   };
 }
 
@@ -589,7 +589,7 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
     const packagingStarted = performance.now();
     logEvent("digest.stage_started", { job_id: job.id, stage: "epub_packaging", articles: issueItems.length });
     const bytes = await makeEpub({
-      name: "Morning Reader", displayDate, date: now, timezone,
+      name: "Long Form", displayDate, date: now, timezone,
       label: testIdentity?.coverLabel || "Daily issue",
       libraryTitle: testIdentity?.libraryTitle,
       introduction: issueIntroduction,
@@ -612,7 +612,7 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
       media_omitted: media.omitted,
     });
     attachments.push({
-      filename: testIdentity?.filename || `morning-reader-${filenameDate}.epub`,
+      filename: testIdentity?.filename || `long-form-${filenameDate}.epub`,
       content: base64(bytes),
       content_type: "application/epub+zip",
     });
@@ -626,14 +626,14 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
     }
     return {
       attachments, groups, issues, feedCount,
-      subject: testIdentity?.subject || `Morning Reader — ${displayDate}`,
+      subject: testIdentity?.subject || `Long Form — ${displayDate}`,
       editorial: editorialSummary, qa, media, pendingItems: hydratedPending,
     };
   }
 
   return {
     attachments, groups, issues, feedCount,
-    subject: testIdentity?.subject || `Morning Reader — ${displayDate}`,
+    subject: testIdentity?.subject || `Long Form — ${displayDate}`,
     editorial: editorialSummary, qa: null, media: summarizeMedia(issueItems), pendingItems: hydratedPending,
   };
 }
@@ -652,7 +652,7 @@ export async function processJob(queuedJob: any, deadline = Date.now() + 90_000)
         if (settingsResult.error) throw settingsResult.error;
         const settings = settingsResult.data;
         if (job.reason === "scheduled" && (settings.paused || !settings.onboarding_complete || !settings.kindle_email)) {
-          return { email: { from: "Morning Reader <reader@antonioskilton.com>", to: [], subject: "", text: "", attachments: [] },
+          return { email: { from: "Long Form <reader@antonioskilton.com>", to: [], subject: "", text: "", attachments: [] },
             groups: [], feedCount: 0, issues: [], skipReason: "Skipped because daily delivery settings changed." };
         }
         if (!settings?.kindle_email) throw new Error("No Send-to-Kindle email is configured.");
@@ -666,7 +666,7 @@ export async function processJob(queuedJob: any, deadline = Date.now() + 90_000)
         if (!prepared.attachments.length && prepared.issues.length) throw new Error("No edition could be prepared. " + prepared.issues.join(" ").slice(0, 600));
         checkAttachmentBudget(prepared.attachments);
         return {
-          email: { from: "Morning Reader <reader@antonioskilton.com>", to: [settings.kindle_email], subject: prepared.subject, text: "Your Morning Reader edition is attached.", attachments: prepared.attachments },
+          email: { from: "Long Form <reader@antonioskilton.com>", to: [settings.kindle_email], subject: prepared.subject, text: "Your Long Form edition is attached.", attachments: prepared.attachments },
           groups: prepared.groups.map(group => ({ section: group.section, items: group.items.map(({ body: _body, assets: _assets, ...article }) => article) })),
           feedCount: prepared.feedCount,
           issues: prepared.issues,

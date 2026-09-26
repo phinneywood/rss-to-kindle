@@ -19,8 +19,8 @@ const PROFILE_SCHEMA = {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   type: "object",
   properties: {
-    id: { type: "string", minLength: 1, pattern: "\\S", description: "Opaque stable Morning Reader profile identifier." },
-    email: { type: "string", description: "Morning Reader account email for display." },
+    id: { type: "string", minLength: 1, pattern: "\\S", description: "Opaque stable Long Form profile identifier." },
+    email: { type: "string", description: "Long Form account email for display." },
     nickname: { type: "string", description: "Useful account label." }
   },
   required: ["id"],
@@ -66,7 +66,7 @@ const BRIEF_SCHEMA = {
 const TOOLS: any[] = [
   {
     name: "get_profile",
-    description: "Return the Morning Reader profile represented by the authenticated connection.",
+    description: "Return the Long Form profile represented by the authenticated connection.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     outputSchema: PROFILE_SCHEMA,
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
@@ -75,7 +75,7 @@ const TOOLS: any[] = [
   },
   {
     name: "list_sources",
-    description: "List the user's recurring RSS/Atom sources. Morning Reader organizes eligible articles dynamically at issue time rather than assigning sources to preset categories.",
+    description: "List the user's recurring RSS/Atom sources. Long Form organizes eligible articles dynamically at issue time rather than assigning sources to preset categories.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     outputSchema: { type: "object", properties: { sources: { type: "array", items: SOURCE_SCHEMA } }, required: ["sources"], additionalProperties: false },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
@@ -111,7 +111,7 @@ const TOOLS: any[] = [
       type: "object",
       properties: {
         url: { type: "string", minLength: 1, description: "Website URL or direct RSS/Atom feed URL." },
-        name: { type: "string", maxLength: 120, description: "Optional display name. Morning Reader will infer one if omitted." }
+        name: { type: "string", maxLength: 120, description: "Optional display name. Long Form will infer one if omitted." }
       },
       required: ["url"],
       additionalProperties: false
@@ -140,7 +140,7 @@ const TOOLS: any[] = [
   },
   {
     name: "get_editorial_brief",
-    description: "Return the explicit Morning Reader editorial brief used for organization and Open Discovery. It is never used to omit eligible RSS articles.",
+    description: "Return the explicit Long Form editorial brief used for organization and Open Discovery. It is never used to omit eligible RSS articles.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     outputSchema: BRIEF_SCHEMA,
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
@@ -149,7 +149,7 @@ const TOOLS: any[] = [
   },
   {
     name: "update_editorial_brief",
-    description: "Replace the explicit Morning Reader editorial brief. This affects organization and Open Discovery, not RSS article eligibility.",
+    description: "Replace the explicit Long Form editorial brief. This affects organization and Open Discovery, not RSS article eligibility.",
     inputSchema: BRIEF_SCHEMA,
     outputSchema: BRIEF_SCHEMA,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
@@ -158,7 +158,7 @@ const TOOLS: any[] = [
   },
   {
     name: "send_now",
-    description: "Queue the user's current Morning Reader issue for immediate delivery to the configured Send-to-Kindle address.",
+    description: "Queue the user's current Long Form issue for immediate delivery to the configured Send-to-Kindle address.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     outputSchema: { type: "object", additionalProperties: true },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
@@ -221,12 +221,12 @@ function hasScopes(auth: AuthInfo, required: string[]) {
 }
 function authChallenge(required: string[], kind: "invalid_token" | "insufficient_scope" = "invalid_token") {
   const scope = required.join(" ");
-  const description = kind === "invalid_token" ? "Connect Morning Reader to continue." : "Reconnect Morning Reader with the requested permissions.";
+  const description = kind === "invalid_token" ? "Connect Long Form to continue." : "Reconnect Long Form with the requested permissions.";
   return `Bearer resource_metadata="${RESOURCE_METADATA}", scope="${scope}", error="${kind}", error_description="${description}"`;
 }
 function authToolError(required: string[], kind: "invalid_token" | "insufficient_scope" = "invalid_token") {
   return toolResult(
-    { error: kind === "invalid_token" ? "Authentication required." : "Additional Morning Reader permission is required." },
+    { error: kind === "invalid_token" ? "Authentication required." : "Additional Long Form permission is required." },
     true,
     { "mcp/www_authenticate": [authChallenge(required, kind)] }
   );
@@ -249,7 +249,7 @@ async function apiAsUser(userId: string, path: string, method = "GET", body?: un
     const text = await r.text();
     let data: any = {};
     try { data = text ? JSON.parse(text) : {}; } catch { data = { error: text || `HTTP ${r.status}` }; }
-    if (!r.ok) throw Object.assign(new Error(data?.error || `Morning Reader API returned HTTP ${r.status}`), { status: r.status, data });
+    if (!r.ok) throw Object.assign(new Error(data?.error || `Long Form API returned HTTP ${r.status}`), { status: r.status, data });
     return data;
   } finally {
     await admin.from("sessions").delete().eq("id", session.id);
@@ -278,7 +278,7 @@ function requiredScopes(toolName: string) {
 async function callTool(name: string, args: any, auth: AuthInfo) {
   switch (name) {
     case "get_profile": {
-      const profile = { id: auth.userId, email: auth.email, nickname: "Morning Reader" };
+      const profile = { id: auth.userId, email: auth.email, nickname: "Long Form" };
       return {
         content: [{ type: "text", text: JSON.stringify(profile) }],
         structuredContent: profile,
@@ -354,8 +354,8 @@ Deno.serve(async (req: Request) => {
       return rpcResult(id, {
         protocolVersion,
         capabilities: { tools: {} },
-        serverInfo: { name: "morning-reader", version: "0.2.0" },
-        instructions: "Manage Morning Reader Kindle editions and RSS/Atom sources. Each edition becomes a separate EPUB delivered to the user's Kindle."
+        serverInfo: { name: "long-form", version: "0.2.0" },
+        instructions: "Manage Long Form Kindle editions and RSS/Atom sources. Each edition becomes a separate EPUB delivered to the user's Kindle."
       });
     }
     if (msg.method === "ping") return rpcResult(id, {});
