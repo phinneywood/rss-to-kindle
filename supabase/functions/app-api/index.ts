@@ -35,12 +35,12 @@ async function defaultSourceSectionId(userId:string){
 Deno.serve(async(req)=>{
   const requestId=crypto.randomUUID();
   const origin=req.headers.get("origin");
-  const allowedOrigin=!origin||origin==="https://morning-reader.vercel.app"||origin==="https://reader.antonioskilton.com"||origin==="http://localhost:3000"||origin==="http://127.0.0.1:3000"||/^https:\/\/morning-reader(?:-[a-z0-9]+)?-phinneywood\.vercel\.app$/.test(origin);
+  const allowedOrigin=!origin||origin==="https://long-form.vercel.app"||origin==="https://morning-reader.vercel.app"||origin==="https://reader.antonioskilton.com"||origin==="http://localhost:3000"||origin==="http://127.0.0.1:3000"||/^https:\/\/(?:long-form|morning-reader)(?:-[a-z0-9]+)?-phinneywood\.vercel\.app$/.test(origin);
   if(!allowedOrigin)return json({error:"Origin not allowed"},403);
   if(req.method==="OPTIONS")return new Response(null,{status:204,headers:cors});
   const route=routePath(req);
   try{
-    if(route==="/"||route==="/health")return json({ok:true,service:"morning-reader",email_configured:emailConfigured(),time:new Date().toISOString()});
+    if(route==="/"||route==="/health")return json({ok:true,service:"long-form",email_configured:emailConfigured(),time:new Date().toISOString()});
     if(route==="/auth/request-code"&&req.method==="POST"){
       const b=await req.json().catch(()=>({})),email=normEmail(b.email);if(!validEmail(email))return json({error:"Enter a valid email address."},400);
       await requestCode(email);logEvent("auth.code_requested",{request_id:requestId});return json({ok:true});
@@ -198,9 +198,21 @@ Deno.serve(async(req)=>{
     }
     const fm=route.match(/^\/feeds\/([0-9a-f-]+)$/i);
     if(fm&&req.method==="PATCH"){
-      const b=await req.json().catch(()=>({})),p:any={updated_at:new Date().toISOString()};if("name"in b){const n=String(b.name||"").trim();if(!n||n.length>120)return json({error:"Feed name must be 1–120 characters."},400);p.name=n}if("enabled"in b)p.enabled=Boolean(b.enabled);
+      const b=await req.json().catch(()=>({})),p:any={updated_at:new Date().toISOString()};
+      if("name"in b){const n=String(b.name||"").trim();if(!n||n.length>120)return json({error:"Feed name must be 1–120 characters."},400);p.name=n}
+      if("enabled"in b)p.enabled=Boolean(b.enabled);
+      if("url"in b){
+        const input=String(b.url||"").trim();if(!validUrl(input))return json({error:"Enter a valid website or RSS/Atom address."},400);
+        try{
+          const pr=await probe(input),url=normalizeUrl(pr.url);
+          const{data:duplicate,error:duplicateError}=await admin.from("feeds").select("id").eq("user_id",user.id).eq("url",url).neq("id",fm[1]).maybeSingle();
+          if(duplicateError)throw duplicateError;
+          if(duplicate)return json({error:"That source is already in your list."},409);
+          p.url=url;p.last_error=null;p.consecutive_failures=0;p.last_fetch_at=new Date().toISOString();
+        }catch(e){return json({error:e instanceof Error?e.message:String(e)},400)}
+      }
       if("section_id"in b){const{data:sec}=await admin.from("sections").select("id").eq("id",b.section_id).eq("user_id",user.id).is("archived_at",null).maybeSingle();if(!sec)return json({error:"Section not found."},404);p.section_id=b.section_id}
-      const{error}=await admin.from("feeds").update(p).eq("id",fm[1]).eq("user_id",user.id);if(error)throw error;return json(await dashboard(user.id,user.email));
+      const{data:updated,error}=await admin.from("feeds").update(p).eq("id",fm[1]).eq("user_id",user.id).is("archived_at",null).select("id").maybeSingle();if(error)throw error;if(!updated)return json({error:"Source not found."},404);return json(await dashboard(user.id,user.email));
     }
     if(fm&&req.method==="DELETE"){const now=new Date().toISOString();const{error}=await admin.from("feeds").update({archived_at:now,enabled:false}).eq("id",fm[1]).eq("user_id",user.id);if(error)throw error;return json(await dashboard(user.id,user.email))}
 
