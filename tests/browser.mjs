@@ -44,7 +44,11 @@ const results=[],failures=[],errors=[];
 let page;
 const widths=process.env.WIDTHS?process.env.WIDTHS.split(',').map(Number):[320,390,768,1440];
 async function capture(name,width){
- await page.screenshot({path:path.join(out,`${width}-${name}.png`),fullPage:true});
+ // Fixed sheets must be captured in the viewport, not stretched over a scrolled page.
+ const card=page.locator('.modal-card');
+ if(await card.count())await card.evaluate(e=>e.scrollTop=0);
+ await page.mouse.move(1,1);
+ await page.screenshot({path:path.join(out,`${width}-${name}.png`),fullPage:!(await page.locator('#modal').isVisible())});
  const overflow=await page.evaluate(()=>[...document.querySelectorAll('body *')].filter(e=>{
   if(e.closest('[hidden]')||e.closest('#app[inert]')||getComputedStyle(e).display==='none'||!e.getClientRects().length||e.classList.contains('skip-link'))return false;
   const r=e.getBoundingClientRect();return r.right>innerWidth+1||r.left<-1;
@@ -52,16 +56,15 @@ async function capture(name,width){
  const violations=(await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations.map(v=>({id:v.id,impact:v.impact,nodes:v.nodes.map(n=>({target:n.target,summary:n.failureSummary}))}));
  results.push({name,width,overflow,violations});
  if(overflow.length||violations.length)failures.push({name,width,overflow,violations});
- const card=page.locator('.modal-card');
  if(await card.count()){
   const scrolls=await card.evaluate(e=>e.scrollHeight>e.clientHeight+1);
-  if(scrolls){await card.evaluate(e=>e.scrollTop=e.scrollHeight);await page.screenshot({path:path.join(out,`${width}-${name}-bottom.png`),fullPage:true});await card.evaluate(e=>e.scrollTop=0);}
+  if(scrolls){await card.evaluate(e=>e.scrollTop=e.scrollHeight);await page.screenshot({path:path.join(out,`${width}-${name}-bottom.png`),fullPage:false});await card.evaluate(e=>e.scrollTop=0);}
  }
 }
 async function home(){await page.evaluate(data=>{closeModal(true);state=structuredClone(data);sourcesExpanded=false;dashboard();window.scrollTo(0,0);},reader);}
 try{
  for(const width of widths){
-  const context=await browser.newContext({viewport:{width,height:900},deviceScaleFactor:1,reducedMotion:'reduce',timezoneId:'America/Los_Angeles'});
+  const context=await browser.newContext({viewport:{width,height:900},deviceScaleFactor:1,isMobile:width<700,hasTouch:width<1100,reducedMotion:'reduce',timezoneId:'America/Los_Angeles'});
   page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/*',async route=>{
    const url=new URL(route.request().url());
@@ -76,7 +79,7 @@ try{
    else if(endpoint==='/discover')payload={feeds:[{title:'A discovered publication',url:'https://example.com/feed.xml'}]};
    else if(endpoint==='/one-time/preview')payload={name:'Weekend reading',items:reviewed};
    else if(endpoint==='/settings'&&method==='PATCH')payload.settings={...payload.settings,...route.request().postDataJSON()};
-   else if(endpoint.startsWith('/feeds/')&&method==='PATCH')payload.sources[0]={...payload.sources[0],...route.request().postDataJSON()};
+   else if(endpoint.startsWith('/feeds/')&&method==='PATCH'){const i=payload.sources.findIndex(s=>s.id===endpoint.split('/').at(-1));assert.ok(i>=0);payload.sources[i]={...payload.sources[i],...route.request().postDataJSON()};}
    await route.fulfill({contentType:'application/json',body:JSON.stringify(payload)});
   });
   await page.goto(base);await page.locator('#login-submit').waitFor();await capture('sign-in',width);
@@ -87,14 +90,14 @@ try{
   await home();await page.evaluate(()=>{state.sources[1].last_error='HTTP 503 — the publisher is temporarily unavailable.';dashboard();});await capture('source-attention',width);
   await page.locator('.attention-row').click();await capture('source-management',width);
   await page.locator('#manage-edit').click();await capture('source-edit',width);
-  await page.locator('#source-edit-name').fill('A renamed publication');await page.locator('#source-edit-submit').click();await page.locator('#toggle-sources').waitFor();
+  await page.locator('#source-edit-name').fill('A renamed publication');await page.locator('#source-edit-submit').click();await page.locator('#modal').waitFor({state:'hidden'});assert.equal(await page.evaluate(()=>state.sources.find(s=>s.id==='f2').name),'A renamed publication');await page.locator('#toast').waitFor({state:'hidden'});
   await home();await page.locator('#add-single-feed').click();await capture('add-source',width);
   await home();await page.locator('#import-opml').click();await capture('opml',width);
   await page.locator('#opml-file').setInputFiles({name:'subscriptions.opml',mimeType:'text/xml',buffer:Buffer.from('<opml><body><outline text="Science"><outline text="Quanta Magazine" xmlUrl="https://www.quantamagazine.org/feed/"/><outline text="Aeon" xmlUrl="https://aeon.co/feed.rss"/></outline></body></opml>')});
   await page.getByRole('heading',{name:'Review OPML import'}).waitFor();await capture('opml-review',width);
   await home();await page.locator('#open-editor').click();assert.equal(await page.locator('#app').evaluate(e=>e.inert),true);await capture('editor',width);
   await page.locator('.editor-effective summary').click();await capture('editor-instructions',width);
-  await page.locator('#editorial-brief').fill('History, science, and ideas that reward attention.');await page.locator('.editor-form-actions button').click();await page.locator('#open-editor').waitFor();
+  await page.locator('#editorial-brief').fill('History, science, and ideas that reward attention.');await page.locator('.editor-form-actions button').click();await page.locator('#modal').waitFor({state:'hidden'});assert.equal(await page.evaluate(()=>state.settings.editorial_brief),'History, science, and ideas that reward attention.');await page.locator('#toast').waitFor({state:'hidden'});
   await home();await page.locator('#preview').click();await page.locator('.preview-list').waitFor();await capture('articles',width);
   await home();await page.locator('#delivery-history').click();await page.locator('#refresh-history').waitFor();await capture('history',width);
   await home();await page.locator('#one-time-send').click();await capture('reading-list',width);
@@ -124,6 +127,9 @@ try{
   console.log(`${engine} ${width}px: ${results.filter(r=>r.width===width).length} states; ${failures.filter(r=>r.width===width).length} failed checks`);
   await context.close();
  }
+}catch(error){
+ if(page&&!page.isClosed())await page.screenshot({path:path.join(out,'failure-viewport.png')}).catch(()=>{});
+ errors.push(String(error));throw error;
 }finally{
  await fs.writeFile(path.join(out,'report.json'),JSON.stringify({engine,results,failures,errors},null,2));
  await browser.close();await new Promise(r=>server.close(r));
