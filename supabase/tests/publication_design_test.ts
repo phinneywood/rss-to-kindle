@@ -49,7 +49,7 @@ Deno.test("publication design uses a Kindle-proportioned cover and editorial sec
   assert(cover.width === 1200 && cover.height === 1920, "cover should use a 1.6:1 Kindle portrait ratio");
 
   const css = await zip.file("OEBPS/style.css")!.async("string");
-  assert(css.includes("text-decoration:none!important"), "contents links should not look like blue web-directory links");
+  assert(!contents.includes('href="article-'), "visible contents should contain no article hyperlinks for Kindle to restyle");
   assert(css.includes(".section-deck"), "section decks should have publication styling");
 
   const contents = await zip.file("OEBPS/contents.xhtml")!.async("string");
