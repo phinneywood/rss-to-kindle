@@ -532,6 +532,44 @@
       border-radius:var(--radius);
       box-shadow:var(--shadow-soft);
     }
+    .editor-card{
+      background:rgba(255,255,255,.42);
+      border:1px solid rgba(151,145,132,.22);
+      border-radius:var(--radius);
+      overflow:hidden;
+    }
+    .editor-open{
+      appearance:none;width:100%;border:0;background:transparent;padding:19px 20px;
+      color:var(--ink);display:flex;align-items:center;justify-content:space-between;
+      gap:18px;text-align:left;cursor:pointer
+    }
+    .editor-open:hover{background:rgba(255,255,255,.42)}
+    .editor-copy{display:block;min-width:0}
+    .editor-title{display:block;margin-top:4px;font-size:18px;line-height:1.2;letter-spacing:-.018em;font-weight:750}
+    .editor-summary{
+      display:block;margin-top:5px;color:var(--muted);font-size:12px;line-height:1.45;
+      max-width:620px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical
+    }
+    .editor-state{
+      flex:0 0 auto;color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+      font-size:9px;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap
+    }
+    .editor-state strong{color:var(--ink);font-weight:750}
+    .editor-rule-list{margin:18px 0 0;border-top:1px solid var(--line)}
+    .editor-rule{
+      display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;align-items:start;
+      padding:10px 0;border-bottom:1px solid var(--line);font-size:12px;line-height:1.45
+    }
+    .editor-rule-num{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--accent);font-size:9px;padding-top:2px}
+    .editor-lock{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted);font-size:8px;letter-spacing:.08em;text-transform:uppercase;padding-top:2px}
+    textarea.editor-textarea{min-height:116px;resize:vertical;line-height:1.5}
+    .editor-effective{margin-top:18px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+    .editor-effective summary{padding:12px 0;cursor:pointer;font-size:12px;font-weight:700;color:var(--muted)}
+    .editor-effective summary:hover{color:var(--ink)}
+    .editor-effective-body{padding:0 0 14px;font-size:11px;line-height:1.5}
+    .effective-block{margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(23,22,20,.045);white-space:pre-wrap;overflow-wrap:anywhere}
+    .effective-label{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+    .editor-form-actions{display:flex;justify-content:flex-end;margin-top:16px}
     .issue-card{padding:24px}
     .issue-top{display:flex;align-items:center;justify-content:space-between;gap:14px}
     .micro-label{
@@ -694,6 +732,9 @@
       .home-dashboard .icon-button{width:44px;flex:0 0 44px}
       .issue-status{font-size:10px}
       .library-head{padding:18px 18px 13px}
+      .editor-open{padding:18px}
+      .editor-title{font-size:17px}
+      .editor-state{font-size:8px}
       .source-controls{padding:2px 18px 14px}
       .source-list-toggle{padding:13px 18px}
       #sources-body .feed{padding:13px 18px}
@@ -747,6 +788,14 @@ let oneTimeDraft=null;
 const pendingSends=new Map();
 const activeWatchers=new Set();
 const safeHref=value=>{try{const u=new URL(value);return ["http:","https:"].includes(u.protocol)?u.href:"#"}catch{return "#"}};
+const EDITOR_RULES=[
+  "Include every eligible subscribed article exactly once.",
+  "Judge articles by their content, not by which source supplied them.",
+  "Create sections and topics fresh for each issue; use Other when no coherent grouping fits.",
+  "Use discovery only to supplement subscriptions, never to replace them.",
+  "Preserve original articles; the editor may organize, prioritize, and lightly frame them but not rewrite them.",
+  "Keep AI failures non-blocking so the core issue can still ship."
+];
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const displayText=value=>{const node=document.createElement('textarea');node.innerHTML=String(value??'').replaceAll('<','&lt;').replaceAll('>','&gt;');return node.value};
@@ -1151,6 +1200,11 @@ function dashboard(){
   const busy=(state.jobs||[]).some(job=>job.reason!=='one_time'&&['queued','running'].includes(job.status));
   const issueState=settings.paused?'Paused':(!settings.onboarding_complete||!settings.kindle_email?'Setup needed':'Scheduled');
   const firstProblem=problemFeeds[0];
+  const editorialBrief=String(settings.editorial_brief||'').trim();
+  const editorialInstructions=String(settings.editorial_instructions||'').trim();
+  const editorCustomized=Boolean(editorialBrief||editorialInstructions);
+  const editorSummary=(editorialBrief||editorialInstructions||"Review the fixed editorial contract and set your interests or additional guidance.").replace(/\s+/g,' ').trim();
+  const clippedEditorSummary=editorSummary.length>128?editorSummary.slice(0,125).trimEnd()+'…':editorSummary;
 
   app.innerHTML=shell(`
     <main class="home-dashboard">
@@ -1210,6 +1264,17 @@ function dashboard(){
           <div class="feed-list sources-list">${sources.length?sources.map(feedRow).join(''):'<div class="empty">No recurring sources yet.</div>'}</div>
         </div>
       </section>
+
+      <section class="editor-card" aria-labelledby="editor-heading">
+        <button class="editor-open" id="open-editor" type="button">
+          <span class="editor-copy">
+            <span class="micro-label">Your editor</span>
+            <span class="editor-title" id="editor-heading">How Long Form edits</span>
+            <span class="editor-summary">${esc(clippedEditorSummary)}</span>
+          </span>
+          <span class="editor-state"><strong>${editorCustomized?'Customized':'Default'}</strong> →</span>
+        </button>
+      </section>
     </main>`,
     '<button class="btn account-menu-btn" id="account-menu" aria-label="Account menu">Account</button>');
   wireDashboard();
@@ -1222,6 +1287,7 @@ function wireDashboard(){
   document.querySelector('#add-single-feed').onclick=e=>{e.preventDefault();singleFeedModal()};
   document.querySelector('#import-opml').onclick=e=>{e.preventDefault();opmlImportModal()};
   document.querySelector('#toggle-sources').onclick=()=>{sourcesExpanded=!sourcesExpanded;dashboard();document.querySelector('#toggle-sources')?.focus()};
+  document.querySelector('#open-editor').onclick=editorModal;
 
   const sendNow=document.querySelector('#send-now');if(sendNow)sendNow.onclick=()=>queueSend('/send-now','Issue queued');
   document.querySelector('#one-time-send').onclick=()=>oneTimeEditionModal();
@@ -1231,20 +1297,45 @@ function wireDashboard(){
   const connectKindle=document.querySelector('#connect-kindle');if(connectKindle)connectKindle.onclick=onboarding;
 }
 
-function editorialBriefModal(){
+
+function editorModal(){
   const brief=String(state.settings.editorial_brief||'');
-  openModal(`<div class="row"><div><div class="editorial-label">Your editor</div><h2 style="margin-top:6px">Editorial brief</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
-    <p class="muted small">Describe broad interests and stable reading preferences. This guides organization and Open Discovery. It never filters otherwise eligible RSS articles.</p>
-    <form id="editorial-brief-form">
-      <div class="field"><label for="editorial-brief">Brief</label><textarea class="input article-urls" id="editorial-brief" name="editorial_brief" maxlength="3000" placeholder="I value deep, original writing about…">${esc(brief)}</textarea></div>
-      <div class="notice info">Related Discovery extends themes already in the day's RSS issue. Open Discovery deliberately looks beyond those themes and uses this brief.</div>
-      <div style="margin-top:16px"><button class="btn primary">Save brief</button></div>
+  const instructions=String(state.settings.editorial_instructions||'');
+  const rules=EDITOR_RULES.map((rule,index)=>`<div class="editor-rule"><span class="editor-rule-num">${String(index+1).padStart(2,'0')}</span><span>${esc(rule)}</span><span class="editor-lock">Fixed</span></div>`).join('');
+  openModal(`<div class="row"><div><div class="editorial-label">Your editor</div><h2 style="margin-top:6px">Editorial settings</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
+    <p class="muted small">Tell Long Form what you care about and how you prefer it to edit. Your guidance can shape organization, discovery, and the editor's note, but it cannot override the fixed publication rules below.</p>
+    <form id="editor-settings-form">
+      <div class="field"><label for="editorial-brief">My editorial brief</label><textarea class="input editor-textarea" id="editorial-brief" name="editorial_brief" maxlength="3000" placeholder="I value deep, original writing about…">${esc(brief)}</textarea><div class="technical-note">Broad interests and stable reading preferences. Open Discovery uses this as its primary taste signal.</div></div>
+      <div class="field"><label for="editorial-instructions">Additional instructions <span class="muted">(optional)</span></label><textarea class="input editor-textarea" id="editorial-instructions" name="editorial_instructions" maxlength="3000" placeholder="Prefer contrarian arguments. For discovery, favor essays over news. Don't over-index on AI coverage.">${esc(instructions)}</textarea><div class="technical-note">Applies across organization, discovery, and the editor's note. Fixed rules always win.</div></div>
+
+      <div style="margin-top:20px"><div class="editorial-label">Editorial rules</div><div class="technical-note">Long Form's product contract. Reviewable, but not editable.</div><div class="editor-rule-list">${rules}</div></div>
+
+      <details class="editor-effective" id="effective-editor">
+        <summary>View effective editor instructions</summary>
+        <div class="editor-effective-body">
+          <p class="muted small">A human-readable view of the instructions Long Form gives its editor. The exact implementation prompt may change without changing this contract.</p>
+          <div class="effective-label">Fixed contract</div>
+          <div class="effective-block" id="effective-rules">${EDITOR_RULES.map((rule,index)=>`${index+1}. ${esc(rule)}`).join('\n')}</div>
+          <div class="effective-label" style="margin-top:12px">Your editorial brief</div>
+          <div class="effective-block" id="effective-brief">${esc(brief||'No editorial brief set.')}</div>
+          <div class="effective-label" style="margin-top:12px">Additional instructions</div>
+          <div class="effective-block" id="effective-instructions">${esc(instructions||'No additional instructions set.')}</div>
+        </div>
+      </details>
+
+      <div class="editor-form-actions"><button class="btn primary">Save editor settings</button></div>
     </form>`);
   document.querySelector('#close-modal').onclick=closeModal;
-  document.querySelector('#editorial-brief-form').onsubmit=async e=>{
+  const briefField=document.querySelector('#editorial-brief'),instructionsField=document.querySelector('#editorial-instructions');
+  const syncEffective=()=>{
+    document.querySelector('#effective-brief').textContent=briefField.value.trim()||'No editorial brief set.';
+    document.querySelector('#effective-instructions').textContent=instructionsField.value.trim()||'No additional instructions set.';
+  };
+  briefField.addEventListener('input',syncEffective);instructionsField.addEventListener('input',syncEffective);
+  document.querySelector('#editor-settings-form').onsubmit=async e=>{
     e.preventDefault();
-    const value=String(new FormData(e.currentTarget).get('editorial_brief')||'').trim();
-    try{state=await api('/settings',{method:'PATCH',body:{editorial_brief:value}});closeModal(true);dashboard();toast('Editorial brief saved')}
+    const form=new FormData(e.currentTarget),editorial_brief=String(form.get('editorial_brief')||'').trim(),editorial_instructions=String(form.get('editorial_instructions')||'').trim();
+    try{state=await api('/settings',{method:'PATCH',body:{editorial_brief,editorial_instructions}});closeModal(true);dashboard();toast('Editor settings saved')}
     catch(err){toast(err.message)}
   };
 }
@@ -1284,13 +1375,11 @@ function kindleManageModal(){
 function accountMenuModal(){
   openModal(`<div class="row"><div><div class="editorial-label">Long Form</div><h2 style="margin-top:6px">Account</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
     <div class="menu-list">
-      <button class="menu-action" id="account-editorial-brief">Editorial brief</button>
       <button class="menu-action" id="account-kindle">${state.settings.onboarding_complete?'Kindle & delivery':'Connect Kindle'}</button>
       <button class="menu-action" id="account-system-health">System health</button>
       <button class="menu-action" id="account-sign-out">Sign out</button>
     </div>`);
   document.querySelector('#close-modal').onclick=closeModal;
-  document.querySelector('#account-editorial-brief').onclick=editorialBriefModal;
   document.querySelector('#account-kindle').onclick=()=>state.settings.onboarding_complete?kindleManageModal():onboarding();
   document.querySelector('#account-system-health').onclick=()=>{closeModal();systemHealthPage()};
   document.querySelector('#account-sign-out').onclick=()=>{closeModal();signOut()};
