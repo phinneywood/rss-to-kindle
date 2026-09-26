@@ -15,6 +15,7 @@ Recurring source eligibility remains deterministic: enabled source, lookback/fre
 The editor also has two bounded, non-blocking discovery lanes:
 - **Related Discovery** searches beyond subscribed RSS for up to two articles that materially extend themes already present in the organized RSS issue.
 - **Open Discovery** searches beyond both RSS and today's themes for up to two strong articles that fit the user's explicit editorial brief. It is skipped when no brief exists.
+- Users may also add optional editor instructions that shape organization, discovery, and the editor's note. These instructions are subordinate to Long Form's fixed editorial contract and can never authorize dropping eligible subscribed articles.
 
 Discovery failure never blocks the core RSS issue. Already delivered RSS articles are suppressed deterministically, and one-off article selections are consumed by the next issue.
 
@@ -67,10 +68,12 @@ The MCP exposes a narrow Long Form tool surface rather than generic database or 
 - `preview_sources`
 - `get_editorial_brief`
 - `update_editorial_brief`
+- `get_editor_settings`
+- `update_editor_settings`
 - `send_now`
 
 OAuth scopes:
-- `reader:read` — profile, source list, feed discovery, previews, editorial brief
+- `reader:read` — profile, source list, feed discovery, previews, editor settings
 - `reader:write` — source changes, editorial-brief updates, and delivery actions
 
 OAuth metadata is published at:

@@ -376,6 +376,7 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
     const editorial = await editorializeIssue(all, {
       deadline,
       editorialBrief: String(settings.editorial_brief || ""),
+      additionalInstructions: String(settings.editorial_instructions || ""),
     });
     all = editorial.articles;
     const organizationSummary = {
@@ -411,7 +412,10 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
       });
     }
 
-    const discovery = await discoverBeyondRss(all, String(settings.editorial_brief || ""), { deadline });
+    const discovery = await discoverBeyondRss(all, String(settings.editorial_brief || ""), {
+      deadline,
+      additionalInstructions: String(settings.editorial_instructions || ""),
+    });
     const discoveryHashes = new Set(all.map((article) => article.article_hash));
 
     async function prepareDiscovery(
@@ -496,7 +500,7 @@ async function buildRecurring(job: any, settings: any, now: Date, displayDate: s
     const introduction = await writeIssueIntroduction(
       introGroups,
       String(settings.editorial_brief || ""),
-      { deadline },
+      { deadline, additionalInstructions: String(settings.editorial_instructions || "") },
     );
     issueIntroduction = introduction.paragraph;
     editorialSummary = {

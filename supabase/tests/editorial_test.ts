@@ -72,6 +72,7 @@ Deno.test("organizer uses GPT-6 Luna structured output and cannot express omissi
   const result = await editorializeIssue(input, {
     apiKey: "test-key",
     editorialBrief: "Software systems and thoughtful technical writing.",
+    additionalInstructions: "Prefer concrete technical labels and primary-source framing.",
     fetchImpl,
     deadline: Date.now() + 30_000,
   });
@@ -87,6 +88,8 @@ Deno.test("organizer uses GPT-6 Luna structured output and cannot express omissi
   assert(serialized.includes("Your job is organization, not filtering"), "prompt must prohibit relevance filtering");
   assert(serialized.includes("Other"), "prompt must define the Other fallback");
   assert(serialized.includes("may NEVER be used to exclude"), "reader brief must not become a relevance filter");
+  assert(serialized.includes("Prefer concrete technical labels and primary-source framing."), "additional editor instructions should reach the organizer");
+  assert(serialized.includes("subordinate to every fixed rule"), "user instructions must be explicitly lower priority than the fixed contract");
   assert(result.report.status === "edited");
   assert(result.articles.length === input.length);
 });

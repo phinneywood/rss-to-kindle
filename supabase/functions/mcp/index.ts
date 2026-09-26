@@ -62,6 +62,23 @@ const BRIEF_SCHEMA = {
   required: ["editorial_brief"],
   additionalProperties: false
 };
+const EDITOR_SCHEMA = {
+  type: "object",
+  properties: {
+    editorial_brief: {
+      type: "string",
+      maxLength: 3000,
+      description: "Broad interests and stable reading preferences. Open Discovery uses this as its primary taste signal."
+    },
+    editorial_instructions: {
+      type: "string",
+      maxLength: 3000,
+      description: "Optional additional editor guidance applied to organization, discovery, and the editor note. Fixed Long Form editorial rules always take precedence."
+    }
+  },
+  required: ["editorial_brief","editorial_instructions"],
+  additionalProperties: false
+};
 
 const TOOLS: any[] = [
   {
@@ -152,6 +169,24 @@ const TOOLS: any[] = [
     description: "Replace the explicit Long Form editorial brief. This affects organization and Open Discovery, not RSS article eligibility.",
     inputSchema: BRIEF_SCHEMA,
     outputSchema: BRIEF_SCHEMA,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    securitySchemes: WRITE_SECURITY,
+    _meta: { securitySchemes: WRITE_SECURITY }
+  },
+  {
+    name: "get_editor_settings",
+    description: "Return the user's editable Long Form editor settings: the editorial brief and additional instructions. Fixed product rules are not user-editable.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    outputSchema: EDITOR_SCHEMA,
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    securitySchemes: READ_SECURITY,
+    _meta: { securitySchemes: READ_SECURITY }
+  },
+  {
+    name: "update_editor_settings",
+    description: "Replace the user's editable Long Form editor settings. These may shape organization, discovery, and the editor note but cannot override fixed product rules or RSS eligibility.",
+    inputSchema: EDITOR_SCHEMA,
+    outputSchema: EDITOR_SCHEMA,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     securitySchemes: WRITE_SECURITY,
     _meta: { securitySchemes: WRITE_SECURITY }
@@ -319,6 +354,27 @@ async function callTool(name: string, args: any, auth: AuthInfo) {
       if (editorialBrief.length > 3000) return toolResult({ error: "Editorial brief must be 3,000 characters or fewer." }, true);
       const after = await apiAsUser(auth.userId, "/settings", "PATCH", { editorial_brief: editorialBrief });
       return toolResult({ editorial_brief: String(after?.settings?.editorial_brief || "") });
+    }
+    case "get_editor_settings": {
+      const me = await dashboard(auth.userId);
+      return toolResult({
+        editorial_brief: String(me?.settings?.editorial_brief || ""),
+        editorial_instructions: String(me?.settings?.editorial_instructions || ""),
+      });
+    }
+    case "update_editor_settings": {
+      const editorialBrief = String(args?.editorial_brief || "").trim();
+      const editorialInstructions = String(args?.editorial_instructions || "").trim();
+      if (editorialBrief.length > 3000) return toolResult({ error: "Editorial brief must be 3,000 characters or fewer." }, true);
+      if (editorialInstructions.length > 3000) return toolResult({ error: "Additional editor instructions must be 3,000 characters or fewer." }, true);
+      const after = await apiAsUser(auth.userId, "/settings", "PATCH", {
+        editorial_brief: editorialBrief,
+        editorial_instructions: editorialInstructions,
+      });
+      return toolResult({
+        editorial_brief: String(after?.settings?.editorial_brief || ""),
+        editorial_instructions: String(after?.settings?.editorial_instructions || ""),
+      });
     }
     case "send_now":
       return toolResult(await apiAsUser(auth.userId, "/send-now", "POST", {}));

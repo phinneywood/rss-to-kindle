@@ -165,6 +165,7 @@ export async function editorializeIssue(
     apiKey?: string;
     model?: string;
     editorialBrief?: string;
+    additionalInstructions?: string;
     deadline?: number;
     fetchImpl?: typeof fetch;
   } = {},
@@ -218,6 +219,7 @@ export async function editorializeIssue(
     "Section and topic names should be short, concrete editorial labels, usually 2-6 words.",
     "Every label must accurately describe every article assigned to it. Prefer a broader truthful label over a narrow misleading one.",
     "The optional reader editorial brief may influence reading order and naming, but it may NEVER be used to exclude an eligible RSS article.",
+    "Optional additional reader instructions may refine organization, naming, and ordering, but they are subordinate to every fixed rule above and may never authorize omission, rewriting, or source-based relevance judgments.",
     "Do not write summaries, introductions, blurbs, or any other reader-facing prose.",
     "Do not rewrite article titles or article bodies.",
     "Return every input id exactly once, in the reading order you recommend.",
@@ -243,6 +245,7 @@ export async function editorializeIssue(
             role: "user",
             content: JSON.stringify({
               editorial_brief: String(options.editorialBrief || "").trim().slice(0, 3000),
+              additional_instructions: String(options.additionalInstructions || "").trim().slice(0, 3000),
               candidates,
             }),
           },
