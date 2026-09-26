@@ -3,53 +3,50 @@ on:
   push:
     branches: [design/personal-site-system]
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: design-workbench
+  cancel-in-progress: true
 jobs:
   review:
+    if: github.ref == 'refs/heads/design/personal-site-system'
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm ci
-      - run: npm install --no-save --package-lock=false playwright@1.56.1 @axe-core/playwright@4.10.2
-      - run: npx playwright install --with-deps chromium
-      - name: Capture reference and current production
+      - name: Apply one-time presentation refactor on the design branch
         run: |
-          mkdir -p .review
-          curl --fail --silent --show-error https://raw.githubusercontent.com/phinneywood/personal-site/main/src/pages/index.astro -o .review/personal-site.astro
-          node --input-type=module <<'NODE'
-          import { chromium } from 'playwright';
-          import fs from 'node:fs/promises';
-          const browser = await chromium.launch();
-          const page = await browser.newPage();
-          const response = await page.goto('https://reader.antonioskilton.com', {waitUntil:'networkidle'});
-          await fs.writeFile('.review/production.html', await response.text());
-          await fs.writeFile('.review/production.json', JSON.stringify({status:response.status(),url:page.url(),title:await page.title()},null,2));
-          for (const width of [390,1440]) {
-            await page.setViewportSize({width,height:900});
-            await page.screenshot({path:`.review/production-${width}.png`,fullPage:true});
-          }
-          await page.setContent(await fs.readFile('.review/personal-site.astro','utf8'));
-          for (const width of [390,1440]) {
-            await page.setViewportSize({width,height:900});
-            await page.screenshot({path:`.review/reference-${width}.png`,fullPage:true});
-          }
-          await browser.close();
-          NODE
-      - name: Bundle isolated review workspace
+          python .design/apply.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html opml.js privacy.html terms.html tests/ui.test.mjs
+          if ! git diff --cached --quiet; then
+            git commit -m 'design: replace legacy UI layers with shared editorial system'
+            git push origin HEAD:design/personal-site-system
+          fi
+      - run: npm ci
+      - run: node --test tests/*.test.mjs
+      - run: npm install --no-save --package-lock=false playwright@1.56.1 @axe-core/playwright@4.10.2
+      - run: npx playwright install --with-deps chromium webkit
+      - name: Chromium responsive interaction and accessibility review
+        run: node tests/browser.mjs
+      - name: WebKit responsive interaction and accessibility review
+        if: success() || failure()
+        run: BROWSER=webkit node tests/browser.mjs
+      - name: Bundle source for visual inspection
         if: always()
         run: |
-          mkdir -p .review
-          tar --exclude=.git --exclude=node_modules --exclude=.review -czf .review/source.tar.gz .
-          tar -czf .review/dependencies.tar.gz node_modules
+          mkdir -p test-results
+          git rev-parse HEAD > test-results/source-commit.txt
+          tar --exclude=.git --exclude=node_modules --exclude=test-results -czf test-results/source.tar.gz .
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: design-workspace
-          path: .review/
+          name: design-review
+          path: test-results/
           include-hidden-files: true
-          retention-days: 3
+          retention-days: 7
           if-no-files-found: error
