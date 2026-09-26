@@ -1,1 +1,2 @@
-alter table public.app_users\n  drop column if exists auth_user_id;\n
+alter table public.app_users
+  drop column if exists auth_user_id;
