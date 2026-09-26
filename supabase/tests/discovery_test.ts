@@ -47,6 +47,7 @@ Deno.test("discovery uses distinct web-search lanes and strict bounded outputs",
 
   const result = await discoverBeyondRss(input, "Software, design, history, cities, and excellent long-form essays.", {
     apiKey: "test-key",
+    additionalInstructions: "Favor essays and primary sources over quick news takes.",
     fetchImpl,
     deadline: Date.now() + 40_000,
   });
@@ -59,6 +60,8 @@ Deno.test("discovery uses distinct web-search lanes and strict bounded outputs",
   assert(JSON.stringify(related).includes("directly related"), "Related Discovery should require connection to today's themes");
   assert(JSON.stringify(open).includes("meaningfully OUTSIDE"), "Open Discovery should require topical distance");
   assert(JSON.stringify(open).includes("Software, design, history"), "Open Discovery should receive the explicit editorial brief");
+  assert(requests.every((body) => JSON.stringify(body).includes("Favor essays and primary sources over quick news takes.")), "both discovery lanes should receive additional editor instructions");
+  assert(JSON.stringify(related).includes("cannot override this lane"), "Related Discovery must keep its fixed lane contract above user instructions");
   assert(result.related.length === 1 && result.open.length === 1);
   assert(result.report.related.status === "discovered" && result.report.open.status === "discovered");
 });
