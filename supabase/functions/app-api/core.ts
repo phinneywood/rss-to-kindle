@@ -51,32 +51,6 @@ export async function verifyCode(email:string,c:string){
   if(userError)throw userError;
   return issueAppSession(user);
 }
-export async function exchangeSupabaseAuth(accessToken:string){
-  if(!accessToken)throw Object.assign(new Error("Missing Supabase access token."),{status:401});
-  const{data,error}=await admin.auth.getUser(accessToken);
-  const authUser=data?.user;
-  if(error||!authUser?.id||!authUser.email)throw Object.assign(new Error("Supabase session is invalid or expired."),{status:401});
-  if(!authUser.email_confirmed_at)throw Object.assign(new Error("Your email address must be verified before signing in."),{status:401});
-  const provider=String(authUser.app_metadata?.provider||"").toLowerCase();
-  if(provider&&!["google","apple","email"].includes(provider))throw Object.assign(new Error("This sign-in provider is not enabled for Long Form."),{status:403});
-  const email=normEmail(authUser.email);
-  let{data:user,error:userError}=await admin.from("app_users").select("id,email,auth_user_id").eq("auth_user_id",authUser.id).maybeSingle();
-  if(userError)throw userError;
-  if(!user){
-    const{data:byEmail,error:emailError}=await admin.from("app_users").select("id,email,auth_user_id").eq("email",email).maybeSingle();
-    if(emailError)throw emailError;
-    if(byEmail){
-      if(byEmail.auth_user_id&&byEmail.auth_user_id!==authUser.id)throw Object.assign(new Error("This email is already linked to another sign-in identity."),{status:409});
-      const{data:linked,error:linkError}=await admin.from("app_users").update({auth_user_id:authUser.id,updated_at:new Date().toISOString()}).eq("id",byEmail.id).select("id,email,auth_user_id").single();
-      if(linkError)throw linkError; user=linked;
-    }else{
-      const{data:created,error:createError}=await admin.from("app_users").insert({email,auth_user_id:authUser.id}).select("id,email,auth_user_id").single();
-      if(createError)throw createError; user=created;
-    }
-  }
-  const session=await issueAppSession({id:user.id,email:user.email});
-  return{...session,provider:provider||"oauth",auth_user_id:authUser.id};
-}
 export async function auth(req:Request){
   const h=req.headers.get("authorization")||"",raw=h.startsWith("Bearer ")?h.slice(7).trim():"";
   if(!raw)return null;
