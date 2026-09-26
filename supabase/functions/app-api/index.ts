@@ -69,6 +69,7 @@ Deno.serve(async(req)=>{
       if("timezone"in b){const tz=String(b.timezone||"");if(!validTimezone(tz))return json({error:"Invalid timezone."},400);p.timezone=tz}
       if("delivery_time"in b){const t=String(b.delivery_time||"");if(!/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(t))return json({error:"Invalid delivery time."},400);p.delivery_time=t.length===5?`${t}:00`:t}
       if("editorial_brief"in b){const brief=String(b.editorial_brief||"").trim();if(brief.length>3000)return json({error:"Editorial brief must be 3,000 characters or fewer."},400);p.editorial_brief=brief}
+      if("editorial_instructions"in b){const instructions=String(b.editorial_instructions||"").trim();if(instructions.length>3000)return json({error:"Additional editor instructions must be 3,000 characters or fewer."},400);p.editorial_instructions=instructions}
       if("paused"in b)p.paused=Boolean(b.paused);if("onboarding_complete"in b)p.onboarding_complete=Boolean(b.onboarding_complete);
       // Account time is retained only as a default for legacy clients/new editions.
       // Database triggers recalculate edition schedules on timezone/pause changes.
