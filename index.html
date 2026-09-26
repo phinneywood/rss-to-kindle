@@ -624,6 +624,419 @@
       .problem-banner{margin-bottom:12px;padding:9px 10px;border-left-width:2px}
       .problem-banner,.source-problem-context,.source-problem-action{font-size:12px}
     }
+
+    /* Long Form visual reset — September 2026 */
+    :root{
+      --bg:#f3f3ef;
+      --paper:#ffffff;
+      --ink:#171714;
+      --muted:#74736c;
+      --line:#deded8;
+      --line-soft:#ecece7;
+      --accent:#cf1f2c;
+      --accent-soft:#fff1f2;
+      --success:#16624b;
+      --green:#16624b;
+      --green-2:#0f4c3a;
+      --green-soft:#edf5f1;
+      --red:#b51f28;
+      --red-soft:#fff0f1;
+      --shadow:0 1px 2px rgba(20,20,16,.03),0 18px 50px rgba(20,20,16,.055);
+      --radius:20px;
+      --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+      --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
+      --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
+    }
+    html,body{background:var(--bg)}
+    body{
+      color:var(--ink);
+      font-family:var(--sans);
+      -webkit-font-smoothing:antialiased;
+      text-rendering:optimizeLegibility;
+    }
+    .shell{max-width:980px;margin:0 auto;padding:22px 20px 56px}
+    .topbar{
+      border:0;
+      padding:0 0 18px;
+      min-height:54px;
+      align-items:center;
+    }
+    .brand{font-family:var(--serif);font-size:31px;font-weight:700;letter-spacing:-.045em;line-height:.95}
+    .brand-kicker{
+      margin-top:5px;
+      font-family:var(--sans);
+      font-size:11px;
+      line-height:1.2;
+      letter-spacing:.01em;
+      text-transform:none;
+      color:var(--muted);
+    }
+    .account-menu-btn{
+      height:38px!important;
+      min-width:0!important;
+      border:0!important;
+      border-radius:999px!important;
+      background:#e8e8e2!important;
+      padding:0 14px!important;
+      font-size:13px!important;
+      font-weight:700!important;
+    }
+    .account-menu-btn:hover{background:#dfdfd8!important}
+    .btn{
+      min-height:44px;
+      border-radius:11px;
+      border:1px solid var(--line);
+      background:#fff;
+      padding:10px 14px;
+      font-size:14px;
+      font-weight:720;
+      letter-spacing:-.01em;
+      transition:background .16s ease,border-color .16s ease,transform .16s ease,box-shadow .16s ease;
+    }
+    .btn:hover{transform:none;background:#f8f8f5;border-color:#cbcbc4}
+    .btn:active{transform:scale(.985)}
+    .btn.primary{background:var(--ink);border-color:var(--ink);color:#fff}
+    .btn.primary:hover{background:#000;border-color:#000}
+    .btn.small-btn{min-height:40px;padding:8px 12px;font-size:13px}
+    .input,.select{
+      border-radius:12px;
+      border-color:var(--line);
+      background:#fff;
+      padding:12px 13px;
+    }
+    .input:focus,.select:focus{border-color:#96968e;box-shadow:0 0 0 3px rgba(20,20,16,.07)}
+    .editorial-label,.eyebrow,.side-title{
+      font-family:var(--mono);
+      font-size:10px;
+      line-height:1.2;
+      letter-spacing:.11em;
+      text-transform:uppercase;
+      font-weight:700;
+      color:var(--muted);
+    }
+
+    .home-dashboard{
+      display:grid;
+      grid-template-columns:minmax(0,.88fr) minmax(0,1.12fr);
+      gap:18px;
+      align-items:start;
+      padding-top:14px;
+    }
+    .issue-card,.library-card{
+      background:var(--paper);
+      border:1px solid rgba(23,23,20,.07);
+      border-radius:22px;
+      box-shadow:var(--shadow);
+    }
+    .issue-card{padding:24px}
+    .issue-topline,.library-header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+    }
+    .micro-label{
+      font-family:var(--mono);
+      font-size:10px;
+      letter-spacing:.11em;
+      text-transform:uppercase;
+      font-weight:700;
+      color:var(--accent);
+    }
+    .quiet-state{
+      display:inline-flex;
+      align-items:center;
+      min-height:25px;
+      padding:0 9px;
+      border-radius:999px;
+      background:#f1f1ed;
+      color:var(--muted);
+      font-size:11px;
+      font-weight:700;
+    }
+    .issue-time{
+      margin-top:22px;
+      font-family:var(--serif);
+      font-size:43px;
+      line-height:.98;
+      letter-spacing:-.045em;
+      font-weight:650;
+    }
+    .issue-schedule{
+      margin-top:9px;
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.45;
+    }
+    .issue-actions{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) minmax(0,1fr) 44px;
+      gap:8px;
+      margin-top:22px;
+    }
+    .issue-actions .btn{width:100%}
+    .issue-actions .icon-btn{padding:0;font-size:17px;letter-spacing:.08em}
+    .issue-status{
+      display:flex;
+      gap:8px;
+      align-items:flex-start;
+      margin-top:16px;
+      padding-top:14px;
+      border-top:1px solid var(--line-soft);
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.45;
+    }
+    .issue-status-dot{
+      width:7px;height:7px;border-radius:50%;
+      background:#b8b8b0;
+      margin-top:5px;
+      flex:0 0 auto;
+    }
+    .issue-status-dot.problem{background:var(--accent)}
+    .issue-links{
+      margin-top:16px;
+      border-top:1px solid var(--line-soft);
+    }
+    .issue-link{
+      width:100%;
+      min-height:49px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      border:0;
+      border-bottom:1px solid var(--line-soft);
+      background:transparent;
+      color:var(--ink);
+      padding:0;
+      text-align:left;
+      cursor:pointer;
+    }
+    .issue-link:last-child{border-bottom:0}
+    .issue-link strong{font-size:14px}
+    .issue-link span:last-child{color:var(--muted)}
+    .issue-link:hover strong{color:var(--accent)}
+
+    .library-card{padding:24px}
+    .library-title{
+      margin:5px 0 0;
+      font-family:var(--serif);
+      font-size:34px;
+      line-height:1;
+      letter-spacing:-.04em;
+      font-weight:650;
+    }
+    .library-count{
+      min-width:34px;
+      height:34px;
+      display:grid;
+      place-items:center;
+      border-radius:999px;
+      background:#f1f1ed;
+      font-family:var(--mono);
+      font-size:11px;
+      font-weight:700;
+      color:var(--muted);
+    }
+    .library-actions{
+      display:flex;
+      gap:8px;
+      margin-top:20px;
+    }
+    .library-actions .btn{flex:1}
+    .attention-row{
+      width:100%;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+      margin-top:16px;
+      padding:13px 14px;
+      border:1px solid #f0d6d9;
+      border-radius:13px;
+      background:var(--accent-soft);
+      color:var(--ink);
+      text-align:left;
+      cursor:pointer;
+    }
+    .attention-row-copy{min-width:0}
+    .attention-row strong{display:block;font-size:13px}
+    .attention-row span{
+      display:block;
+      margin-top:3px;
+      color:#7d565a;
+      font-size:12px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .attention-row-action{
+      color:var(--accent);
+      font-size:12px;
+      font-weight:750;
+      flex:0 0 auto;
+    }
+    .source-list-toggle{
+      width:100%;
+      min-height:52px;
+      margin-top:16px;
+      padding:0 2px;
+      border:0;
+      border-top:1px solid var(--line-soft);
+      border-bottom:1px solid var(--line-soft);
+      background:transparent;
+      color:var(--ink);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      text-align:left;
+      cursor:pointer;
+      font-size:14px;
+      font-weight:720;
+    }
+    .source-list-toggle:hover{color:var(--ink)}
+    .source-list-toggle-state{
+      font-family:var(--mono);
+      font-size:10px;
+      letter-spacing:.04em;
+      text-transform:none;
+      color:var(--muted);
+      white-space:nowrap;
+    }
+    #sources-body{padding-top:2px}
+    #sources-body .feed-list{border:0}
+    #sources-body .feed{
+      grid-template-columns:minmax(0,1fr) 44px;
+      align-items:start;
+      padding:14px 2px;
+      border-top:1px solid var(--line-soft);
+    }
+    #sources-body .feed:first-child{border-top:0}
+    .feed-title{
+      font-family:var(--sans);
+      font-size:14px;
+      font-weight:720;
+      line-height:1.3;
+      letter-spacing:-.01em;
+    }
+    .feed-url{
+      margin-top:4px;
+      font-family:var(--mono);
+      font-size:10px;
+      line-height:1.4;
+      color:var(--muted);
+    }
+    .feed-manage{
+      width:40px;
+      min-width:40px;
+      height:40px;
+      display:grid;
+      place-items:center;
+      border:0;
+      border-radius:10px;
+      background:transparent;
+      color:var(--muted);
+      font-size:17px;
+    }
+    .feed-manage:hover{background:#f3f3ef;color:var(--ink)}
+    .feed-error{margin-top:7px;font-size:12px;line-height:1.45}
+    .section-attention{font-size:12px;padding:5px 0}
+    .empty{padding:18px 2px;font-size:13px}
+
+    footer{
+      margin-top:34px;
+      padding-top:14px;
+      border-top:0;
+      color:#9a9992;
+      font-size:11px;
+    }
+
+    .modal{
+      background:rgba(18,18,15,.34);
+      backdrop-filter:blur(10px);
+      -webkit-backdrop-filter:blur(10px);
+      padding:18px;
+    }
+    .modal-card{
+      width:min(620px,100%);
+      max-height:calc(100dvh - 36px);
+      border:0;
+      border-radius:22px;
+      background:#fff;
+      box-shadow:0 26px 90px rgba(0,0,0,.22);
+      padding:24px;
+    }
+    .modal-card h2{font-family:var(--serif);font-size:29px;letter-spacing:-.035em}
+    .menu-list{border-top:1px solid var(--line-soft);margin-top:16px}
+    .menu-action{
+      min-height:52px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      width:100%;
+      border:0;
+      border-bottom:1px solid var(--line-soft);
+      background:transparent;
+      padding:0;
+      color:var(--ink);
+      text-align:left;
+      font-size:14px;
+      font-weight:700;
+      text-decoration:none;
+      cursor:pointer;
+    }
+    .menu-action:hover{color:var(--accent)}
+    .menu-action.danger{color:#9d3139}
+    .account-sheet-copy{margin-top:5px;color:var(--muted);font-size:12px}
+    .account-sheet-meta{color:var(--muted);font-size:11px;font-weight:600}
+
+    @media(max-width:760px){
+      .shell{
+        padding:max(16px,env(safe-area-inset-top)) 16px calc(42px + env(safe-area-inset-bottom));
+      }
+      .topbar{padding-bottom:14px}
+      .brand{font-size:30px}
+      .brand-kicker{font-size:10px}
+      .home-dashboard{grid-template-columns:1fr;gap:14px;padding-top:8px}
+      .issue-card,.library-card{border-radius:19px}
+      .issue-card{padding:21px 19px 18px}
+      .library-card{padding:21px 19px 17px}
+      .issue-time{font-size:40px;margin-top:19px}
+      .issue-actions{grid-template-columns:1fr 1fr 44px;margin-top:19px}
+      .issue-actions .btn{min-height:46px}
+      .library-title{font-size:31px}
+      .library-actions{margin-top:17px}
+      .library-actions .btn{min-height:44px}
+      .attention-row{margin-top:14px}
+      .source-list-toggle{margin-top:14px}
+      #sources-body .feed{padding:13px 1px}
+      .modal{padding:0;place-items:end center}
+      .modal-card{
+        width:100%;
+        max-height:92dvh;
+        border-radius:22px 22px 0 0;
+        padding:24px 18px calc(24px + env(safe-area-inset-bottom));
+      }
+      .modal.flow{place-items:stretch}
+      .modal.flow .modal-card{
+        height:100dvh;
+        max-height:none;
+        border-radius:0;
+        padding:20px 16px calc(28px + env(safe-area-inset-bottom));
+      }
+      footer{margin-top:25px}
+    }
+    @media(max-width:390px){
+      .issue-actions{grid-template-columns:1fr 1fr 42px}
+      .btn{padding-left:11px;padding-right:11px}
+      .library-actions .btn{font-size:13px}
+    }
+    @media(prefers-reduced-motion:reduce){
+      *,*:before,*:after{scroll-behavior:auto!important;transition:none!important}
+    }
+
 </style>
 </head>
 <body>
@@ -1050,72 +1463,72 @@ function dashboard(){
   const sources=allSources();
   const problemFeeds=sources.filter(sourceNeedsAttention);
   const latestJob=(state.jobs||[])[0];
-  const brief=String(settings.editorial_brief||'').trim();
+  const busy=(state.jobs||[]).some(job=>job.reason!=='one_time'&&['queued','running'].includes(job.status));
+  const firstProblem=problemFeeds[0];
 
   app.innerHTML=shell(`
-    <div class="grid editorial-grid">
-      <aside class="dashboard-side">
-        <section class="side-card compact-panel delivery-panel">
-          <div class="editorial-label">Next issue</div>
-          <div class="delivery-main compact-delivery" style="margin-top:10px">
-            <div class="edition-next-label">Next delivery</div>
-            <div class="edition-next">${esc(nextIssueDelivery())}</div>
-            <div class="delivery-meta">One daily issue · ${esc((settings.delivery_time||'06:00').slice(0,5))} · ${esc(settings.timezone)}</div>
-            <div class="delivery-actions compact-delivery-actions">
-              <button class="btn small-btn" id="preview">Browse articles</button>
-              ${settings.onboarding_complete?`
-                <button class="btn primary small-btn" id="send-now" ${(state.jobs||[]).some(j=>j.reason!=='one_time'&&['queued','running'].includes(j.status))?'disabled':''}>Send now</button>
-                <button class="btn small-btn overflow-btn" id="delivery-menu" aria-label="More delivery options">More</button>
-              `:`<button class="btn primary small-btn" id="connect-kindle">Connect Kindle →</button>`}
-            </div>
-          </div>
-          ${latestJob?`<div class="latest-run human-run">${esc(latestRunText(latestJob))}</div>`:''}
-          <button class="reading-list-action" id="one-time-send">
-            <span class="editorial-label">Reading list</span>
-            <span class="reading-list-title">+ Add articles to the next issue</span>
-            <span class="reading-list-meta">One-off reading · no recurring subscription</span>
-          </button>
-          <button class="one-time-action" id="delivery-history">Delivery history →</button>
-        </section>
+    <main class="home-dashboard">
+      <section class="issue-card" aria-labelledby="next-issue-heading">
+        <div class="issue-topline">
+          <div class="micro-label" id="next-issue-heading">Next issue</div>
+          ${settings.paused?'<span class="quiet-state">Paused</span>':''}
+        </div>
 
-        <section class="side-card compact-panel preferences-panel">
-          <div class="editorial-label">Preferences</div>
-          <button class="preference-row" id="edit-editorial-brief">
-            <span><span class="preference-title">Editorial brief</span><span class="preference-meta">${brief?'Set':'Not set'}</span></span>
-            <span class="preference-action">${brief?'Edit':'Add'} →</span>
-          </button>
-          <button class="preference-row" id="${settings.onboarding_complete?'manage-kindle':'connect-kindle-secondary'}">
-            <span><span class="preference-title">Kindle</span><span class="preference-meta">${settings.kindle_email?esc(maskEmail(settings.kindle_email)):'Not connected'}</span></span>
-            <span class="preference-action">${settings.onboarding_complete?'Manage':'Connect'} →</span>
-          </button>
-        </section>
-      </aside>
+        <div class="issue-time">${esc(nextIssueDelivery())}</div>
+        <div class="issue-schedule">Daily at ${esc((settings.delivery_time||'06:00').slice(0,5))} · ${esc(settings.timezone)}</div>
 
-      <main class="dashboard-main">
-        ${problemFeeds.length?`<div class="problem-banner" aria-label="Sources needing attention"><strong>${problemFeeds.length} source${problemFeeds.length===1?' needs':'s need'} attention.</strong><ul class="source-problems">${problemFeeds.map(feed=>`<li>${sourceProblemLink(feed.id)}</li>`).join('')}</ul></div>`:''}
+        <div class="issue-actions">
+          <button class="btn" id="preview">Browse</button>
+          ${settings.onboarding_complete?`
+            <button class="btn primary" id="send-now" ${busy?'disabled':''}>Send now</button>
+            <button class="btn icon-btn" id="delivery-menu" aria-label="More delivery options">•••</button>
+          `:`<button class="btn primary" id="connect-kindle">Connect Kindle</button><span></span>`}
+        </div>
 
-        <section class="editorial-section sources-panel">
-          <div class="sources-header">
-            <div>
-              <div class="editorial-label">Recurring sources</div>
-              <h2>Sources</h2>
-            </div>
-            <div class="edition-total">${sources.length} source${sources.length===1?'':'s'}</div>
-          </div>
-          <div class="sources-toolbar">
-            <button class="btn small-btn" id="add-single-feed">+ Add source</button>
-            <button class="btn small-btn" id="import-opml">Import OPML</button>
-          </div>
-          <button class="source-list-toggle" id="toggle-sources" type="button" aria-expanded="${sourcesExpanded}" aria-controls="sources-body">
-            <span>Subscribed sources</span>
-            <span class="source-list-toggle-state">${sourcesExpanded?'Hide':'Show'} ${sources.length} <span aria-hidden="true">${sourcesExpanded?'⌃':'⌄'}</span></span>
+        ${latestJob?`<div class="issue-status"><span class="issue-status-dot ${['failed','partial'].includes(latestJob.status)?'problem':''}"></span><span>${esc(latestRunText(latestJob))}</span></div>`:''}
+
+        <div class="issue-links">
+          <button class="issue-link" id="one-time-send">
+            <strong>Add articles to this issue</strong><span aria-hidden="true">→</span>
           </button>
-          <div id="sources-body" ${!sourcesExpanded?'hidden':''}>
-            <div class="feed-list sources-list">${sources.length?sources.map(feedRow).join(''):'<div class="empty">No recurring sources yet.</div>'}</div>
+          <button class="issue-link" id="delivery-history">
+            <strong>Delivery history</strong><span aria-hidden="true">→</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="library-card" aria-labelledby="sources-heading">
+        <div class="library-header">
+          <div>
+            <div class="micro-label">Library</div>
+            <h2 class="library-title" id="sources-heading">Sources</h2>
           </div>
-        </section>
-      </main>
-    </div>`,
+          <div class="library-count" aria-label="${sources.length} subscribed sources">${sources.length}</div>
+        </div>
+
+        <div class="library-actions">
+          <button class="btn" id="add-single-feed">Add source</button>
+          <button class="btn" id="import-opml">Import OPML</button>
+        </div>
+
+        ${problemFeeds.length?`<button class="attention-row review-source" data-id="${esc(firstProblem.id)}">
+          <span class="attention-row-copy">
+            <strong>${problemFeeds.length} source${problemFeeds.length===1?' needs':'s need'} attention</strong>
+            <span>${esc(firstProblem.name||firstProblem.url)}${problemFeeds.length>1?` · +${problemFeeds.length-1} more`:''}</span>
+          </span>
+          <span class="attention-row-action">Review</span>
+        </button>`:''}
+
+        <button class="source-list-toggle" id="toggle-sources" type="button" aria-expanded="${sourcesExpanded}" aria-controls="sources-body">
+          <span>Subscribed sources</span>
+          <span class="source-list-toggle-state">${sourcesExpanded?'Hide':'Show'} ${sources.length} <span aria-hidden="true">${sourcesExpanded?'↑':'↓'}</span></span>
+        </button>
+
+        <div id="sources-body" ${!sourcesExpanded?'hidden':''}>
+          <div class="feed-list sources-list">${sources.length?sources.map(feedRow).join(''):'<div class="empty">No recurring sources yet.</div>'}</div>
+        </div>
+      </section>
+    </main>`,
     '<button class="btn account-menu-btn" id="account-menu" aria-label="Account menu">Account</button>');
   wireDashboard();
 }
@@ -1126,7 +1539,7 @@ function wireDashboard(){
   document.querySelector('#add-single-feed').onclick=e=>{e.preventDefault();singleFeedModal()};
   document.querySelector('#import-opml').onclick=e=>{e.preventDefault();opmlImportModal()};
   document.querySelector('#toggle-sources').onclick=()=>{sourcesExpanded=!sourcesExpanded;dashboard();document.querySelector('#toggle-sources')?.focus()};
-  document.querySelector('#edit-editorial-brief').onclick=editorialBriefModal;
+  const editBrief=document.querySelector('#edit-editorial-brief');if(editBrief)editBrief.onclick=editorialBriefModal;
 
   const sendNow=document.querySelector('#send-now');if(sendNow)sendNow.onclick=()=>queueSend('/send-now','Issue queued');
   document.querySelector('#one-time-send').onclick=()=>oneTimeEditionModal();
@@ -1189,9 +1602,17 @@ function kindleManageModal(){
 }
 
 function accountMenuModal(){
-  openModal(`<div class="row"><div><div class="editorial-label">Long Form</div><h2 style="margin-top:6px">Account</h2></div><button class="btn small-btn" id="close-modal">Close</button></div>
-    <div class="menu-list"><button class="menu-action" id="account-system-health">System health</button><button class="menu-action" id="account-sign-out">Sign out</button></div>`);
+  const brief=String(state.settings.editorial_brief||'').trim();
+  openModal(`<div class="row"><div><div class="editorial-label">Long Form</div><h2 style="margin-top:6px">Account</h2><div class="account-sheet-copy">${esc(maskEmail(state.settings.kindle_email||''))}</div></div><button class="btn small-btn" id="close-modal">Close</button></div>
+    <div class="menu-list">
+      <button class="menu-action" id="account-editorial-brief"><span>Editorial brief</span><span class="account-sheet-meta">${brief?'Set':'Not set'} →</span></button>
+      <button class="menu-action" id="account-delivery-settings"><span>Kindle & delivery</span><span class="account-sheet-meta">Manage →</span></button>
+      <button class="menu-action" id="account-system-health"><span>System health</span><span class="account-sheet-meta">View →</span></button>
+      <button class="menu-action danger" id="account-sign-out"><span>Sign out</span><span aria-hidden="true">→</span></button>
+    </div>`);
   document.querySelector('#close-modal').onclick=closeModal;
+  document.querySelector('#account-editorial-brief').onclick=editorialBriefModal;
+  document.querySelector('#account-delivery-settings').onclick=state.settings.onboarding_complete?settingsModal:onboarding;
   document.querySelector('#account-system-health').onclick=()=>{closeModal();systemHealthPage()};
   document.querySelector('#account-sign-out').onclick=()=>{closeModal();signOut()};
 }
