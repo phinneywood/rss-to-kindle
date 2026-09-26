@@ -294,7 +294,7 @@ Deno.test("publisher metadata overrides curator feed attribution when the linked
       <link rel="canonical" href="https://8.8.8.8/story">
     </head><body><article><h1>Actual linked article</h1>
       <p>This is a deliberately substantial linked article used to verify that the publisher page wins over discovery-feed attribution.</p>
-      <p>The item was surfaced through another person's feed, but the original publication and author must appear in Morning Reader.</p>
+      <p>The item was surfaced through another person's feed, but the original publication and author must appear in Long Form.</p>
       <p>Enough additional prose is included to satisfy the readability threshold and exercise the same extraction path used in production.</p>
     </article></body></html>`);
   }) as typeof fetch;
@@ -334,7 +334,7 @@ Deno.test("resolves HNRSS link-post wrappers to the linked publisher article", a
       <link rel="canonical" href="https://8.8.8.8/story">
     </head><body><article><h1>Actual linked story</h1>
       <p>This is the opening paragraph of the real linked publisher article and is deliberately substantial enough for readable extraction.</p>
-      <p>It proves that Morning Reader follows the Article URL carried inside a link-post feed instead of packaging the discovery wrapper metadata as reading content.</p>
+      <p>It proves that Long Form follows the Article URL carried inside a link-post feed instead of packaging the discovery wrapper metadata as reading content.</p>
       <p>A final paragraph provides enough additional prose to behave like an ordinary article page and pass the extraction threshold reliably.</p>
     </article></body></html>`);
   }) as typeof fetch;
@@ -459,7 +459,7 @@ Deno.test("renders a book-native linear edition with hierarchical native navigat
   ];
 
   const bytes = await makeEpub({
-    name: "Morning Reader",
+    name: "Long Form",
     displayDate: "September 23, 2026",
     date: new Date("2026-09-23T12:00:00Z"),
     timezone: "America/Los_Angeles",
