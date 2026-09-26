@@ -1,6 +1,6 @@
-# Morning Reader social sign-in
+# Long Form social sign-in
 
-Morning Reader keeps the existing six-digit email-code flow and adds Google and Apple through Supabase Auth.
+Long Form keeps the existing six-digit email-code flow and adds Google and Apple through Supabase Auth.
 
 ## Architecture
 
@@ -8,8 +8,8 @@ Morning Reader keeps the existing six-digit email-code flow and adds Google and 
 2. Supabase returns a verified Auth session to the browser.
 3. The browser sends the Supabase access token to `POST /auth/exchange-supabase`.
 4. `app-api` validates that token with `auth.getUser(jwt)`.
-5. Morning Reader links the verified identity to `app_users.auth_user_id`, matching an existing account by verified email when appropriate.
-6. Morning Reader issues an application session with a rolling 90-day inactivity timeout. Each authenticated request atomically validates and renews the session; expired or revoked sessions cannot renew. Internal MCP delegated sessions retain their fixed two-minute expiry.
+5. Long Form links the verified identity to `app_users.auth_user_id`, matching an existing account by verified email when appropriate.
+6. Long Form issues an application session with a rolling 90-day inactivity timeout. Each authenticated request atomically validates and renews the session; expired or revoked sessions cannot renew. Internal MCP delegated sessions retain their fixed two-minute expiry.
 
 Existing active email-code sessions are upgraded to the same inactivity timeout. Temporary network or server failures keep the browser token and show a retry screen; only an explicit unauthorized response clears it. Sign-out revokes the server session before clearing local credentials.
 
@@ -21,7 +21,7 @@ Production site URL:
 
 Feature-preview redirect URL for testing:
 
-`https://morning-reader-git-feature-supabase-auth-login-phinneywood.vercel.app`
+`https://long-form-git-feature-supabase-auth-login-phinneywood.vercel.app`
 
 Supabase OAuth callback registered with Google and Apple:
 
@@ -49,7 +49,7 @@ For preview testing, add the feature-preview origin as an authorized JavaScript 
 
 Create a Sign in with Apple Services ID and private key in Apple Developer.
 
-Configure the website domain for Morning Reader and use this return URL:
+Configure the website domain for Long Form and use this return URL:
 
 `https://wuikfmmwvrzpaoevtskn.supabase.co/auth/v1/callback`
 
@@ -68,8 +68,8 @@ This adds the nullable unique `app_users.auth_user_id` reference. It does not ch
 - Existing six-digit email sign-in still works.
 - Google sign-in returns to the preview URL and opens the correct existing account when the verified email matches.
 - Apple sign-in returns to the preview URL and opens the correct existing account when the verified email matches.
-- A new Google account creates one Morning Reader account.
-- A new Apple account creates one Morning Reader account.
-- Sign out clears both the Morning Reader session and Supabase browser session.
-- Existing users remain signed in through their current Morning Reader sessions.
+- A new Google account creates one Long Form account.
+- A new Apple account creates one Long Form account.
+- Sign out clears both the Long Form session and Supabase browser session.
+- Existing users remain signed in through their current Long Form sessions.
 - Repeated social sign-in does not create duplicate `app_users` rows.
