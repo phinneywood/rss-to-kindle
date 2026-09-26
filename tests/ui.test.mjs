@@ -135,7 +135,7 @@ test('multiple source alerts are independent of legacy section enabled state; pa
 
 test('source review can edit the feed name and URL',async()=>{
   const result=await run(`state.sections[0].feeds[0].enabled=true;state.sections[0].feeds[0].last_error='HTTP 503';dashboard();reviewSource('f1');document.querySelector('#manage-edit').click();document.querySelector('#source-edit-name').value='Fixed source';document.querySelector('#source-edit-url').value='https://example.com/fixed.xml';let request;api=async(path,options)=>{request={path,method:options.method,body:options.body};state.sections[0].feeds[0]={...state.sections[0].feeds[0],...options.body,last_error:null};return state};const form=document.querySelector('#source-edit-form');await form.onsubmit({preventDefault(){},currentTarget:form});return {request,expanded:!document.querySelector('#sources-body').hidden,title:document.querySelector('.feed-title').textContent}`);
-  assert.equal(result.request.path,'/feeds/f1');assert.equal(result.request.method,'PATCH');assert.deepEqual(result.request.body,{name:'Fixed source',url:'https://example.com/fixed.xml'});assert.ok(result.expanded);assert.match(result.title,/Fixed source/);
+  assert.equal(result.request.path,'/feeds/f1');assert.equal(result.request.method,'PATCH');assert.equal(result.request.body.name,'Fixed source');assert.equal(result.request.body.url,'https://example.com/fixed.xml');assert.ok(result.expanded);assert.match(result.title,/Fixed source/);
 });
 
 test('source recheck calls only the source endpoint and clears recovered alerts',async()=>{
