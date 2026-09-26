@@ -1,0 +1,53 @@
+name: Design workbench
+on:
+  push:
+    branches: [design/personal-site-system]
+permissions:
+  contents: read
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npm install --no-save --package-lock=false playwright@1.56.1 @axe-core/playwright@4.10.2
+      - run: npx playwright install --with-deps chromium
+      - name: Capture reference and current production
+        run: |
+          mkdir -p .review
+          curl --fail --silent --show-error https://raw.githubusercontent.com/phinneywood/personal-site/main/src/pages/index.astro -o .review/personal-site.astro
+          node --input-type=module <<'NODE'
+          import { chromium } from 'playwright';
+          import fs from 'node:fs/promises';
+          const browser = await chromium.launch();
+          const page = await browser.newPage();
+          const response = await page.goto('https://reader.antonioskilton.com', {waitUntil:'networkidle'});
+          await fs.writeFile('.review/production.html', await response.text());
+          await fs.writeFile('.review/production.json', JSON.stringify({status:response.status(),url:page.url(),title:await page.title()},null,2));
+          for (const width of [390,1440]) {
+            await page.setViewportSize({width,height:900});
+            await page.screenshot({path:`.review/production-${width}.png`,fullPage:true});
+          }
+          await page.setContent(await fs.readFile('.review/personal-site.astro','utf8'));
+          for (const width of [390,1440]) {
+            await page.setViewportSize({width,height:900});
+            await page.screenshot({path:`.review/reference-${width}.png`,fullPage:true});
+          }
+          await browser.close();
+          NODE
+      - name: Bundle isolated review workspace
+        if: always()
+        run: |
+          mkdir -p .review
+          tar --exclude=.git --exclude=node_modules --exclude=.review -czf .review/source.tar.gz .
+          tar -czf .review/dependencies.tar.gz node_modules
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: design-workspace
+          path: .review/
+          retention-days: 3
