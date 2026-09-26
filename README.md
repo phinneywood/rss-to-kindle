@@ -1,5 +1,22 @@
 # Long Form
 
+**Your sources. An AI editor. A daily Kindle edition.**
+
+Long Form turns articles from publications you choose into a personal daily publication, organized by AI and delivered to your Kindle.
+
+[Open Long Form](https://reader.antonioskilton.com) · [About the builder](https://antonioskilton.com)
+
+## At a glance
+
+- **Reader control:** choose sources, add individual articles, and customize your AI editor's brief.
+- **Bounded AI:** organize eligible subscribed articles without discarding them; optional discovery adds related reading.
+- **Complete reading experience:** readable articles, images where supported, a linked contents page, and a dated EPUB cover.
+- **Working system:** web UI, authenticated MCP access, scheduled delivery, and retry-safe delivery handling.
+
+Long Form is a live beta. The implementation and its current limits are documented below.
+
+## Reading experience
+
 Long Form puts readers back in charge of their attention by turning the long-form publications they choose into one calm daily Kindle issue (an EPUB file). Readers manage a flat source list; at issue time an AI editor organizes every eligible subscribed-feed article into dynamic sections, using a fixed **Other** section when no coherent grouping fits. The editor never drops an otherwise eligible RSS article. Readers can also add 1–20 article URLs to the next issue under a reading-list name.
 
 Article pages are reduced to their readable body while preserving headings, lists, links, tables, code, quotations, captions, and supported images. The opening contents page shows Section → Topic → Article title, with each article title linking directly to the article; EPUB 3 and legacy Kindle navigation expose the same hierarchy. Every EPUB also includes reflowable styling, publisher metadata, and a dated cover designed to remain recognizable as a Kindle home-screen thumbnail.
