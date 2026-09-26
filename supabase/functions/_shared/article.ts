@@ -456,7 +456,7 @@ export function extractArticleDocument(pageHtml: string, pageUrl: string) {
   const excerpt = meta(document, ['meta[name="description"]', 'meta[property="og:description"]']) || structured.excerpt;
   const reader = new Readability(document as any, { charThreshold: 180 });
   const parsed = reader.parse();
-  if (!parsed?.content || plainText(parsed.content).length < 180) throw new Error("Morning Reader could not identify the main article text.");
+  if (!parsed?.content || plainText(parsed.content).length < 180) throw new Error("Long Form could not identify the main article text.");
   const finalSource = normalizeTitle(parsed.siteName || source);
   let finalTitle = normalizeTitle(title || parsed.title || document.title || "Untitled");
   if (finalSource) {
@@ -696,7 +696,7 @@ export async function extractArticle(input: ExtractArticleInput): Promise<Articl
             page = fallback;
             finalUrl = fallback.canonicalUrl;
             pageError = null;
-            warnings.push("The publisher page was unavailable, so Morning Reader used the publication feed.");
+            warnings.push("The publisher page was unavailable, so Long Form used the publication feed.");
           }
         } catch {
           // Preserve the original publisher-page error if the fallback is unavailable.
@@ -710,9 +710,9 @@ export async function extractArticle(input: ExtractArticleInput): Promise<Articl
     body = page.html;
   }
   if (!body && page) body = page.html;
-  if (!body || plainText(body).length < 80) throw pageError || new Error("Morning Reader could not extract enough article text.");
+  if (!body || plainText(body).length < 80) throw pageError || new Error("Long Form could not extract enough article text.");
   if (body.length > 250_000) throw new Error("This article is too large to prepare safely. Open the original article instead.");
-  if (pageError && feedBody) warnings.push("The publisher page was unavailable, so Morning Reader used the feed version.");
+  if (pageError && feedBody) warnings.push("The publisher page was unavailable, so Long Form used the feed version.");
 
   const title = normalizeTitle(page?.title || input.title || "Untitled") || "Untitled";
   const effectivePublishedAt = page?.publishedAt || isoDate(input.publishedAt) || null;
@@ -720,7 +720,7 @@ export async function extractArticle(input: ExtractArticleInput): Promise<Articl
   body = stripRedundantLeadingDate(body, title, effectivePublishedAt);
   const canonicalUrl = page?.canonicalUrl || finalUrl;
   // Publisher-page metadata is authoritative when we fetched the linked article.
-  // Feed metadata describes how Morning Reader discovered the article and may name
+  // Feed metadata describes how Long Form discovered the article and may name
   // the curator/reposter rather than the actual author or publication.
   const source = normalizeTitle(page?.source || input.source || new URL(canonicalUrl).hostname.replace(/^www\./, ""));
   const author = normalizeTitle(page?.author || input.author || "") || null;
