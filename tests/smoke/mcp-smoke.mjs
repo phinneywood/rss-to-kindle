@@ -51,7 +51,7 @@ await smoke("rejects invalid auth", async () => {
 await smoke("initializes MCP", async () => {
   const r = await rpc(TOKEN_A, "initialize", { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "smoke", version: "1" } });
   assert.equal(r.status, 200);
-  assert.equal(r.body.result.serverInfo.name, "morning-reader");
+  assert.equal(r.body.result.serverInfo.name, "long-form");
   assert.equal(r.body.result.protocolVersion, "2025-06-18");
 });
 await smoke("lists the six V1 tools", async () => {
