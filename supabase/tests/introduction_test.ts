@@ -44,6 +44,7 @@ Deno.test("Luna introduction prompt asks for an editorial note rather than a sum
 
   const result = await writeIssueIntroduction(groups, "Software, cities, history, and thoughtful long-form reading.", {
     apiKey: "test-key",
+    additionalInstructions: "Keep the note dry and avoid rhetorical questions.",
     fetchImpl,
     deadline: Date.now() + 20_000,
   });
@@ -57,6 +58,8 @@ Deno.test("Luna introduction prompt asks for an editorial note rather than a sum
   assert(prompt.includes("Never mention AI, Luna, RSS"), "prompt should hide production mechanics");
   assert(prompt.includes("End with a thought, question, or turn"), "prompt should shape the ending");
   assert(JSON.stringify(request).includes("Open Discovery"), "Luna should see the complete final issue, including discovery");
+  assert(JSON.stringify(request).includes("Keep the note dry and avoid rhetorical questions."), "the editor note should receive additional user instructions");
+  assert(prompt.includes("subordinate to these form, factuality"), "fixed introduction rules must take precedence over user guidance");
   assert(result.paragraph === fixtureParagraph);
   assert(result.report.status === "written" && result.report.model === "gpt-6-luna");
   assert(result.report.words >= 60 && result.report.words <= 100, "accepted introduction should stay within the one-screen guardrail");
