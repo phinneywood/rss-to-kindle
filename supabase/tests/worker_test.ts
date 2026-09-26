@@ -22,6 +22,7 @@ async function scenario(mode: "empty" | "failed" | "partial" | "retry" | "prepar
   let articleDeliveryReads = 0, articleDeliveryWrites = 0;
   const snapshots: string[] = [];
   const manifestWrites: any[] = [];
+  const editorRequests: any[] = [];
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const req = new Request(input, init), url = new URL(req.url);
     if (url.hostname === "api.resend.com") { sends++;snapshots.push(await req.text());return Response.json({ id: "email-1" }); }
@@ -29,6 +30,7 @@ async function scenario(mode: "empty" | "failed" | "partial" | "retry" | "prepar
       const payload = JSON.parse(await req.text());
       const format = payload?.text?.format?.name;
       const userContent = JSON.parse(payload?.input?.at(-1)?.content || "{}");
+      editorRequests.push({format,userContent});
       if (format === "morning_reader_issue_organization") {
         const plan = {
           articles: (userContent.candidates || []).map((candidate: any) => ({
@@ -80,7 +82,7 @@ async function scenario(mode: "empty" | "failed" | "partial" | "retry" | "prepar
       if (req.method === "POST") outbox = { ...body, first_send_at: null, provider_email_id: null };
       if (req.method === "PATCH") Object.assign(outbox, body);
       rows = outbox ? [outbox] : [];
-    } else if (table === "user_settings") rows = [{ kindle_email: "test@example.com", timezone: "UTC",paused:false,onboarding_complete:true,editorial_brief:"Systems, software, design, and thoughtful long-form reading." }];
+    } else if (table === "user_settings") rows = [{ kindle_email: "test@example.com", timezone: "UTC",paused:false,onboarding_complete:true,editorial_brief:"Systems, software, design, and thoughtful long-form reading.",editorial_instructions:"Prefer durable essays and primary sources over quick takes." }];
     else if (table === "sections") {
       rows = [{ id: "section-1", name: "Reading",enabled:true,delivery_days:[0,1,2,3,4,5,6] },{id:"section-2",name:"Other section",enabled:true,delivery_days:[]}];
       const idFilter = url.searchParams.get("id");
@@ -106,7 +108,7 @@ async function scenario(mode: "empty" | "failed" | "partial" | "retry" | "prepar
       assert(first?.status === "queued", JSON.stringify(first));
       await processJob(structuredClone(job));
     }
-    return { initial, first, sendsAfterInitial, manifestsAfterInitial, job, outbox, sends, feedUpdates, snapshots, fetched, articleDeliveryReads, articleDeliveryWrites, manifestWrites };
+    return { initial, first, sendsAfterInitial, manifestsAfterInitial, job, outbox, sends, feedUpdates, snapshots, fetched, articleDeliveryReads, articleDeliveryWrites, manifestWrites, editorRequests };
   } finally { globalThis.fetch = original; }
 }
 
@@ -130,6 +132,8 @@ Deno.test("worker splits agentic preparation from deterministic packaging and su
   assert(result.outbox.payload.editorial?.organization?.status === "edited", "frozen outbox must retain organizer diagnostics");
   assert(result.outbox.payload.editorial?.discovery?.open?.status === "discovered", "frozen outbox must retain discovery diagnostics");
   assert(result.outbox.payload.email.attachments[0].filename.endsWith(".epub"));
+  assert(result.editorRequests.length >= 3, "the agentic pipeline should make organization, discovery, and introduction requests");
+  assert(result.editorRequests.every((request: any) => request.userContent.additional_instructions === "Prefer durable essays and primary sources over quick takes."), "additional editor instructions should reach every agentic stage");
   assert(result.job.result.qa?.contentsEntries === 1, "pre-send QA must survive outbox freezing and final job diagnostics");
   assert(result.outbox.payload.qa?.contentsEntries === 1, "frozen payload should retain EPUB QA evidence");
 });
