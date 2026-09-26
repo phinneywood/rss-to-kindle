@@ -50,4 +50,6 @@ jobs:
         with:
           name: design-workspace
           path: .review/
+          include-hidden-files: true
           retention-days: 3
+          if-no-files-found: error
