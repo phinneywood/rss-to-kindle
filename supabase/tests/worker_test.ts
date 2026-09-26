@@ -153,7 +153,7 @@ Deno.test("scheduled issues ignore legacy section frequency and read all enabled
   const r=await scenario("scheduled");assert(r.job.status==='partial',JSON.stringify(r.first));assert(r.sends===1);
   assert(r.fetched.includes('/broken'),"legacy section schedules must not suppress enabled sources");
   assert(r.outbox.payload.email.attachments.length===1,"daily issue must have exactly one EPUB");
-  assert(r.outbox.payload.email.attachments[0].filename.startsWith("long-form-"));
+  assert(r.outbox.payload.email.attachments[0].filename.startsWith("long-form-"),`Unexpected recurring filename: ${r.outbox.payload.email.attachments[0].filename}`);
   assert(r.job.result.articles===1);
 });
 
