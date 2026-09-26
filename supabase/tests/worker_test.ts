@@ -206,8 +206,9 @@ Deno.test("explicit test sends are uniquely reviewable on Kindle without consumi
   assert(nav.includes('href="introduction.xhtml">Editor&#39;s note</a>'), "native navigation should expose the editor note");
   assert(contents.includes("<h1 class=\"publication-title\">Morning Reader</h1>"), "test interior should keep the production publication title");
   assert(!contents.includes("TEST "), "test identity should not pollute the production-like reading interior");
+  assert(!contents.includes('href="article-'), "reader-facing test contents should remain non-linked so Kindle cannot restyle article titles");
   for (let index = 1; index <= 5; index++) {
-    assert(contents.includes(`href="article-${index}.xhtml">Test article ${index}</a>`), "every test article should appear as a linked title in the opening contents");
+    assert(contents.includes(`<span class="contents-article">Test article ${index}</span>`), "every test article should appear as a title in the opening contents");
   }
   assert(result.job.result.qa?.contentsEntries === 5, "end-to-end QA should count every article-title contents entry");
   assert(result.job.result.media?.omitted === 5, "test-send media diagnostics should record intentionally omitted inline images without fetching them");
