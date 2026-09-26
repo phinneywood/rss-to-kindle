@@ -1878,7 +1878,7 @@ async function queueSend(path,message){
     const result=await api(path,{method:'POST',body:{request_id:pendingSends.get(path)}});
     pendingSends.delete(path);
     state.jobs=[result.job,...(state.jobs||[]).filter(j=>j.id!==result.job.id)];
-    if(app.querySelector('.dashboard-main'))dashboard();
+    if(app.querySelector('.home-dashboard,.dashboard-main'))dashboard();
     if(version===modalVersion)showJobProgress(result,message);else toast(message);
     void watchJob(result.job.id);
   }catch(err){toast(err.message)}
@@ -1905,7 +1905,7 @@ async function watchJob(jobId){
         const job=(state.jobs||[]).find(j=>j.id===jobId);
         const box=modal.querySelector('#job-progress');
         if(box?.dataset.jobId===jobId&&job)box.textContent=jobProgressText(job);
-        if(app.querySelector('.dashboard-main'))dashboard();
+        if(app.querySelector('.home-dashboard,.dashboard-main'))dashboard();
         if(job&&['sent','partial','empty','failed'].includes(job.status))return;
       }catch{}
       await new Promise(r=>setTimeout(r,2500));
