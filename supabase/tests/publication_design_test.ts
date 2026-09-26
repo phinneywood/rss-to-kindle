@@ -27,6 +27,9 @@ function article(index: number, section: string, title: string): EpubArticle {
 }
 
 Deno.test("publication design uses a Kindle-proportioned cover and editorial section language", async () => {
+  const epubSource = await Deno.readTextFile(new URL("../functions/_shared/epub.ts", import.meta.url));
+  assert(!epubSource.includes("Morning Reader"), "reader-facing EPUB code must not retain the old product name");
+  assert(epubSource.includes("A PERSONAL DAILY PUBLICATION"), "cover should use Long Form publication language");
   const intro = "Tools acquire boundaries, teams acquire rituals, and systems become legible when something pushes against their edges. The stories here circle that pressure from different directions: software needs supervision, organizations reveal their shape through failure, and a quieter detour makes structure easier to see from the side. The recurring question is simple enough to state and harder to answer: once a system starts acting on its own, who decides where it stops?";
   const articles = [
     article(1, "AI & Software Engineering", "Agents move into ordinary software work"),
