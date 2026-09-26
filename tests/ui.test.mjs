@@ -42,14 +42,14 @@ test('explicit sign-out clears credentials only after server revocation succeeds
   assert.equal(result.retained,'test-token');assert.match(result.message,/Could not sign out/);assert.equal(result.saved,null);assert.ok(result.login);
 });
 
-test('dashboard keeps source actions together and the feed list collapsed by default', async () => {
-  const result = await run(`dashboard();const children=[...document.querySelector('.editorial-grid').children],panel=document.querySelector('.sources-panel'),body=document.querySelector('#sources-body'),toggle=document.querySelector('#toggle-sources'),prefs=document.querySelector('.preferences-panel');return {sideFirst:children[0].classList.contains('dashboard-side'),mainFirstHeading:panel.querySelector('h2').textContent,addInside:!!panel.querySelector('#add-single-feed'),importInside:!!panel.querySelector('#import-opml'),collapsed:body.hidden,expanded:toggle.getAttribute('aria-expanded'),readingList:document.querySelector('#one-time-send').textContent,paused:document.querySelector('.feed').textContent.includes('Paused'),history:!!document.querySelector('#delivery-history'),sectionControls:document.querySelectorAll('.remove-section,.rename-section,#add-section,.section-days-link').length,brief:document.querySelector('#edit-editorial-brief').textContent,label:prefs.querySelectorAll('.preference-meta')[1].textContent,prefs:prefs.querySelectorAll('.preference-row').length,account:document.querySelector('#account-menu').textContent,more:document.querySelector('#delivery-menu').textContent}`);
-  assert.ok(result.sideFirst);assert.equal(result.mainFirstHeading,'Sources');assert.ok(result.addInside&&result.importInside&&result.collapsed);assert.equal(result.expanded,'false');assert.match(result.readingList,/Add articles to the next issue/);assert.ok(result.paused && result.history);assert.equal(result.sectionControls,0);assert.match(result.brief,/Editorial brief/);assert.match(result.label,/@kindle\.com/);assert.doesNotMatch(result.label,/example@kindle\.com/);assert.equal(result.prefs,2);assert.equal(result.account,'Account');assert.equal(result.more,'More');
+test('dashboard is a calm two-surface home with source actions together and the feed list collapsed', async () => {
+  const result = await run(`dashboard();const home=document.querySelector('.home-dashboard'),issue=document.querySelector('.issue-card'),library=document.querySelector('.library-card'),body=document.querySelector('#sources-body'),toggle=document.querySelector('#toggle-sources');const homeResult={surfaces:home.children.length,issue:!!issue,heading:library.querySelector('h2').textContent,addInside:!!library.querySelector('#add-single-feed'),importInside:!!library.querySelector('#import-opml'),collapsed:body.hidden,expanded:toggle.getAttribute('aria-expanded'),readingList:document.querySelector('#one-time-send').textContent,paused:document.querySelector('.feed').textContent.includes('Paused'),history:!!document.querySelector('#delivery-history'),sectionControls:document.querySelectorAll('.remove-section,.rename-section,#add-section,.section-days-link').length,preferencesOnHome:!!document.querySelector('.preferences-panel'),account:document.querySelector('#account-menu').textContent,more:document.querySelector('#delivery-menu').textContent,schedule:document.querySelector('.issue-schedule').textContent};accountMenuModal();return {...homeResult,accountMenu:modal.textContent}`);
+  assert.equal(result.surfaces,2);assert.ok(result.issue);assert.equal(result.heading,'Sources');assert.ok(result.addInside&&result.importInside&&result.collapsed);assert.equal(result.expanded,'false');assert.match(result.readingList,/Add articles to this issue/);assert.ok(result.paused&&result.history);assert.equal(result.sectionControls,0);assert.equal(result.preferencesOnHome,false);assert.equal(result.account,'Account');assert.equal(result.more,'•••');assert.match(result.schedule,/Daily at 06:00/);assert.match(result.accountMenu,/Editorial brief/);assert.match(result.accountMenu,/Kindle & delivery/);assert.match(result.accountMenu,/System health/);
 });
 
 test('source disclosure expands and collapses without moving add controls',async()=>{
-  const result=await run(`dashboard();const panel=document.querySelector('.sources-panel');document.querySelector('#toggle-sources').click();const shown=!document.querySelector('#sources-body').hidden,expanded=document.querySelector('#toggle-sources').getAttribute('aria-expanded');document.querySelector('#toggle-sources').click();return {shown,expanded,collapsed:document.querySelector('#sources-body').hidden,addInside:!!panel.querySelector('#add-single-feed')}`);
-  assert.ok(result.shown&&result.collapsed&&result.addInside);assert.equal(result.expanded,'true');
+  const result=await run(`dashboard();document.querySelector('#toggle-sources').click();const shown=!document.querySelector('#sources-body').hidden,expanded=document.querySelector('#toggle-sources').getAttribute('aria-expanded'),addWhenOpen=!!document.querySelector('.library-card #add-single-feed');document.querySelector('#toggle-sources').click();return {shown,expanded,collapsed:document.querySelector('#sources-body').hidden,addWhenOpen,addWhenClosed:!!document.querySelector('.library-card #add-single-feed')}`);
+  assert.ok(result.shown&&result.collapsed&&result.addWhenOpen&&result.addWhenClosed);assert.equal(result.expanded,'true');
 });
 
 test('dialogs manage focus, trap Tab, restore focus and close on Escape', async () => {
@@ -83,7 +83,7 @@ test('Send now button restores on success and failure', async () => {
 });
 
 test('background polling refreshes the dashboard after the dialog closes', async () => {
-  const result = await run(`dashboard();openModal('<h2>Queued</h2>');closeModal();api=async()=>({...state,jobs:[{id:'j1',status:'partial',reason:'one_time',packet_name:'Weekend',created_at:'2026-09-19',result:{articles:2}}]});await watchJob('j1');return document.querySelector('.latest-run').textContent`);
+  const result = await run(`dashboard();openModal('<h2>Queued</h2>');closeModal();api=async()=>({...state,jobs:[{id:'j1',status:'partial',reason:'one_time',packet_name:'Weekend',created_at:'2026-09-19',result:{articles:2}}]});await watchJob('j1');return document.querySelector('.issue-status').textContent`);
   assert.match(result, /Submitted with omissions/);
 });
 
@@ -107,8 +107,8 @@ test('editorial brief saves as an explicit setting and states the RSS invariant'
 });
 
 test('dashboard has one daily delivery schedule rather than section frequency',async()=>{
-  const result=await run(`state.settings.paused=true;dashboard();return {next:document.querySelector('.edition-next').textContent,text:document.body.textContent,sectionDays:document.querySelectorAll('.section-days-link').length}`);
-  assert.equal(result.next,'Delivery paused');assert.match(result.text,/One daily issue/);assert.equal(result.sectionDays,0);
+  const result=await run(`state.settings.paused=true;dashboard();return {next:document.querySelector('.issue-time').textContent,schedule:document.querySelector('.issue-schedule').textContent,sectionDays:document.querySelectorAll('.section-days-link').length}`);
+  assert.equal(result.next,'Delivery paused');assert.match(result.schedule,/Daily at 06:00/);assert.equal(result.sectionDays,0);
 });
 
 test('account settings contain the one daily delivery time',async()=>{
@@ -116,21 +116,23 @@ test('account settings contain the one daily delivery time',async()=>{
   assert.equal(result.time,true);assert.equal(result.zone,true);assert.match(result.text,/Every enabled source participates/);
 });
 
-test('routine primary actions use the publication green while danger and errors retain red',async()=>{
+test('primary controls are quiet ink while the editorial accent is reserved for hierarchy and attention',async()=>{
   const css=html.match(/<style>([\s\S]*?)<\/style>/)?.[1]||'';
-  assert.match(css,/\.btn\.primary\{background:var\(--green\);border-color:var\(--green\)/);
-  assert.match(css,/\.btn\.danger\{color:var\(--red\)/);
+  assert.match(css,/--accent:#cf1f2c/);
+  assert.match(css,/\.btn\.primary\{background:var\(--ink\);border-color:var\(--ink\);color:#fff\}/);
+  assert.match(css,/\.micro-label\{[\s\S]*?color:var\(--accent\)/);
+  assert.match(css,/\.attention-row\{[\s\S]*?background:var\(--accent-soft\)/);
   assert.match(css,/\.notice\.error\{background:var\(--red-soft\);color:var\(--red\)/);
 });
 
-test('source alerts identify the source without exposing legacy section state',async()=>{
-  const result=await run(`state.sections[0].feeds[0].enabled=true;state.sections[0].feeds[0].last_error='HTTP 503';dashboard();const banner=document.querySelector('.problem-banner').textContent;document.querySelector('.problem-banner .review-source').click();const dialog=modal.textContent;closeModal();return {banner,dialog,focus:document.activeElement.id}`);
-  assert.match(result.banner,/Example source/);assert.match(result.banner,/Recurring source/);assert.doesNotMatch(result.banner,/Reading section/);assert.match(result.dialog,/HTTP 503/);assert.doesNotMatch(result.dialog,/Reading section/);assert.equal(result.focus,'feed-f1');
+test('source attention is contextual inside the library and identifies the source without legacy section state',async()=>{
+  const result=await run(`state.sections[0].feeds[0].enabled=true;state.sections[0].feeds[0].last_error='HTTP 503';dashboard();const attention=document.querySelector('.attention-row').textContent,insideLibrary=!!document.querySelector('.library-card .attention-row');document.querySelector('.attention-row').click();const dialog=modal.textContent;closeModal();return {attention,insideLibrary,dialog,focus:document.activeElement.id}`);
+  assert.ok(result.insideLibrary);assert.match(result.attention,/1 source needs attention/);assert.match(result.attention,/Example source/);assert.doesNotMatch(result.attention,/Reading section/);assert.match(result.dialog,/HTTP 503/);assert.doesNotMatch(result.dialog,/Reading section/);assert.equal(result.focus,'feed-f1');
 });
 
-test('multiple source alerts are independent of legacy section enabled state; paused sources stay historical',async()=>{
-  const result=await run(`state.sections[0].feeds[0].last_error='Old failure';state.sections[0].feeds[0].enabled=false;state.sections[1].enabled=false;state.sections[1].feeds=[{id:'f2',name:'Same name',url:'https://example.com/2',enabled:true,last_error:'Timeout'},{id:'f3',name:'Another source',url:'https://example.com/3',enabled:true,last_error:'HTTP 500'}];dashboard();const alerts=[...document.querySelectorAll('.problem-banner li')].map(e=>e.textContent);return {alerts,banner:!!document.querySelector('.problem-banner'),historical:document.querySelector('.feed').textContent}`);
-  assert.equal(result.alerts.length,2);assert.match(result.alerts[0],/Same name/);assert.match(result.alerts[1],/Another source/);assert.ok(result.banner);assert.match(result.historical,/source paused/i);
+test('multiple source failures collapse into one attention summary while all sources remain manageable',async()=>{
+  const result=await run(`state.sections[0].feeds[0].last_error='Old failure';state.sections[0].feeds[0].enabled=false;state.sections[1].enabled=false;state.sections[1].feeds=[{id:'f2',name:'Same name',url:'https://example.com/2',enabled:true,last_error:'Timeout'},{id:'f3',name:'Another source',url:'https://example.com/3',enabled:true,last_error:'HTTP 500'}];dashboard();const attention=document.querySelector('.attention-row').textContent,allSources=document.querySelector('.sources-list').textContent;return {attention,allSources,historical:document.querySelector('.feed').textContent}`);
+  assert.match(result.attention,/2 sources need attention/);assert.match(result.attention,/Same name/);assert.match(result.attention,/\+1 more/);assert.match(result.allSources,/Another source/);assert.match(result.historical,/source paused/i);
 });
 
 test('source review can edit the feed name and URL',async()=>{
@@ -138,9 +140,9 @@ test('source review can edit the feed name and URL',async()=>{
   assert.equal(result.request.path,'/feeds/f1');assert.equal(result.request.method,'PATCH');assert.equal(result.request.body.name,'Fixed source');assert.equal(result.request.body.url,'https://example.com/fixed.xml');assert.ok(result.expanded);assert.match(result.title,/Fixed source/);
 });
 
-test('source recheck calls only the source endpoint and clears recovered alerts',async()=>{
-  const result=await run(`state.sections[0].feeds[0].enabled=true;state.sections[0].feeds[0].last_error='HTTP 503';dashboard();reviewSource('f1');let calls=[];api=async(path,options)=>{calls.push({path,method:options.method});state.sections[0].feeds[0].last_error=null;return {result:{feed_id:'f1',items:[]},dashboard:state}};await document.querySelector('#manage-recheck').onclick({currentTarget:document.querySelector('#manage-recheck')});return {calls,banner:!!document.querySelector('.problem-banner'),message:modal.textContent}`);
-  assert.equal(result.calls.length,1);assert.equal(result.calls[0].path,'/feeds/f1/check');assert.equal(result.calls[0].method,'POST');assert.equal(result.banner,false);assert.match(result.message,/warning has been cleared/);
+test('source recheck calls only the source endpoint and clears recovered attention',async()=>{
+  const result=await run(`state.sections[0].feeds[0].enabled=true;state.sections[0].feeds[0].last_error='HTTP 503';dashboard();reviewSource('f1');let calls=[];api=async(path,options)=>{calls.push({path,method:options.method});state.sections[0].feeds[0].last_error=null;return {result:{feed_id:'f1',items:[]},dashboard:state}};await document.querySelector('#manage-recheck').onclick({currentTarget:document.querySelector('#manage-recheck')});return {calls,attention:!!document.querySelector('.attention-row'),message:modal.textContent}`);
+  assert.equal(result.calls.length,1);assert.equal(result.calls[0].path,'/feeds/f1/check');assert.equal(result.calls[0].method,'POST');assert.equal(result.attention,false);assert.match(result.message,/warning has been cleared/);
 });
 
 test('failed rechecks retain actionable errors and late responses do not reopen dialogs',async()=>{
@@ -148,9 +150,9 @@ test('failed rechecks retain actionable errors and late responses do not reopen 
   assert.match(result.failure,/Offline/);assert.ok(result.enabled);assert.equal(result.text,'Other dialog');
 });
 
-test('article preview errors identify their sources and update stale dashboard warnings',async()=>{
-  const result=await run(`state.sections[0].feeds[0].enabled=true;dashboard();api=async()=>({items:[],feeds:[{feed_id:'f1',error:'Timed out'}]});await previewModal();const text=modal.textContent,banner=document.querySelector('.problem-banner').textContent;document.querySelector('.notice .review-source').click();const context=modal.textContent;closeModal();api=async()=>({items:[],feeds:[{feed_id:'f1',items:[]}]});await previewModal();return {text,banner,context,cleared:!document.querySelector('.problem-banner')}`);
-  assert.match(result.text,/Example source/);assert.doesNotMatch(result.text,/Reading section/);assert.match(result.banner,/Example source/);assert.match(result.context,/Timed out/);assert.ok(result.cleared);
+test('article preview errors identify their sources and update stale dashboard attention',async()=>{
+  const result=await run(`state.sections[0].feeds[0].enabled=true;dashboard();api=async()=>({items:[],feeds:[{feed_id:'f1',error:'Timed out'}]});await previewModal();const text=modal.textContent,attention=document.querySelector('.attention-row').textContent;document.querySelector('.notice .review-source').click();const context=modal.textContent;closeModal();api=async()=>({items:[],feeds:[{feed_id:'f1',items:[]}]});await previewModal();return {text,attention,context,cleared:!document.querySelector('.attention-row')}`);
+  assert.match(result.text,/Example source/);assert.doesNotMatch(result.text,/Reading section/);assert.match(result.attention,/Example source/);assert.match(result.context,/Timed out/);assert.ok(result.cleared);
 });
 
 test('system health links source errors directly to the source',async()=>{
