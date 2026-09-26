@@ -1,4 +1,4 @@
-import {admin,auth,cors,dashboard,discoverFeeds,emailConfigured,exchangeSupabaseAuth,json,normEmail,normalizeUrl,preview,probe,requestCode,routePath,systemHealth,validEmail,validTimezone,validUrl,verifyCode} from "./core.ts";
+import {admin,auth,cors,dashboard,discoverFeeds,emailConfigured,json,normEmail,normalizeUrl,preview,probe,requestCode,routePath,systemHealth,validEmail,validTimezone,validUrl,verifyCode} from "./core.ts";
 import {extractArticle,extractionBudget} from "../_shared/article.ts";
 import {editionSchedulePatch} from "../_shared/schedule.ts";
 
@@ -49,12 +49,6 @@ Deno.serve(async(req)=>{
       const b=await req.json().catch(()=>({})),email=normEmail(b.email),code=String(b.code||"").replace(/\D/g,"");
       if(!validEmail(email)||!/^\d{6}$/.test(code))return json({error:"Invalid code."},400);
       const v=await verifyCode(email,code);logEvent("auth.verified",{request_id:requestId,user_id:v.user.id});return json({ok:true,token:v.raw,expires_at:v.expiresAt,...await dashboard(v.user.id,v.user.email)});
-    }
-    if(route==="/auth/exchange-supabase"&&req.method==="POST"){
-      const h=req.headers.get("authorization")||"",accessToken=h.startsWith("Bearer ")?h.slice(7).trim():"";
-      const v=await exchangeSupabaseAuth(accessToken);
-      logEvent("auth.social_verified",{request_id:requestId,user_id:v.user.id,provider:v.provider});
-      return json({ok:true,token:v.raw,expires_at:v.expiresAt,provider:v.provider,...await dashboard(v.user.id,v.user.email)});
     }
     const a=await auth(req);if(!a)return json({error:"Unauthorized"},401);const {user,sessionId}=a;
     if(route==="/auth/logout"&&req.method==="POST"){const{error}=await admin.from("sessions").update({revoked_at:new Date().toISOString()}).eq("id",sessionId);if(error)throw error;return json({ok:true})}
